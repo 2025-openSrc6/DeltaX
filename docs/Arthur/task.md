@@ -1,6 +1,7 @@
 # NFT Shop 구현 작업 목록
 
 - [x] 계획 및 설계
+<<<<<<< HEAD
   - [x] `docs/nft_shop.md` 요구사항 검토
   - [x] 기존 DB 스키마 및 API 라우트 확인
   - [x] 구현 계획 작성 (DB 테이블 방식으로 수정)
@@ -27,3 +28,32 @@
   - [x] 시드 데이터 재적용
   - [x] API 엔드포인트 테스트
   - [x] 로컬 SQLite DB 레코드 확인
+=======
+    - [x] `docs/nft_shop.md` 요구사항 검토
+    - [x] 기존 DB 스키마 및 API 라우트 확인
+    - [x] 구현 계획 작성 (DB 테이블 방식으로 수정)
+- [x] 데이터베이스 구현
+    - [x] `shop_items` 테이블 스키마 생성
+    - [x] 마이그레이션 생성 및 로컬 적용
+    - [x] 초기 상점 아이템 데이터 시드 (Seed)
+- [x] API 구현
+    - [x] `GET /api/nfts/shop` 구현 (상점 아이템 목록 - Tier 정렬 및 그룹화 적용)
+    - [x] `app/shop/page.tsx` 수정 (groupedItems 활용 및 Tier 정렬 반영)
+    - [x] `POST /api/nfts/purchase` 구현 (아이템 구매)
+        - [x] 요구사항 1: 닉네임 변경 + DB update
+        - [x] 요구사항 2: 닉네임 컬러 (metadata.color 활용) + DB update
+        - [x] 요구사항 3: NFT 민팅 (Pinata CID) + DB update
+        - [x] 요구사항 4: 부스트 버프 (metadata.durationMs, 1일) + DB update
+        - [x] 요구사항 5: Green Mushroom 수량 증가 + DB update
+    - [x] `GET /api/nfts/my` 구현 (내 보유 아이템 조회)
+- [x] NFT 민팅 구현
+    - [x] Sui Move Contract (`nft.move`) 작성
+    - [x] Pinata IPFS 연동 (`lib/ipfs/pinata.ts`)
+    - [x] Sui NFT 민팅 헬퍼 (`lib/sui/nft.ts`)
+    - [x] 구매 API에 민팅 로직 통합
+- [x] 검증
+    - [x] 시드 데이터 재적용
+    - [x] API 엔드포인트 테스트
+    - [x] 로컬 SQLite DB 레코드 확인
+
+>>>>>>> 7e955ef (feat: Implement NFT Shop with UI, API, and Sui integration)
