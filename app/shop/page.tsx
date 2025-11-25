@@ -1,11 +1,16 @@
 'use client';
 
+<<<<<<< HEAD
 import { useState, useEffect, useCallback } from 'react';
+=======
+import { useState, useEffect } from 'react';
+>>>>>>> 7e955ef (feat: Implement NFT Shop with UI, API, and Sui integration)
 import Image from 'next/image';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+<<<<<<< HEAD
 import { Wallet, LogOut, ArrowLeft, ShoppingBag, Filter, Loader2, Rocket, Zap } from 'lucide-react';
 import { ShopItem } from '@/db/schema/shopItems';
 import { ShopItemCard } from '@/components/shop-item-card';
@@ -20,6 +25,12 @@ import {
   useSignTransaction,
 } from '@mysten/dapp-kit';
 import { fromBase64 } from '@mysten/sui/utils';
+=======
+import { Wallet, LogOut, ArrowLeft, ShoppingBag, Filter } from 'lucide-react';
+import { ShopItem } from '@/db/schema/shopItems';
+import { ShopItemCard } from '@/components/shop-item-card';
+import { toast } from 'sonner';
+>>>>>>> 7e955ef (feat: Implement NFT Shop with UI, API, and Sui integration)
 
 // Static Shop Items (DB 연결 문제 회피용)
 const SHOP_ITEMS: ShopItem[] = [
@@ -32,8 +43,12 @@ const SHOP_ITEMS: ShopItem[] = [
     price: 50000,
     currency: 'DEL',
     requiresNickname: false,
+<<<<<<< HEAD
     imageUrl:
       'https://images.unsplash.com/photo-1511367461989-f85a21fda167?w=500&auto=format&fit=crop&q=60',
+=======
+    imageUrl: 'https://images.unsplash.com/photo-1511367461989-f85a21fda167?w=500&auto=format&fit=crop&q=60',
+>>>>>>> 7e955ef (feat: Implement NFT Shop with UI, API, and Sui integration)
     available: true,
     tier: null,
     metadata: null,
@@ -48,8 +63,12 @@ const SHOP_ITEMS: ShopItem[] = [
     currency: 'DEL',
     requiresNickname: true,
     metadata: JSON.stringify({ color: '#FF5733' }),
+<<<<<<< HEAD
     imageUrl:
       'https://images.unsplash.com/photo-1505909182942-e2f09aee3e89?w=500&auto=format&fit=crop&q=60',
+=======
+    imageUrl: 'https://images.unsplash.com/photo-1505909182942-e2f09aee3e89?w=500&auto=format&fit=crop&q=60',
+>>>>>>> 7e955ef (feat: Implement NFT Shop with UI, API, and Sui integration)
     available: true,
     tier: null,
     createdAt: Date.now(),
@@ -63,8 +82,12 @@ const SHOP_ITEMS: ShopItem[] = [
     currency: 'DEL',
     requiresNickname: true,
     metadata: JSON.stringify({ color: 'RAINBOW' }),
+<<<<<<< HEAD
     imageUrl:
       'https://images.unsplash.com/photo-1550684848-fac1c5b4e853?w=500&auto=format&fit=crop&q=60',
+=======
+    imageUrl: 'https://images.unsplash.com/photo-1550684848-fac1c5b4e853?w=500&auto=format&fit=crop&q=60',
+>>>>>>> 7e955ef (feat: Implement NFT Shop with UI, API, and Sui integration)
     available: true,
     tier: null,
     createdAt: Date.now(),
@@ -79,7 +102,11 @@ const SHOP_ITEMS: ShopItem[] = [
     tier: 'Obsidian',
     price: 300000,
     currency: 'DEL',
+<<<<<<< HEAD
     imageUrl: '/images/tiger - obsidian.png',
+=======
+    imageUrl: '/images/tiger%20-%20obsidian.png',
+>>>>>>> 7e955ef (feat: Implement NFT Shop with UI, API, and Sui integration)
     available: true,
     requiresNickname: false,
     metadata: null,
@@ -93,7 +120,11 @@ const SHOP_ITEMS: ShopItem[] = [
     tier: 'Aurum',
     price: 500000,
     currency: 'DEL',
+<<<<<<< HEAD
     imageUrl: '/images/blue dragon - aurum.png',
+=======
+    imageUrl: '/images/blue%20dragon%20-%20aurum.png',
+>>>>>>> 7e955ef (feat: Implement NFT Shop with UI, API, and Sui integration)
     available: true,
     requiresNickname: false,
     metadata: null,
@@ -107,7 +138,11 @@ const SHOP_ITEMS: ShopItem[] = [
     tier: 'Nova',
     price: 1000000,
     currency: 'DEL',
+<<<<<<< HEAD
     imageUrl: '/images/sky - nova.png',
+=======
+    imageUrl: '/images/sky%20-%20nova.png',
+>>>>>>> 7e955ef (feat: Implement NFT Shop with UI, API, and Sui integration)
     available: true,
     requiresNickname: false,
     metadata: null,
@@ -121,7 +156,11 @@ const SHOP_ITEMS: ShopItem[] = [
     tier: 'Aetherion',
     price: 2000000,
     currency: 'DEL',
+<<<<<<< HEAD
     imageUrl: '/images/taegeuk - aetherion.png',
+=======
+    imageUrl: '/images/taegeuk%20-%20aetherion.png',
+>>>>>>> 7e955ef (feat: Implement NFT Shop with UI, API, and Sui integration)
     available: true,
     requiresNickname: false,
     metadata: null,
@@ -135,7 +174,11 @@ const SHOP_ITEMS: ShopItem[] = [
     tier: 'Singularity',
     price: 100000000,
     currency: 'DEL',
+<<<<<<< HEAD
     imageUrl: '/images/star - singularity.png',
+=======
+    imageUrl: '/images/star%20-%20singularity.png',
+>>>>>>> 7e955ef (feat: Implement NFT Shop with UI, API, and Sui integration)
     available: true,
     requiresNickname: false,
     metadata: null,
@@ -151,8 +194,12 @@ const SHOP_ITEMS: ShopItem[] = [
     price: 2,
     currency: 'CRYSTAL',
     metadata: JSON.stringify({ durationMs: 86400000 }),
+<<<<<<< HEAD
     imageUrl:
       'https://images.unsplash.com/photo-1639815188546-c43c240ff4df?w=500&auto=format&fit=crop&q=60',
+=======
+    imageUrl: 'https://images.unsplash.com/photo-1639815188546-c43c240ff4df?w=500&auto=format&fit=crop&q=60',
+>>>>>>> 7e955ef (feat: Implement NFT Shop with UI, API, and Sui integration)
     available: true,
     tier: null,
     requiresNickname: false,
@@ -177,14 +224,19 @@ const SHOP_ITEMS: ShopItem[] = [
 export default function ShopPage() {
   const [isConnected, setIsConnected] = useState(false);
   const [walletAddress, setWalletAddress] = useState('');
+<<<<<<< HEAD
   const [delBalance, setDelBalance] = useState(0);
   const [crystalBalance, setCrystalBalance] = useState(0);
   const [boostCount, setBoostCount] = useState(0);
   const [greenMushroomCount, setGreenMushroomCount] = useState(0);
+=======
+  const [points, setPoints] = useState(12000); // Mock points
+>>>>>>> 7e955ef (feat: Implement NFT Shop with UI, API, and Sui integration)
   const [items, setItems] = useState<ShopItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeCategory, setActiveCategory] = useState('ALL');
 
+<<<<<<< HEAD
   // 닉네임 모달 상태
   const [isNicknameModalOpen, setIsNicknameModalOpen] = useState(false);
   const [pendingNicknameItem, setPendingNicknameItem] = useState<ShopItem | null>(null);
@@ -274,6 +326,20 @@ export default function ShopPage() {
     }
   }, [currentWallet, fetchOnChainBalance]);
 
+=======
+  // Mock User ID for purchase
+  const userId = 'test-user-id';
+
+  // Tier 순서 정의
+  const tierOrder: Record<string, number> = {
+    'Obsidian': 1,
+    'Aurum': 2,
+    'Nova': 3,
+    'Aetherion': 4,
+    'Singularity': 5
+  };
+
+>>>>>>> 7e955ef (feat: Implement NFT Shop with UI, API, and Sui integration)
   // DB에서 아이템 불러오기
   useEffect(() => {
     const fetchItems = async () => {
@@ -286,11 +352,19 @@ export default function ShopPage() {
           setItems(data.data.items);
           console.log('✅ Loaded items from DB:', data.data.items.length);
         } else {
+<<<<<<< HEAD
+=======
+          // DB에 데이터가 없으면 폴백으로 하드코딩 데이터 사용
+>>>>>>> 7e955ef (feat: Implement NFT Shop with UI, API, and Sui integration)
           setItems(SHOP_ITEMS);
           console.log('⚠️ Using fallback static data');
         }
       } catch (error) {
         console.error('Failed to fetch items:', error);
+<<<<<<< HEAD
+=======
+        // 에러 시에도 폴백 데이터 사용
+>>>>>>> 7e955ef (feat: Implement NFT Shop with UI, API, and Sui integration)
         setItems(SHOP_ITEMS);
         toast.error('상점 데이터를 불러오는데 실패했습니다.');
       } finally {
@@ -301,6 +375,7 @@ export default function ShopPage() {
     fetchItems();
   }, []);
 
+<<<<<<< HEAD
   const isUserRejectionError = (error: unknown) => {
     if (!error) return false;
     if (error instanceof Error && /user rejected/i.test(error.message)) return true;
@@ -558,10 +633,25 @@ Exp: ${expMs}`;
 
     if (!isConnected) {
       console.log('❌ Not connected');
+=======
+  const handleConnect = () => {
+    setIsConnected(true);
+    setWalletAddress('0x742d...9f3a');
+  };
+
+  const handleDisconnect = () => {
+    setIsConnected(false);
+    setWalletAddress('');
+  };
+
+  const handlePurchase = async (item: ShopItem) => {
+    if (!isConnected) {
+>>>>>>> 7e955ef (feat: Implement NFT Shop with UI, API, and Sui integration)
       toast.error('지갑을 먼저 연결해주세요.');
       return;
     }
 
+<<<<<<< HEAD
     // DEL 토큰 구매 → 온체인 2단계 플로우 사용
     if (item.currency === 'DEL') {
       await handleDelPurchase(item, nickname);
@@ -573,10 +663,15 @@ Exp: ${expMs}`;
     if (currentBalance < item.price) {
       console.log('❌ Insufficient balance:', currentBalance, '<', item.price);
       toast.error('CRYSTAL 잔액이 부족합니다.');
+=======
+    if (points < item.price) {
+      toast.error('잔액이 부족합니다.');
+>>>>>>> 7e955ef (feat: Implement NFT Shop with UI, API, and Sui integration)
       return;
     }
 
     try {
+<<<<<<< HEAD
       const requestBody: { userId: string; itemId: string; newNickname?: string } = {
         userId,
         itemId: item.id,
@@ -616,6 +711,18 @@ Exp: ${expMs}`;
         if (item.category === 'ITEM' && item.id.includes('mushroom')) {
           setGreenMushroomCount((prev) => prev + 1);
         }
+=======
+      const res = await fetch('/api/nfts/purchase', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, itemId: item.id }),
+      });
+      const data = await res.json();
+
+      if (data.success) {
+        toast.success(`${item.name} 구매 완료!`);
+        setPoints(data.data.newBalance); // Update balance
+>>>>>>> 7e955ef (feat: Implement NFT Shop with UI, API, and Sui integration)
       } else {
         toast.error(data.message || '구매 실패');
       }
@@ -625,6 +732,7 @@ Exp: ${expMs}`;
     }
   };
 
+<<<<<<< HEAD
   // 닉네임 모달 확인 핸들러
   const handleNicknameConfirm = (nickname: string) => {
     setIsNicknameModalOpen(false);
@@ -642,6 +750,13 @@ Exp: ${expMs}`;
         activeCategory === 'NFT' ||
         (activeCategory === 'ALL' && a.category === 'NFT' && b.category === 'NFT')
       ) {
+=======
+  const filteredItems = items
+    .filter(item => activeCategory === 'ALL' || item.category === activeCategory)
+    .sort((a, b) => {
+      // 1. NFT인 경우 Tier 순서로 정렬
+      if (activeCategory === 'NFT' || (activeCategory === 'ALL' && a.category === 'NFT' && b.category === 'NFT')) {
+>>>>>>> 7e955ef (feat: Implement NFT Shop with UI, API, and Sui integration)
         const tierA = tierOrder[a.tier || ''] || 99;
         const tierB = tierOrder[b.tier || ''] || 99;
         if (tierA !== tierB) return tierA - tierB;
@@ -658,6 +773,7 @@ Exp: ${expMs}`;
     { id: 'BOOST', label: '부스트' },
   ];
 
+<<<<<<< HEAD
   // 닉네임이 있으면 닉네임, 없으면 지갑 주소 축약형 표시
   const displayName =
     currentNickname ||
@@ -789,24 +905,134 @@ Exp: ${expMs}`;
               누리세요.
             </p>
           </Card>
+=======
+  const displayAddress =
+    walletAddress.length > 10
+      ? `${walletAddress.substring(0, 6)}...${walletAddress.substring(walletAddress.length - 4)}`
+      : walletAddress;
+
+  return (
+    <div className="relative min-h-screen overflow-hidden bg-[#02040a] text-slate-50 px-2 py-3 sm:px-4 sm:py-6">
+      {/* Background Gradients */}
+      <div className="pointer-events-none absolute inset-0">
+        <div className="absolute -left-40 top-[-10rem] h-72 w-72 rounded-full bg-cyan-500/15 blur-3xl" />
+        <div className="absolute right-0 top-40 h-80 w-80 rounded-full bg-purple-500/15 blur-3xl" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_#020617,_#000)] opacity-70" />
+      </div>
+
+      <div className="relative mx-auto flex min-h-[calc(100vh-2rem)] max-w-6xl flex-col rounded-[32px] px-3 pb-6 pt-3 shadow-[0_0_80px_rgba(0,0,0,0.85)] lg:px-6">
+        {/* Header */}
+        <header className="mb-6 flex items-center justify-between rounded-[24px] border border-slate-800/80 bg-slate-950/80 px-4 py-3 shadow-lg shadow-black/40 backdrop-blur-md lg:px-5">
+          <div className="flex items-center gap-4">
+            <Link href="/" className="flex items-center justify-center w-10 h-10 rounded-full bg-slate-900/50 hover:bg-slate-800 transition-colors border border-slate-800">
+              <ArrowLeft className="h-5 w-5 text-slate-400" />
+            </Link>
+            <div className="flex items-center gap-3">
+              <div className="relative h-10 w-10 overflow-hidden rounded-xl bg-slate-900 border border-slate-800">
+                <Image
+                  src="/logo.png"
+                  alt="DeltaX Logo"
+                  fill
+                  className="object-contain p-1"
+                  priority
+                />
+              </div>
+              <div>
+                <h1 className="text-lg font-bold text-slate-100 leading-none">NFT SHOP</h1>
+                <p className="text-[11px] text-slate-500 font-medium mt-1">Digital Assets & Upgrades</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3">
+            {isConnected ? (
+              <>
+                <div className="hidden sm:flex items-center gap-1.5 rounded-full bg-slate-900/80 border border-slate-800 px-3 py-1.5">
+                  <span className="text-xs text-slate-400">Balance:</span>
+                  <span className="text-sm font-bold text-cyan-400">{points.toLocaleString()} DEL</span>
+                </div>
+                <Card className="flex items-center gap-2 rounded-full border border-emerald-500/40 bg-emerald-950/60 px-3 py-1.5 text-xs shadow-md shadow-emerald-500/25">
+                  <div className="flex items-center gap-1.5">
+                    <span className="h-2 w-2 rounded-full bg-emerald-400" />
+                    <span className="font-semibold text-emerald-100">Connected</span>
+                  </div>
+                  <span className="max-w-[100px] truncate font-mono text-[11px] text-emerald-200/80 hidden sm:block">
+                    {displayAddress}
+                  </span>
+                  <Button
+                    onClick={handleDisconnect}
+                    variant="ghost"
+                    size="icon"
+                    className="ml-1 h-6 w-6 rounded-full text-emerald-300 hover:bg-emerald-500/10 hover:text-red-300"
+                  >
+                    <LogOut className="h-3 w-3" />
+                  </Button>
+                </Card>
+              </>
+            ) : (
+              <Button
+                onClick={handleConnect}
+                className="flex items-center gap-2 rounded-full bg-gradient-to-r from-cyan-500 to-purple-500 px-4 py-2 text-xs font-semibold text-white shadow-lg shadow-cyan-500/40 transition-all hover:from-cyan-400 hover:to-purple-400 hover:shadow-cyan-400/50"
+              >
+                <Wallet className="h-4 w-4" />
+                <span>지갑 연결</span>
+              </Button>
+            )}
+          </div>
+        </header>
+
+        {/* Main Content */}
+        <div className="flex flex-col gap-6">
+          {/* Banner */}
+          <div className="relative overflow-hidden rounded-3xl border border-slate-800/60 bg-slate-950/60 p-6 sm:p-10">
+            <div className="absolute inset-0 bg-gradient-to-r from-cyan-500/10 via-purple-500/10 to-transparent" />
+            <div className="relative z-10 max-w-2xl">
+              <div className="inline-flex items-center gap-2 rounded-full border border-cyan-500/30 bg-cyan-500/10 px-3 py-1 text-xs font-medium text-cyan-300 mb-4">
+                <ShoppingBag className="h-3 w-3" />
+                New Arrivals
+              </div>
+              <h2 className="text-3xl sm:text-4xl font-black text-white mb-4 leading-tight">
+                Upgrade Your <br />
+                <span className="bg-gradient-to-r from-cyan-400 to-purple-400 bg-clip-text text-transparent">
+                  Digital Experience
+                </span>
+              </h2>
+              <p className="text-slate-400 max-w-md text-sm sm:text-base leading-relaxed">
+                닉네임 변경권부터 한정판 NFT까지. DEL 토큰으로 다양한 아이템을 구매하고 혜택을 누리세요.
+              </p>
+            </div>
+          </div>
+>>>>>>> 7e955ef (feat: Implement NFT Shop with UI, API, and Sui integration)
 
           {/* Categories & Items */}
           <div className="flex flex-col gap-6">
             <Tabs value={activeCategory} onValueChange={setActiveCategory} className="w-full">
               <div className="flex items-center justify-between mb-6">
+<<<<<<< HEAD
                 <TabsList className="h-10 bg-white/80 border border-cyan-500/30 p-1 rounded-xl backdrop-blur-sm">
+=======
+                <TabsList className="h-10 bg-slate-950/80 border border-slate-800/80 p-1 rounded-xl">
+>>>>>>> 7e955ef (feat: Implement NFT Shop with UI, API, and Sui integration)
                   {categories.map((cat) => (
                     <TabsTrigger
                       key={cat.id}
                       value={cat.id}
+<<<<<<< HEAD
                       className="rounded-lg px-4 text-xs font-medium data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-700 text-slate-600"
+=======
+                      className="rounded-lg px-4 text-xs font-medium data-[state=active]:bg-slate-800 data-[state=active]:text-slate-100 text-slate-500"
+>>>>>>> 7e955ef (feat: Implement NFT Shop with UI, API, and Sui integration)
                     >
                       {cat.label}
                     </TabsTrigger>
                   ))}
                 </TabsList>
 
+<<<<<<< HEAD
                 <div className="flex items-center gap-2 text-xs text-slate-600">
+=======
+                <div className="flex items-center gap-2 text-xs text-slate-500">
+>>>>>>> 7e955ef (feat: Implement NFT Shop with UI, API, and Sui integration)
                   <Filter className="h-3 w-3" />
                   <span>{filteredItems.length} Items</span>
                 </div>
@@ -816,10 +1042,14 @@ Exp: ${expMs}`;
                 {loading ? (
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                     {[...Array(4)].map((_, i) => (
+<<<<<<< HEAD
                       <div
                         key={i}
                         className="h-[280px] rounded-2xl bg-slate-200/50 animate-pulse border border-slate-300"
                       />
+=======
+                      <div key={i} className="h-[280px] rounded-2xl bg-slate-900/50 animate-pulse" />
+>>>>>>> 7e955ef (feat: Implement NFT Shop with UI, API, and Sui integration)
                     ))}
                   </div>
                 ) : filteredItems.length > 0 ? (
@@ -844,6 +1074,7 @@ Exp: ${expMs}`;
           </div>
         </div>
       </div>
+<<<<<<< HEAD
 
       {/* 닉네임 입력 모달 */}
       <NicknameModal
@@ -855,6 +1086,8 @@ Exp: ${expMs}`;
         onConfirm={handleNicknameConfirm}
         currentNickname={currentNickname}
       />
+=======
+>>>>>>> 7e955ef (feat: Implement NFT Shop with UI, API, and Sui integration)
     </div>
   );
 }
