@@ -46,7 +46,7 @@ export function BTCPriceChart({
         );
     }
 
-    if (data.length === 0) {
+    if (!data || data.length === 0) {
         return (
             <div className="flex items-center justify-center" style={{ height }}>
                 <div className="text-gray-400">데이터 없음</div>

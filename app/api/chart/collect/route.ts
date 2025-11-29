@@ -18,7 +18,7 @@ import { eq, and, desc } from 'drizzle-orm';
 
 const TARGET_ASSETS: SupportedAsset[] = ['PAXG', 'BTC'];
 const VOLATILITY_LOOKBACK = 20;
-const AVERAGE_VOLATILITY_PERIOD = 100;
+const AVERAGE_VOLATILITY_PERIOD = 500; // 더 많은 데이터 포인트로 차트를 촘촘하게
 
 export async function POST(request: NextRequest) {
   try {
