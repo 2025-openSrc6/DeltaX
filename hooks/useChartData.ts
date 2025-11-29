@@ -58,7 +58,7 @@ export function useChartData(
             }
 
             // 데이터 변환: timestamp를 Date 객체로
-            const chartData: ChartDataPoint[] = result.data.chartData.map((item: any) => ({
+            const chartData: ChartDataPoint[] = (result.data.data || []).map((item: any) => ({
                 timestamp: new Date(item.timestamp),
                 open: item.open,
                 high: item.high,

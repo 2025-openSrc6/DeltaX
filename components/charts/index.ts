@@ -2,4 +2,6 @@
 export { PAXGPriceChart } from './PAXGPriceChart';
 export { BTCPriceChart } from './BTCPriceChart';
 export { VolatilityChart } from './VolatilityChart';
+export { VolatilityComparisonChart } from './VolatilityComparisonChart';
+export { VolatilityCandlestickChart } from './VolatilityCandlestickChart';
 export { TrendIndicator } from './TrendIndicator';

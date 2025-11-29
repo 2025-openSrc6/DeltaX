@@ -1,0 +1,161 @@
+Table rounds {
+  id integer [primary key, increment]
+  roundKey text [not null, unique]
+  timeframe text [not null]
+  status text [not null, default: "scheduled"]
+  lockingStartsAt integer [not null]
+  lockingEndsAt integer [not null]
+  settledAt integer
+  winningAsset text
+  lockPriceGold real
+  lockPriceBtc real
+  settlePriceGold real
+  settlePriceBtc real
+  createdAt integer [not null, default: "now()"]
+  updatedAt integer [not null, default: "now()"]
+
+  indexes {
+    roundKey [unique]
+  }
+}
+
+Table bets {
+  id integer [primary key, increment]
+  roundId integer [not null]
+  walletAddress text [not null]
+  selection text [not null]
+  amount real [not null]
+  txDigest text
+  createdAt integer [not null, default: "now()"]
+
+  indexes {
+    roundId
+    walletAddress
+  }
+}
+
+Table users {
+  id integer [primary key, increment]
+  walletAddress text [not null, unique]
+  nickname text
+  hasBoostToken boolean [default: false]
+  greenMushroomCount integer [default: 0]
+  createdAt integer [not null, default: "now()"]
+  updatedAt integer [not null, default: "now()"]
+}
+
+Table nft {
+  id integer [primary key, increment]
+  userId integer [not null]
+  tier text [not null]
+  nftId text [not null, unique]
+  acquiredAt integer [not null, default: "now()"]
+
+  indexes {
+    userId
+    tier
+  }
+}
+
+Table userAccessory {
+  id integer [primary key, increment]
+  userId integer [not null]
+  nicknameColor text [not null]
+  acquiredAt integer [not null, default: "now()"]
+
+  indexes {
+    userId
+  }
+}
+
+Table shopItem {
+  id integer [primary key, increment]
+  itemName text [not null]
+  itemType text [not null]
+  priceType text [not null]
+  price real [not null]
+  tier text
+  createdAt integer [not null, default: "now()"]
+  updatedAt integer [not null, default: "now()"]
+}
+
+Table purchaseHistory {
+  id integer [primary key, increment]
+  userId integer [not null]
+  shopItemId integer [not null]
+  priceType text [not null]
+  paidAmount real [not null]
+  purchasedAt integer [default: "now()"]
+
+  indexes {
+    userId
+    purchasedAt
+  }
+}
+
+Table chart_data {
+  id integer [primary key, increment]
+  asset text [not null]
+  timestamp integer [not null]
+  open real [not null]
+  high real [not null]
+  low real [not null]
+  close real [not null]
+  volume real [not null]
+  volatility real
+  rsi real
+  createdAt integer [not null, default: "now()"]
+  updatedAt integer [not null, default: "now()"]
+
+  indexes {
+    (asset, timestamp) [unique]
+  }
+}
+
+Table volatility_snapshots {
+  id integer [primary key, increment]
+  asset text [not null]
+  timestamp integer [not null]
+  stdDev real [not null]
+  percentChange real [not null]
+  atr real
+  bollingerUpper real
+  bollingerMiddle real
+  bollingerLower real
+  bollingerBandwidth real
+  macd real
+  macdSignal real
+  macdHistogram real
+  createdAt integer [not null, default: "now()"]
+
+  indexes {
+    (asset, timestamp) [unique]
+  }
+}
+
+Table betting_markers {
+  id integer [primary key, increment]
+  userId integer [not null]
+  asset text [not null]
+  timestamp integer [not null]
+  betAmount real [not null]
+  entryPrice real [not null]
+  exitPrice real
+  result text
+  profit real
+  createdAt integer [not null, default: "now()"]
+  updatedAt integer [not null, default: "now()"]
+
+  indexes {
+    userId
+    asset
+    timestamp
+  }
+}
+
+Ref: bets.roundId > rounds.id
+Ref: nft.userId > users.id
+Ref: userAccessory.userId > users.id
+Ref: purchaseHistory.userId > users.id
+Ref: purchaseHistory.shopItemId > shopItem.id
+Ref: betting_markers.userId > users.id
