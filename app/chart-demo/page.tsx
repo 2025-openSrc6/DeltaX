@@ -1,9 +1,8 @@
-```
-import { 
-  PAXGPriceChart, 
-  BTCPriceChart, 
-  VolatilityChart, 
-  VolatilityCandlestickChart 
+import {
+  PAXGPriceChart,
+  BTCPriceChart,
+  VolatilityChart,
+  VolatilityCandlestickChart
 } from '@/components/charts';
 
 /**
@@ -26,11 +25,11 @@ export default function ChartDemoPage() {
         {/* 핵심: 변동성 캔들스틱 차트 (전체 폭) */}
         <div className="mb-8 rounded-lg bg-gray-800 p-6">
           <div className="mb-2 text-sm text-yellow-400 font-semibold">⭐ 프로젝트 핵심 차트</div>
-          <VolatilityCandlestickChart 
-            asset="PAXG" 
-            height={400} 
-            period="1h" 
-            theme="dark" 
+          <VolatilityCandlestickChart
+            asset="PAXG"
+            height={400}
+            period="1h"
+            theme="dark"
             refreshInterval={10000}
           />
         </div>
@@ -52,10 +51,10 @@ export default function ChartDemoPage() {
           {/* BTC 변동성 캔들스틱 */}
           <div className="rounded-lg bg-gray-800 p-6">
             <h2 className="mb-4 text-xl font-semibold text-white">BTC 변동성</h2>
-            <VolatilityCandlestickChart 
-              asset="BTC" 
-              height={300} 
-              period="1h" 
+            <VolatilityCandlestickChart
+              asset="BTC"
+              height={300}
+              period="1h"
               theme="dark"
               refreshInterval={10000}
             />
@@ -81,4 +80,3 @@ export default function ChartDemoPage() {
     </div>
   );
 }
-```

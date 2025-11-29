@@ -1,7 +1,7 @@
 'use client';
 
 import { useChartData } from '@/hooks/useChartData';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import { LineChart, Line, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 
 /**
  * 변동성 캔들스틱 차트 Props
@@ -20,11 +20,12 @@ interface VolatilityCandlestickChartProps {
 }
 
 /**
- * 변동성 캔들스틱 차트
+ * 변동성 차트 (시계열)
  * 
- * PAXG/BTC의 "변동성의 변동성"을 캔들스틱(양봉/음봉)으로 시각화합니다.
- * - 양봉(초록): 변동성이 증가하는 구간 (변동성의 변동성 ↑)
- * - 음봉(빨강): 변동성이 감소하는 구간 (변동성의 변동성 ↓)
+ * PAXG/BTC의 "변동성의 변동성"을 라인 차트로 시각화합니다.
+ * - 포인트 색상으로 양봉/음봉 구분
+ * - 초록: 변동성이 증가하는 구간 (변동성의 변동성 ↑)
+ * - 빨강: 변동성이 감소하는 구간 (변동성의 변동성 ↓)
  * 
  * 이 프로젝트의 핵심 차트입니다!
  */
@@ -53,10 +54,18 @@ export function VolatilityCandlestickChart({
         );
     }
 
-    if (!data || data.length < 2) {
+    if (!data || data.length < 10) {
         return (
             <div className="flex items-center justify-center" style={{ height }}>
-                <div className="text-gray-400">데이터 부족 (최소 2개 필요)</div>
+                <div className="text-center">
+                    <div className="text-gray-400">변동성 차트 준비 중...</div>
+                    <div className="mt-2 text-sm text-gray-500">
+                        현재 데이터: {data?.length || 0}개 / 최소 10개 필요
+                    </div>
+                    <div className="mt-2 text-xs text-gray-600">
+                        5초마다 새로운 데이터를 수집하고 있습니다.
+                    </div>
+                </div>
             </div>
         );
     }
@@ -160,7 +169,13 @@ export function VolatilityCandlestickChart({
 
             {/* 차트 */}
             <ResponsiveContainer width="100%" height={height}>
-                <BarChart data={candlestickData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                <LineChart data={candlestickData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                    <defs>
+                        <linearGradient id="volatilityGradient" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor={colors.bullish} stopOpacity={0.3} />
+                            <stop offset="95%" stopColor={colors.bullish} stopOpacity={0.05} />
+                        </linearGradient>
+                    </defs>
                     <XAxis
                         dataKey="time"
                         stroke={colors.text}
@@ -196,7 +211,7 @@ export function VolatilityCandlestickChart({
                                 }}>
                                     <div className="text-xs text-gray-400 mb-1">{data.time}</div>
                                     <div className="font-semibold" style={{ color: data.color }}>
-                                        {data.isBullish ? '📈 양봉' : '📉 음봉'}
+                                        {data.isBullish ? '📈 변동성 증가' : '📉 변동성 감소'}
                                     </div>
                                     <div className="mt-1 text-sm">
                                         변동성: <strong>{data.volatility.toFixed(3)}</strong>
@@ -215,12 +230,35 @@ export function VolatilityCandlestickChart({
                             );
                         }}
                     />
-                    <Bar dataKey="volatility" radius={[4, 4, 0, 0]}>
-                        {candlestickData.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={entry.color} />
-                        ))}
-                    </Bar>
-                </BarChart>
+                    {/* Area 채우기 */}
+                    <Area
+                        type="monotone"
+                        dataKey="volatility"
+                        stroke="none"
+                        fillOpacity={1}
+                        fill="url(#volatilityGradient)"
+                    />
+                    {/* 메인 라인 */}
+                    <Line
+                        type="monotone"
+                        dataKey="volatility"
+                        stroke={colors.bullish}
+                        strokeWidth={2}
+                        dot={(props: any) => {
+                            const { cx, cy, payload } = props;
+                            return (
+                                <circle
+                                    cx={cx}
+                                    cy={cy}
+                                    r={3}
+                                    fill={payload.color}
+                                    stroke="none"
+                                />
+                            );
+                        }}
+                        activeDot={{ r: 6 }}
+                    />
+                </LineChart>
             </ResponsiveContainer>
 
             {/* 설명 */}
