@@ -129,3 +129,71 @@ function calculateEMA(prices: number[], period: number): number {
 
   return ema;
 }
+
+/**
+ * 두 자산의 변동성 대비 수익률을 비교합니다
+ * 
+ * @param prices1 - 첫 번째 자산의 가격 배열
+ * @param prices2 - 두 번째 자산의 가격 배열
+ * @returns 비교 결과 (volatility, return, adjustedReturn, winner, confidence 등)
+ */
+export function compareVolatilityAdjustedReturns(
+  prices1: number[],
+  prices2: number[],
+): {
+  asset1: {
+    volatility: number;
+    return: number;
+    adjustedReturn: number;
+  };
+  asset2: {
+    volatility: number;
+    return: number;
+    adjustedReturn: number;
+  };
+  winner: 'asset1' | 'asset2' | 'tie';
+  confidence: number;
+  difference: number;
+} {
+  // 변동성 계산 (표준편차)
+  const volatility1 = calculateStdDev(prices1);
+  const volatility2 = calculateStdDev(prices2);
+
+  // 수익률 계산 (%)
+  const return1 = prices1.length > 0 ? ((prices1[prices1.length - 1] - prices1[0]) / prices1[0]) * 100 : 0;
+  const return2 = prices2.length > 0 ? ((prices2[prices2.length - 1] - prices2[0]) / prices2[0]) * 100 : 0;
+
+  // 변동성 대비 수익률 (Sharpe Ratio와 유사)
+  const adjustedReturn1 = volatility1 !== 0 ? return1 / volatility1 : 0;
+  const adjustedReturn2 = volatility2 !== 0 ? return2 / volatility2 : 0;
+
+  // 차이
+  const difference = Math.abs(adjustedReturn1 - adjustedReturn2);
+
+  // 승자 판단
+  let winner: 'asset1' | 'asset2' | 'tie';
+  if (Math.abs(adjustedReturn1 - adjustedReturn2) < 0.01) {
+    winner = 'tie';
+  } else {
+    winner = adjustedReturn1 > adjustedReturn2 ? 'asset1' : 'asset2';
+  }
+
+  // 신뢰도 (차이가 클수록 높음, 0-1 범위)
+  const confidence = Math.min(difference / 10, 1);
+
+  return {
+    asset1: {
+      volatility: volatility1,
+      return: return1,
+      adjustedReturn: adjustedReturn1,
+    },
+    asset2: {
+      volatility: volatility2,
+      return: return2,
+      adjustedReturn: adjustedReturn2,
+    },
+    winner,
+    confidence,
+    difference,
+  };
+}
