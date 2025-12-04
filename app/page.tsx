@@ -5,7 +5,6 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { LogOut, ArrowRight, Sparkles, BarChart3, Wallet } from 'lucide-react';
 
 import { RankingList } from '@/components/RankingList';
@@ -128,7 +127,7 @@ export default function HomePage() {
     }
   }, [currentWallet]);
 
-  // 현재 라운드 로드
+  // 현재 라운드 로드 (6시간 라운드 고정)
   const loadCurrentRound = async () => {
     setLoadingRound(true);
     try {
@@ -378,30 +377,8 @@ Exp: ${expMs}`;
             </div>
           </div>
 
-          {/* 헤더 오른쪽: 타임프레임 탭 + 연결 상태 */}
+          {/* 헤더 오른쪽: 연결 상태 */}
           <div className="flex items-center gap-3">
-            {/* 타임프레임 탭 */}
-            <Tabs
-              value={timeframe}
-              onValueChange={(v) => setTimeframe(v as '3M' | '1M' | '6H' | '1D')}
-              className="hidden rounded-full border border-slate-700/70 bg-slate-900/70 px-1 py-0.5 text-xs text-slate-300 sm:block"
-            >
-              <TabsList className="h-7 bg-transparent">
-                <TabsTrigger value="3M" className="h-6 rounded-full px-3 text-[11px]">
-                  3 MIN
-                </TabsTrigger>
-                <TabsTrigger value="1M" className="h-6 rounded-full px-3 text-[11px]">
-                  1 MIN
-                </TabsTrigger>
-                <TabsTrigger value="6H" className="h-6 rounded-full px-3 text-[11px]">
-                  6 HOUR
-                </TabsTrigger>
-                <TabsTrigger value="1D" className="h-6 rounded-full px-3 text-[11px]">
-                  1 DAY
-                </TabsTrigger>
-              </TabsList>
-            </Tabs>
-
             {/* 연결 상태 뱃지 */}
             {isConnected ? (
               <Card className="flex items-center gap-2 rounded-full border border-emerald-500/40 bg-emerald-950/60 px-3 py-1.5 text-xs shadow-md shadow-emerald-500/25">
