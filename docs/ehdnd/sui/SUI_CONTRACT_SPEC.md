@@ -1,5 +1,7 @@
 # SUI_CONTRACT_SPEC.md
 
+> ⚠️ 2025-XX 업데이트: 기존 “백엔드 단독 서명” 예시는 deprecated입니다. 유저 서명 + 스폰서 가스(2서명 PTB) 모델을 기본으로 합니다. 상세 플로우는 `docs/ehdnd/sui/SPONSORED_TX_API_FLOW.md` 참고.
+
 deltaX Sui 블록체인 통합 기술 명세서
 
 ---
@@ -32,18 +34,17 @@ deltaX Sui 블록체인 통합 기술 명세서
 | #   | 항목          | 결정                              | 근거                     |
 | --- | ------------- | --------------------------------- | ------------------------ |
 | 1   | DEL 발행 정책 | **무제한 발행**                   | 프로토타입 단계, 단순성  |
-| 2   | 트랜잭션 방식 | **백엔드 Sponsored**              | UX 우선, 유저 SUI 불필요 |
+| 2   | 트랜잭션 방식 | **유저 서명 + 스폰서 가스(2서명)** | 유저 DEL 소비엔 서명 필수, 가스는 스폰서 |
 | 3   | Pool 구조     | **라운드당 1개 Pool**             | 격리, 정산 단순화        |
 | 4   | 가격 데이터   | **Settlement에 온체인 기록**      | 투명성, 검증 가능성      |
 | 5   | 수수료 수취   | **Coin 반환 (호출자가 transfer)** | Composability, PTB 호환  |
 | 6   | 유저 인증     | **지갑 서명 검증**                | 보안                     |
 | 7   | Object 설계   | **Pool=Shared, Bet=Owned**        | 병렬성 + 소유권          |
 
-### 1.3 Sponsored Transaction + Event 정책
+### 1.3 Sponsored Transaction + Event 정책 (업데이트)
 
-**문제**: Admin 서명 시 트랜잭션 sender가 Admin이 되어 실제 유저 식별 불가
-
-**해결**: 모든 유저 관련 함수에서 Event 발생, Event에 실제 유저 주소 포함
+- 모델: 유저 서명 + 스폰서 가스(2서명 PTB). 유저 서명으로 DEL 사용 권한을 증명, 스폰서 서명으로 가스 결제.
+- 이벤트: 여전히 모든 유저 관련 함수에서 Event 발생, Event에 유저 주소 포함(체인 추적/인덱싱용).
 
 ```
 place_bet() → emit BetPlaced { user: address, ... }
@@ -276,7 +277,7 @@ public fun create_pool(
     ctx: &mut TxContext
 ): ID
 
-/// 베팅 (백엔드에서 Sponsored로 호출)
+/// 베팅 (유저 서명 + 스폰서 가스)
 /// user 파라미터: 실제 베팅 유저 주소 (sender와 다를 수 있음)
 public fun place_bet(
     pool: &mut BettingPool,
@@ -404,239 +405,150 @@ public fun distribute_payout(
 
 ---
 
-## 4. Next.js 통합 명세
+## 4. Next.js 통합 명세 (업데이트: 유저 서명 + 스폰서 가스)
 
-### 4.1 새 파일 구조
+> 기존 “백엔드 단독 서명” 예시는 deprecated. 아래 2-단계(준비/실행) + 2서명 PTB 흐름을 사용합니다.
+
+### 4.1 lib/sui 파일 구조(제안)
 
 ```
 lib/sui/
-├── client.ts           # SuiClient 초기화
-├── config.ts           # Package ID, Admin Key (환경변수)
-├── admin.ts            # AdminCap 관리
-├── betting.ts          # place_bet, lock_pool 래퍼
-├── settlement.ts       # finalize, distribute 래퍼
-├── verify.ts           # 트랜잭션/이벤트 검증
-└── types.ts            # Sui 관련 타입
+├── client.ts         # SuiClient, sponsor keypair
+├── config.ts         # env 로드/검증
+├── ptb.ts            # 베팅/정산/민트용 PTB 빌더
+├── sponsor.ts        # sponsor 서명/실행 유틸
+├── api/prepare.ts    # txBytes 발급 API (서버)
+├── api/execute.ts    # userSig 수신 → sponsor 실행 API (서버)
+└── types.ts          # Sui 타입/Event 타입
 ```
 
-### 4.2 lib/sui/config.ts
+### 4.2 환경변수
 
-```typescript
-export const SUI_CONFIG = {
-  network: process.env.SUI_NETWORK || 'testnet',
-  packageId: process.env.SUI_PACKAGE_ID!,
-  adminCapId: process.env.SUI_ADMIN_CAP_ID!,
-  treasuryCapId: process.env.SUI_TREASURY_CAP_ID!,
-} as const;
+- `SUI_RPC_URL` (testnet)
+- `SUI_PACKAGE_ID`
+- `SUI_SPONSOR_PRIVATE_KEY`
+- 필요 시: `SUI_ADMINCAP_ID`, `SUI_TREASURY_CAP_ID` (관리자 객체)
 
-// 환경변수 검증 (서버 시작 시)
-export function validateSuiConfig(): void {
-  const required = ['SUI_PACKAGE_ID', 'SUI_ADMIN_CAP_ID', 'SUI_ADMIN_SECRET_KEY'];
-  const missing = required.filter((key) => !process.env[key]);
-  if (missing.length > 0) {
-    throw new Error(`Missing Sui config: ${missing.join(', ')}`);
-  }
-}
-```
-
-### 4.3 lib/sui/client.ts
+### 4.3 client/sponsor helper (개념 코드)
 
 ```typescript
 import { SuiClient, getFullnodeUrl } from '@mysten/sui.js/client';
 import { Ed25519Keypair } from '@mysten/sui.js/keypairs/ed25519';
-import { SUI_CONFIG } from './config';
 
-// Singleton SuiClient
-let _client: SuiClient | null = null;
+export const suiClient = new SuiClient({ url: process.env.SUI_RPC_URL! });
 
-export function getSuiClient(): SuiClient {
-  if (!_client) {
-    _client = new SuiClient({
-      url: getFullnodeUrl(SUI_CONFIG.network as 'testnet' | 'mainnet'),
-    });
-  }
-  return _client;
-}
-
-// Admin Keypair (Sponsored Transaction용)
-let _adminKeypair: Ed25519Keypair | null = null;
-
-export function getAdminKeypair(): Ed25519Keypair {
-  if (!_adminKeypair) {
-    const secretKey = process.env.SUI_ADMIN_SECRET_KEY!;
-    _adminKeypair = Ed25519Keypair.fromSecretKey(Buffer.from(secretKey, 'base64'));
-  }
-  return _adminKeypair;
-}
-```
-
-### 4.4 lib/sui/betting.ts
-
-```typescript
-import { TransactionBlock } from '@mysten/sui.js/transactions';
-import { getSuiClient, getAdminKeypair } from './client';
-import { SUI_CONFIG } from './config';
-
-export interface PlaceBetParams {
-  poolId: string;
-  userAddress: string;
-  prediction: 'GOLD' | 'BTC';
-  delCoinId: string; // 유저의 DEL Coin Object ID
-}
-
-export interface PlaceBetResult {
-  txHash: string;
-  betObjectId: string;
-}
-
-export async function placeBetOnSui(params: PlaceBetParams): Promise<PlaceBetResult> {
-  const client = getSuiClient();
-  const adminKeypair = getAdminKeypair();
-
-  const tx = new TransactionBlock();
-
-  tx.moveCall({
-    target: `${SUI_CONFIG.packageId}::betting::place_bet`,
-    arguments: [
-      tx.object(params.poolId),
-      tx.pure(params.userAddress, 'address'),
-      tx.pure(params.prediction === 'GOLD' ? 1 : 2, 'u8'),
-      tx.object(params.delCoinId),
-      tx.object('0x6'), // Clock
-    ],
-  });
-
-  const result = await client.signAndExecuteTransactionBlock({
-    transactionBlock: tx,
-    signer: adminKeypair,
-    options: {
-      showEffects: true,
-      showEvents: true,
-      showObjectChanges: true,
-    },
-  });
-
-  if (result.effects?.status?.status !== 'success') {
-    throw new Error(`Sui transaction failed: ${result.effects?.status?.error}`);
-  }
-
-  // Bet Object ID 추출
-  const betCreated = result.objectChanges?.find(
-    (c) => c.type === 'created' && c.objectType?.includes('::Bet'),
+export function getSponsorKeypair(): Ed25519Keypair {
+  return Ed25519Keypair.fromSecretKey(
+    Buffer.from(process.env.SUI_SPONSOR_PRIVATE_KEY!, 'base64'),
   );
-
-  return {
-    txHash: result.digest,
-    betObjectId: betCreated?.objectId || '',
-  };
-}
-
-export async function createPoolOnSui(params: {
-  roundId: number;
-  lockTime: number;
-  endTime: number;
-}): Promise<{ txHash: string; poolId: string }> {
-  // 구현...
-}
-
-export async function lockPoolOnSui(poolId: string): Promise<{ txHash: string }> {
-  // 구현...
 }
 ```
 
-### 4.5 lib/sui/types.ts
+### 4.4 트랜잭션 준비 API (서버 → 프런트)
 
 ```typescript
-export type SuiPrediction = 1 | 2; // 1=GOLD, 2=BTC
-export type SuiPoolStatus = 1 | 2 | 3; // OPEN, LOCKED, SETTLED
-export type SuiWinner = 1 | 2 | 3; // GOLD, BTC, DRAW
+// POST /api/sui/bet/tx
+// input: { poolId, prediction, amount }
+// output: { txBytes, nonce, expiresAt }
 
-export interface SuiBetEvent {
-  bet_id: string;
-  pool_id: string;
-  user: string;
-  prediction: SuiPrediction;
-  amount: string;
-  timestamp: string;
-}
+const tx = new TransactionBlock();
+tx.moveCall({
+  target: `${pkg}::betting::place_bet`,
+  arguments: [
+    tx.object(poolId),
+    tx.pure(userAddress, 'address'),
+    tx.pure(prediction === 'GOLD' ? 1 : 2, 'u8'),
+    tx.object(userDelCoinId), // 유저 소유 Coin<DEL>
+    tx.object('0x6'), // Clock
+  ],
+});
 
-export interface SuiSettlementEvent {
-  settlement_id: string;
-  pool_id: string;
-  round_id: string;
-  winner: SuiWinner;
-  payout_ratio: string;
-  settled_at: string;
-}
+// gasPayment는 나중에 sponsor가 보유한 코인으로 교체 or builder에서 지정
+const txBytes = await tx.build({ client: suiClient });
+return { txBytes: toBase64(txBytes), nonce, expiresAt };
 ```
+
+### 4.5 트랜잭션 실행 API (서버)
+
+```typescript
+// POST /api/sui/bet/execute
+// input: { txBytes, userSignature, nonce }
+// output: { txDigest }
+
+// 1) nonce/만료 검증 + txBytes 해시 검증
+const sponsorKeypair = getSponsorKeypair();
+
+// 2) sponsor 서명
+const sponsorSigned = await suiClient.signTransactionBlock({
+  signer: sponsorKeypair,
+  transactionBlock: fromBase64(txBytes),
+});
+
+// 3) 실행 (두 서명 전달)
+const executed = await suiClient.executeTransactionBlock({
+  transactionBlock: fromBase64(txBytes),
+  signature: [userSignature, sponsorSigned.signature],
+  options: { showEffects: true, showEvents: true },
+});
+```
+
+### 4.6 프런트 호출 흐름 요약
+
+1) `POST /api/sui/bet/tx` → `txBytes`/nonce 받기  
+2) 지갑에서 `signTransactionBlock({ transactionBlock: txBytes })` → `userSignature` 획득  
+3) `POST /api/sui/bet/execute`로 `txBytes + userSignature + nonce` 전송  
+4) 서버가 sponsor 서명+실행 → `txDigest` 반환 → UI 반영
 
 ---
 
 ## 5. API 변경사항
 
-### 5.1 POST /api/bets 수정
+### 5.1 베팅 API 재구성(2단계)
 
-#### Before (Week 1)
+- `POST /api/sui/bet/tx` (준비): PTB 빌드 → `txBytes`, `nonce`, `expiresAt` 반환. D1 기록 없음.
+- `POST /api/sui/bet/execute` (실행): `txBytes`, `userSignature`, `nonce` 입력 → sponsor 서명+실행 → `txDigest`, `betObjectId` 등 반환 후 D1 저장.
+
+#### 준비 API 예시
 
 ```typescript
-async createBet(rawInput, userId) {
-  // 1. 검증
-  // 2. D1 INSERT + Pool Update
-  // 3. 응답
+async prepareBet(rawInput, userId) {
+  const validated = createBetSchema.parse(rawInput);
+  const round = await this.roundRepository.findById(validated.roundId);
+  if (!round.suiPoolAddress) throw new BusinessRuleError('POOL_NOT_READY', 'Sui pool not created');
+
+  const txBytes = buildBetTxBytes({
+    poolId: round.suiPoolAddress,
+    userAddress: validated.userAddress,
+    prediction: validated.prediction,
+    delCoinId: validated.delCoinId,
+  });
+
+  return { txBytes, nonce, expiresAt };
 }
 ```
 
-#### After (Week 2+)
+#### 실행 API 예시
 
 ```typescript
-async createBet(rawInput, userId) {
-  // 1. 검증 (기존 유지)
-  const validated = createBetSchema.parse(rawInput);
-  const round = await this.roundRepository.findById(validated.roundId);
+async executeBet({ txBytes, userSignature, nonce }) {
+  verifyNonce(nonce);
+  const { txDigest, betObjectId } = await executeWithSponsor(txBytes, userSignature);
 
-  // 2. Sui Pool 주소 필요
-  if (!round.suiPoolAddress) {
-    throw new BusinessRuleError('POOL_NOT_READY', 'Sui pool not created');
-  }
-
-  // 🆕 3. Sui 트랜잭션 먼저
-  const { txHash, betObjectId } = await placeBetOnSui({
-    poolId: round.suiPoolAddress,
-    userAddress: validated.userAddress,  // 유저 지갑 주소
-    prediction: validated.prediction,
-    delCoinId: validated.delCoinId,      // 유저의 DEL Coin
-  });
-
-  // 4. D1 저장 (기존 + Sui 필드)
-  const { bet, round: updatedRound } = await this.betRepository.create({
-    ...betInput,
-    suiTxHash: txHash,
+  // Sui 성공 후 D1 기록
+  const { bet, round } = await this.betRepository.create({
+    // 기존 필드 + Sui 필드
+    suiTxHash: txDigest,
     suiBetObjectId: betObjectId,
   });
 
-  return { bet, round: updatedRound, txHash };
+  return { bet, round, txDigest };
 }
 ```
 
-#### Request Body 변경
+#### Request Body (요약)
 
-```typescript
-// Before
-{
-  roundId: string;
-  prediction: 'GOLD' | 'BTC';
-  amount: number;
-}
-
-// After
-{
-  roundId: string;
-  prediction: 'GOLD' | 'BTC';
-  amount: number;
-  userAddress: string; // 🆕 유저 Sui 지갑 주소
-  delCoinId: string; // 🆕 사용할 DEL Coin Object ID
-}
-```
+- 준비: `{ roundId, prediction, amount, userAddress, delCoinId }`
+- 실행: `{ txBytes, userSignature, nonce }`
 
 ### 5.2 Cron Job 변경
 
@@ -722,35 +634,31 @@ async settleRound(roundId: string): Promise<SettleRoundResult> {
    │─────────────>│                │              │          │
    │              │                │              │          │
    │ 2. 베팅 요청 │                │              │          │
-   │  (GOLD, 1000)│                │              │          │
+   │ (GOLD, 100 DEL)              │              │          │
    │─────────────>│                │              │          │
-   │              │                │              │          │
-   │              │ 3. POST /api/bets            │          │
-   │              │   { prediction, amount,      │          │
-   │              │     userAddress, delCoinId } │          │
+   │              │ 3. POST /api/sui/bet/tx      │          │
+   │              │   { poolId, amount, ... }    │          │
    │              │───────────────>│              │          │
-   │              │                │              │          │
-   │              │                │ 4. 검증     │          │
-   │              │                │────────────────────────>│
-   │              │                │              │          │
-   │              │                │ 5. place_bet()         │
-   │              │                │   (Admin 서명)         │
-   │              │                │─────────────>│          │
-   │              │                │              │          │
-   │              │                │              │ 6. DEL Lock
-   │              │                │              │    Bet 생성
-   │              │                │              │    Event 발생
-   │              │                │<─────────────│          │
-   │              │                │ tx_hash,    │          │
-   │              │                │ bet_id      │          │
-   │              │                │              │          │
-   │              │                │ 7. D1 저장  │          │
-   │              │                │────────────────────────>│
-   │              │                │              │          │
-   │              │ 8. 응답       │              │          │
+   │              │                │ 4. PTB 빌드 │          │
+   │              │                │   txBytes↑  │          │
    │              │<───────────────│              │          │
    │              │                │              │          │
-   │ 9. 완료!    │                │              │          │
+   │ 5. 지갑 서명 │                │              │          │
+   │ txBytes→sign │                │              │          │
+   │─────────────>│                │              │          │
+   │              │ 6. POST /api/sui/bet/execute │          │
+   │              │   { txBytes, userSignature } │          │
+   │              │───────────────>│              │          │
+   │              │                │ 7. sponsor 서명        │
+   │              │                │   + execute            │
+   │              │                │─────────────>│          │
+   │              │                │              │ 8. DEL Lock
+   │              │                │              │    Bet 생성/이벤트
+   │              │                │<─────────────│          │
+   │              │                │ 9. D1 저장   │          │
+   │              │                │────────────────────────>│
+   │              │<───────────────│              │          │
+   │ 10. 완료     │                │              │          │
    │<─────────────│                │              │          │
 ```
 
@@ -840,7 +748,7 @@ async function processRecoveryQueue() {
 
 ## 8. 보안 정책
 
-### 8.1 Admin Key 관리
+### 8.1 Sponsor/Admin Key 관리
 
 ```
 저장 위치:
@@ -849,7 +757,7 @@ async function processRecoveryQueue() {
 
 생성:
 $ sui keytool generate ed25519
-$ wrangler secret put SUI_ADMIN_SECRET_KEY
+$ wrangler secret put SUI_SPONSOR_PRIVATE_KEY
 
 절대 금지:
 - Git 커밋
@@ -981,6 +889,7 @@ sui client publish --gas-budget 200000000
 echo "SUI_PACKAGE_ID=0x..." >> .env.local
 echo "SUI_ADMIN_CAP_ID=0x..." >> .env.local
 echo "SUI_TREASURY_CAP_ID=0x..." >> .env.local
+# Sponsor 키는 secret으로 저장: wrangler secret put SUI_SPONSOR_PRIVATE_KEY
 ```
 
 ### 10.2 검증 항목
@@ -1004,7 +913,7 @@ SUI_NETWORK=testnet
 SUI_PACKAGE_ID=0x...
 SUI_ADMIN_CAP_ID=0x...
 SUI_TREASURY_CAP_ID=0x...
-SUI_ADMIN_SECRET_KEY=base64...
+SUI_SPONSOR_PRIVATE_KEY=base64...
 ```
 
 ---
