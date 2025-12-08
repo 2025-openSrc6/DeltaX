@@ -21,7 +21,14 @@ export class SuiService {
     const { userAddress, poolId, prediction, userDelCoinId, betId, userId } =
       prepareSuiBetTxSchema.parse(rawParams);
 
-    const sponsor = getSponsorKeypair();
+    let sponsor;
+    try {
+      sponsor = getSponsorKeypair();
+    } catch (error) {
+      throw new BusinessRuleError('ENV_MISSING', 'Sui sponsor key is not configured', {
+        error: error instanceof Error ? error.message : error,
+      });
+    }
     const sponsorAddress = sponsor.toSuiAddress();
 
     // 트랜잭션 생성
@@ -33,7 +40,11 @@ export class SuiService {
     });
 
     // 가스비 설정
-    const gasParams = await getGasPayment(sponsorAddress);
+    const gasParams = await getGasPayment(sponsorAddress).catch((error) => {
+      throw new BusinessRuleError('NO_GAS_COINS', 'Sponsor has no eligible gas coins', {
+        error: error instanceof Error ? error.message : error,
+      });
+    });
     tx.setGasPayment(gasParams.gasPayment);
     tx.setGasBudget(gasParams.gasBudget);
     tx.setGasOwner(sponsorAddress);
@@ -99,40 +110,63 @@ export class SuiService {
       throw new BusinessRuleError('USER_MISMATCH', 'Prepared user does not match execution userId');
     }
 
+    let executed;
     try {
       const sponsorSigned = await sponsor.signTransaction(txBytes);
-      const executed = await suiClient.executeTransactionBlock({
+      executed = await suiClient.executeTransactionBlock({
         transactionBlock: txBytes,
         signature: [userSignature, sponsorSigned.signature],
         requestType: 'WaitForLocalExecution',
       });
-
-      if (!executed?.digest) {
-        throw new BusinessRuleError('SUI_EXECUTE_FAILED', 'Sui execute response missing digest');
-      }
-
-      await this.ensureOnChain(executed.digest);
-
-      // DB 업데이트: 베팅 레코드에 체인 트랜잭션 해시 기록
-      await this.betService.updateBet(betId, {
-        suiTxHash: executed.digest,
-        processedAt: Date.now(),
-      });
-
-      return { digest: executed.digest };
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown execute error';
-      throw new BusinessRuleError('SUI_EXECUTE_FAILED', 'Sui execute failed', { error: message });
+      const message = error instanceof Error ? error.message : String(error);
+      const isRateLimit = /429|rate limit/i.test(message);
+      const isTimeout = /timeout|timed out|deadline/i.test(message);
+      throw new BusinessRuleError('SUI_EXECUTE_FAILED', 'Sui execute failed', {
+        error: message,
+        category: isRateLimit ? 'rate_limit' : isTimeout ? 'timeout' : 'rpc',
+      });
     }
+
+    if (!executed?.digest) {
+      throw new BusinessRuleError('SUI_EXECUTE_FAILED', 'Sui execute response missing digest');
+    }
+
+    await this.ensureOnChain(executed.digest);
+
+    // DB 업데이트: 베팅 레코드에 체인 트랜잭션 해시 기록
+    await this.betService.updateBet(betId, {
+      suiTxHash: executed.digest,
+      processedAt: Date.now(),
+    });
+
+    return { digest: executed.digest };
   }
 
   private async ensureOnChain(digest: string, retries = 3, delayMs = 1000) {
     for (let i = 0; i < retries; i++) {
       try {
-        const res = await suiClient.getTransactionBlock({ digest });
-        if (res) return res;
-      } catch {
-        // swallow and retry
+        const res = await suiClient.getTransactionBlock({
+          digest,
+          options: { showEffects: true },
+        });
+
+        const status = res?.effects?.status;
+        if (status?.status === 'success') {
+          return res;
+        }
+
+        if (status?.status === 'failure') {
+          throw new BusinessRuleError('SUI_EXECUTE_FAILED', 'Sui execution failed on chain', {
+            error: status.error,
+            digest,
+          });
+        }
+      } catch (error) {
+        if (error instanceof BusinessRuleError) {
+          throw error;
+        }
+        // swallow and retry for transport/availability errors
       }
       await sleep(delayMs);
     }

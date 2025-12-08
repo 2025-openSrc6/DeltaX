@@ -31,10 +31,7 @@ export class UpstashNonceStore implements NonceStore {
 
   async consume(nonce: string): Promise<PreparedTxRecord | null> {
     const key = this.key(nonce);
-    const record = await this.client.get<PreparedTxRecord>(key);
-    if (record) {
-      await this.client.del(key);
-    }
+    const record = await this.client.getdel<PreparedTxRecord>(key);
     return record ?? null;
   }
 }
