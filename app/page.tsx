@@ -16,6 +16,7 @@ import {
   useConnectWallet,
   useWallets,
   useDisconnectWallet,
+  useSignPersonalMessage,
 } from '@mysten/dapp-kit';
 
 // 메인 트레이드 대시보드 (Basevol 스타일 레이아웃 레퍼런스)
@@ -26,9 +27,10 @@ export default function HomePage() {
   const [timeframe, setTimeframe] = useState<'1M' | '6H' | '1D'>('1D');
 
   const { currentWallet } = useCurrentWallet();
-  const { mutate: connectWallet } = useConnectWallet();
+  const { mutateAsync: connectWallet } = useConnectWallet();
   const { mutate: disconnectWallet } = useDisconnectWallet();
   const wallets = useWallets();
+  const { mutateAsync: signPersonalMessage } = useSignPersonalMessage();
 
   // 페이지 로드 시 쿠키에서 주소 읽어서 상태 복원
   useEffect(() => {
@@ -57,6 +59,53 @@ export default function HomePage() {
     }
   }, [currentWallet]);
 
+  const buildLoginMessage = (nonce: string, expMs: number) => {
+    const domain = typeof window !== 'undefined' ? window.location.host : 'deltax.app';
+    return `DeltaX Login
+Domain: ${domain}
+Nonce: ${nonce}
+Exp: ${expMs}`;
+  };
+
+  const requestSession = async (address: string) => {
+    const nonce = crypto.randomUUID();
+    const expMs = Date.now() + 5 * 60_000; // 5분 유효
+    const message = buildLoginMessage(nonce, expMs);
+
+    const { signature, bytes: signedMessageBytes } = await signPersonalMessage({
+      message: new TextEncoder().encode(message),
+    });
+
+    const response = await fetch('/api/auth/session', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ suiAddress: address, signature, message, signedMessageBytes }),
+    });
+
+    const safeParseJson = async (res: Response) => {
+      try {
+        return await res.clone().json();
+      } catch {
+        const text = await res.text();
+        return { error: { message: text || '응답 파싱 실패' } };
+      }
+    };
+
+    const parsed = await safeParseJson(response);
+
+    if (!response.ok) {
+      throw new Error(parsed.error?.message || '로그인에 실패했습니다.');
+    }
+
+    if (!parsed.success) {
+      throw new Error(parsed.error?.message || '로그인에 실패했습니다.');
+    }
+
+    setIsConnected(true);
+    setWalletAddress(address);
+  };
+
   const handleConnect = async () => {
     // 사용 가능한 지갑이 없으면 에러 처리
     if (wallets.length === 0) {
@@ -64,80 +113,26 @@ export default function HomePage() {
       return;
     }
 
-    // 첫 번째 사용 가능한 지갑 사용
-    const wallet = wallets[0];
-
     try {
-      // 지갑의 connect 메서드를 직접 호출
-      if (wallet.features && wallet.features['standard:connect']) {
-        const connectFeature = wallet.features['standard:connect'];
-        const result = await connectFeature.connect();
+      // 첫 번째 사용 가능한 지갑 사용 (Dapp Kit에 활성화 등록)
+      const wallet = wallets[0];
+      const result = await connectWallet({ wallet });
 
-        if (result.accounts && result.accounts.length > 0) {
-          const address = result.accounts[0].address;
+      const account =
+        result?.accounts?.[0] ??
+        currentWallet?.accounts?.[0] ??
+        wallet.accounts?.[0];
 
-          // API 호출
-          const response = await fetch('/api/auth/session', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
-            body: JSON.stringify({ suiAddress: address }),
-          });
-
-          if (response.ok) {
-            const data = await response.json();
-            if (data.success) {
-              setIsConnected(true);
-              setWalletAddress(address);
-            } else {
-              // 에러 응답 처리
-              alert(data.error?.message || '로그인에 실패했습니다.');
-            }
-          } else {
-            const error = await response.json();
-            alert(error.error?.message || '로그인에 실패했습니다.');
-          }
-        }
-      } else {
-        // fallback: useConnectWallet 사용
-        connectWallet(
-          { wallet },
-          {
-            onSuccess: async (result) => {
-              const address = result.accounts[0].address;
-
-              // API 호출
-              const response = await fetch('/api/auth/session', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                credentials: 'include',
-                body: JSON.stringify({ suiAddress: address }),
-              });
-
-              if (response.ok) {
-                const data = await response.json();
-                if (data.success) {
-                  setIsConnected(true);
-                  setWalletAddress(address);
-                } else {
-                  // 에러 응답 처리
-                  alert(data.error?.message || '로그인에 실패했습니다.');
-                }
-              } else {
-                const error = await response.json();
-                alert(error.error?.message || '로그인에 실패했습니다.');
-              }
-            },
-            onError: (error) => {
-              console.error('지갑 연결 실패:', error);
-              alert('지갑 연결에 실패했습니다. 다시 시도해주세요.');
-            },
-          },
-        );
+      if (!account) {
+        throw new Error('지갑 연결 결과에 계정이 없습니다.');
       }
+
+      await requestSession(account.address);
     } catch (error) {
       console.error('지갑 연결 중 오류:', error);
-      alert('지갑 연결 중 오류가 발생했습니다.');
+      const message =
+        error instanceof Error ? error.message : '지갑 연결 중 오류가 발생했습니다.';
+      alert(message);
     }
   };
 
