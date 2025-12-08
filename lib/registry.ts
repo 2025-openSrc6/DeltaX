@@ -80,7 +80,7 @@ class ServiceRegistry {
   private _suiService?: SuiService;
   get suiService(): SuiService {
     if (!this._suiService) {
-      this._suiService = new SuiService(new UpstashNonceStore());
+      this._suiService = new SuiService(this.betService, new UpstashNonceStore());
     }
     return this._suiService;
   }

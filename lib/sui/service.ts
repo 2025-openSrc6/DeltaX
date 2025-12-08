@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from 'crypto';
 import { BusinessRuleError } from '@/lib/shared/errors';
+import { BetService } from '@/lib/bets/service';
 import { buildPlaceBetTx } from './builder';
 import { getSponsorKeypair, suiClient } from './client';
 import { getGasPayment } from './gas';
@@ -10,7 +11,10 @@ import { UpstashNonceStore } from './nonceStore';
 import { PREPARE_TX_TTL_MS, PREPARE_TX_TTL_SECONDS } from './constants';
 
 export class SuiService {
-  constructor(private readonly nonceStore: NonceStore = new UpstashNonceStore()) {}
+  constructor(
+    private readonly betService: BetService = new BetService(),
+    private readonly nonceStore: NonceStore = new UpstashNonceStore(),
+  ) {}
 
   async prepareBetTransaction(rawParams: unknown): Promise<PrepareSuiBetTxResult> {
     // 검증
@@ -63,7 +67,12 @@ export class SuiService {
   }
 
   async executeBetTransaction(rawParams: unknown): Promise<ExecuteSuiBetTxResult> {
-    const { txBytes: txBytesBase64, userSignature, nonce } = executeSuiBetTxSchema.parse(rawParams);
+    const {
+      txBytes: txBytesBase64,
+      userSignature,
+      nonce,
+      betId,
+    } = executeSuiBetTxSchema.parse(rawParams);
 
     const prepared = await this.nonceStore.consume(nonce);
     if (!prepared) {
@@ -92,6 +101,12 @@ export class SuiService {
       if (!executed?.digest) {
         throw new BusinessRuleError('SUI_EXECUTE_FAILED', 'Sui execute response missing digest');
       }
+
+      // DB 업데이트: 베팅 레코드에 체인 트랜잭션 해시 기록
+      await this.betService.updateBet(betId, {
+        suiTxHash: executed.digest,
+        processedAt: Date.now(),
+      });
 
       return { digest: executed.digest };
     } catch (error) {
