@@ -1,6 +1,15 @@
 'use client';
 
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+} from 'recharts';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 interface PriceDataPoint {
@@ -40,10 +49,7 @@ export function PriceTrendChart({ data }: PriceTrendChartProps) {
                 });
               }}
             />
-            <YAxis
-              tick={{ fontSize: 12 }}
-              tickFormatter={(value) => `${value.toFixed(1)}%`}
-            />
+            <YAxis tick={{ fontSize: 12 }} tickFormatter={(value) => `${value.toFixed(1)}%`} />
             <Tooltip
               content={({ active, payload }) => {
                 if (!active || !payload || payload.length === 0) return null;
@@ -53,11 +59,7 @@ export function PriceTrendChart({ data }: PriceTrendChartProps) {
                       {new Date(payload[0].payload.timestamp).toLocaleString()}
                     </p>
                     {payload.map((entry: any) => (
-                      <p
-                        key={entry.dataKey}
-                        className="text-sm"
-                        style={{ color: entry.color }}
-                      >
+                      <p key={entry.dataKey} className="text-sm" style={{ color: entry.color }}>
                         {entry.dataKey === 'paxg' ? 'PAXG' : 'BTC'}: {entry.value.toFixed(2)}%
                       </p>
                     ))}

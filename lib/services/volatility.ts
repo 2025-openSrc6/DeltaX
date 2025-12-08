@@ -132,7 +132,7 @@ function calculateEMA(prices: number[], period: number): number {
 
 /**
  * 두 자산의 변동성 대비 수익률을 비교합니다
- * 
+ *
  * @param prices1 - 첫 번째 자산의 가격 배열
  * @param prices2 - 두 번째 자산의 가격 배열
  * @returns 비교 결과 (volatility, return, adjustedReturn, winner, confidence 등)
@@ -160,8 +160,10 @@ export function compareVolatilityAdjustedReturns(
   const volatility2 = calculateStdDev(prices2);
 
   // 수익률 계산 (%)
-  const return1 = prices1.length > 0 ? ((prices1[prices1.length - 1] - prices1[0]) / prices1[0]) * 100 : 0;
-  const return2 = prices2.length > 0 ? ((prices2[prices2.length - 1] - prices2[0]) / prices2[0]) * 100 : 0;
+  const return1 =
+    prices1.length > 0 ? ((prices1[prices1.length - 1] - prices1[0]) / prices1[0]) * 100 : 0;
+  const return2 =
+    prices2.length > 0 ? ((prices2[prices2.length - 1] - prices2[0]) / prices2[0]) * 100 : 0;
 
   // 변동성 대비 수익률 (Sharpe Ratio와 유사)
   const adjustedReturn1 = volatility1 !== 0 ? return1 / volatility1 : 0;

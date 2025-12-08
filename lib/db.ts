@@ -11,7 +11,7 @@ interface CloudflareEnv {
 
 /**
  * API 라우트에서 DB 클라이언트를 초기화합니다
- * 
+ *
  * - 로컬 개발 & 프로덕션: Cloudflare D1 사용 (단일 환경)
  * - next.config.ts의 initOpenNextCloudflareForDev()로 로컬 D1 바인딩 활성화
  *
@@ -34,7 +34,7 @@ export const getDb = cache((): DbClient => {
     if (!db) {
       throw new Error(
         'D1 database not available. ' +
-        'Make sure to run "npx wrangler d1 migrations apply DB --local" and restart dev server.'
+          'Make sure to run "npx wrangler d1 migrations apply DB --local" and restart dev server.',
       );
     }
 
@@ -45,7 +45,7 @@ export const getDb = cache((): DbClient => {
     console.error('[DB] Failed to initialize D1:', error);
     throw new Error(
       `Database initialization failed: ${error instanceof Error ? error.message : 'Unknown error'}. ` +
-      'Ensure D1 is properly configured in wrangler.toml and migrations are applied.'
+        'Ensure D1 is properly configured in wrangler.toml and migrations are applied.',
     );
   }
 });

@@ -74,10 +74,20 @@ export async function GET(request: NextRequest) {
           dataPoints: data2.length,
         },
         comparison: {
-          winner: comparison.winner === 'asset1' ? asset1 : comparison.winner === 'asset2' ? asset2 : 'tie',
+          winner:
+            comparison.winner === 'asset1'
+              ? asset1
+              : comparison.winner === 'asset2'
+                ? asset2
+                : 'tie',
           confidence: comparison.confidence,
           difference: comparison.difference,
-          interpretation: getInterpretation(comparison.winner, asset1, asset2, comparison.confidence),
+          interpretation: getInterpretation(
+            comparison.winner,
+            asset1,
+            asset2,
+            comparison.confidence,
+          ),
         },
         period,
         timestamp: new Date().toISOString(),

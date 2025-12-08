@@ -36,12 +36,7 @@ export async function POST(request: NextRequest) {
       const existing = await db
         .select()
         .from(chartData)
-        .where(
-          and(
-            eq(chartData.asset, asset),
-            gte(chartData.timestamp, oneSecondAgo)
-          )
-        )
+        .where(and(eq(chartData.asset, asset), gte(chartData.timestamp, oneSecondAgo)))
         .limit(1);
 
       if (existing.length > 0) {
@@ -57,9 +52,13 @@ export async function POST(request: NextRequest) {
         .orderBy(desc(chartData.timestamp))
         .limit(HISTORY_PERIOD);
 
-      const closePrices = recentData.length > 0
-        ? [...recentData.map((d: typeof chartData.$inferSelect) => d.close).reverse(), currentPrice]
-        : [currentPrice];
+      const closePrices =
+        recentData.length > 0
+          ? [
+              ...recentData.map((d: typeof chartData.$inferSelect) => d.close).reverse(),
+              currentPrice,
+            ]
+          : [currentPrice];
 
       const recentPrices = closePrices.slice(-VOLATILITY_LOOKBACK);
 
@@ -110,14 +109,17 @@ export async function POST(request: NextRequest) {
         .returning({ id: chartData.id });
 
       // volatilitySnapshots 계산 및 저장
-      const ohlcArray = recentData.length > 0
-        ? recentData.map((d: typeof chartData.$inferSelect) => ({
-          open: d.open,
-          high: d.high,
-          low: d.low,
-          close: d.close,
-        })).reverse()
-        : [ohlcData];
+      const ohlcArray =
+        recentData.length > 0
+          ? recentData
+              .map((d: typeof chartData.$inferSelect) => ({
+                open: d.open,
+                high: d.high,
+                low: d.low,
+                close: d.close,
+              }))
+              .reverse()
+          : [ohlcData];
 
       const atr = calculateATR(ohlcArray);
       const bollingerBands = calculateBollingerBands(closePrices);
