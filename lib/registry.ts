@@ -16,6 +16,7 @@ import { RoundRepository } from './rounds/repository';
 import { RoundService } from './rounds/service';
 import { UserRepository } from './users/repository';
 import { UserService } from './users/service';
+import { SuiService } from './sui/service';
 
 /**
  * 의존성 조립을 담당하는 클래스
@@ -75,6 +76,14 @@ class ServiceRegistry {
     return this._userService;
   }
 
+  private _suiService?: SuiService;
+  get suiService(): SuiService {
+    if (!this._suiService) {
+      this._suiService = new SuiService();
+    }
+    return this._suiService;
+  }
+
   // 테스트용: Mock으로 교체
   setRoundRepository(repository: RoundRepository): void {
     this._roundRepository = repository;
@@ -94,6 +103,10 @@ class ServiceRegistry {
     this._betService = service;
   }
 
+  setSuiService(service: SuiService): void {
+    this._suiService = service;
+  }
+
   // 테스트용: 초기화
   reset(): void {
     this._roundRepository = undefined;
@@ -102,6 +115,7 @@ class ServiceRegistry {
     this._betService = undefined;
     this._userRepository = undefined;
     this._userService = undefined;
+    this._suiService = undefined;
   }
 }
 
