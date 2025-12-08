@@ -59,6 +59,13 @@ export default function HomePage() {
     }
   }, [currentWallet]);
 
+  const isUserRejectionError = (error: unknown) => {
+    if (!error) return false;
+    if (error instanceof Error && /user rejected/i.test(error.message)) return true;
+    const code = (error as { code?: string | number }).code;
+    return code === 4001 || code === 'USER_REJECTED' || code === 'USER_REJECTED_REQUEST';
+  };
+
   const buildLoginMessage = (nonce: string, expMs: number) => {
     const domain = typeof window !== 'undefined' ? window.location.host : 'deltax.app';
     return `DeltaX Login
@@ -72,9 +79,31 @@ Exp: ${expMs}`;
     const expMs = Date.now() + 5 * 60_000; // 5분 유효
     const message = buildLoginMessage(nonce, expMs);
 
-    const { signature, bytes: signedMessageBytes } = await signPersonalMessage({
-      message: new TextEncoder().encode(message),
-    });
+    const encoder = new TextEncoder();
+    let signature: string;
+    let signedMessageBytes: string;
+
+    try {
+      const signed = await signPersonalMessage({
+        message: encoder.encode(message),
+      });
+
+      signature = signed.signature;
+      // signed.bytes는 SDK 버전에 따라 string(base64) 또는 Uint8Array일 수 있음
+      const rawBytes = signed.bytes as string | Uint8Array;
+      if (typeof rawBytes === 'string') {
+        signedMessageBytes = rawBytes;
+      } else {
+        // Uint8Array → base64 (Array.from 사용하여 iterator 문제 회피)
+        signedMessageBytes = btoa(String.fromCharCode.apply(null, Array.from(rawBytes)));
+      }
+    } catch (error) {
+      if (isUserRejectionError(error)) {
+        console.info('사용자가 메시지 서명을 취소했습니다.');
+        return;
+      }
+      throw error;
+    }
 
     const response = await fetch('/api/auth/session', {
       method: 'POST',
@@ -129,6 +158,11 @@ Exp: ${expMs}`;
 
       await requestSession(account.address);
     } catch (error) {
+      if (isUserRejectionError(error)) {
+        console.info('사용자가 지갑 요청을 취소했습니다.');
+        return;
+      }
+
       console.error('지갑 연결 중 오류:', error);
       const message =
         error instanceof Error ? error.message : '지갑 연결 중 오류가 발생했습니다.';
