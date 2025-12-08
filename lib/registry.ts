@@ -16,6 +16,7 @@ import { RoundRepository } from './rounds/repository';
 import { RoundService } from './rounds/service';
 import { UserRepository } from './users/repository';
 import { UserService } from './users/service';
+import { UpstashNonceStore } from './sui/nonceStore';
 import { SuiService } from './sui/service';
 
 /**
@@ -79,7 +80,7 @@ class ServiceRegistry {
   private _suiService?: SuiService;
   get suiService(): SuiService {
     if (!this._suiService) {
-      this._suiService = new SuiService();
+      this._suiService = new SuiService(new UpstashNonceStore());
     }
     return this._suiService;
   }
