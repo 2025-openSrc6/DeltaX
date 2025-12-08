@@ -72,11 +72,7 @@ export function VolatilityComparisonChart({ data }: VolatilityComparisonChartPro
                   <div className="bg-background p-3 border rounded-lg shadow-lg">
                     <p className="text-sm font-medium mb-2">{payload[0].payload.metric}</p>
                     {payload.map((entry: any) => (
-                      <p
-                        key={entry.dataKey}
-                        className="text-sm"
-                        style={{ color: entry.color }}
-                      >
+                      <p key={entry.dataKey} className="text-sm" style={{ color: entry.color }}>
                         {entry.dataKey}: {entry.value.toFixed(2)}
                       </p>
                     ))}

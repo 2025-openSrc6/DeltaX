@@ -156,7 +156,9 @@ export default function ChartPage() {
             <div className="grid grid-cols-2 gap-4">
               <div className="p-3 bg-muted rounded-lg">
                 <div className="text-sm text-muted-foreground">Confidence</div>
-                <div className="text-2xl font-bold">{(comparison.confidence * 100).toFixed(0)}%</div>
+                <div className="text-2xl font-bold">
+                  {(comparison.confidence * 100).toFixed(0)}%
+                </div>
               </div>
               <div className="p-3 bg-muted rounded-lg">
                 <div className="text-sm text-muted-foreground">Difference</div>
@@ -229,9 +231,7 @@ export default function ChartPage() {
               <div className="text-xs text-muted-foreground mt-1">Higher is better</div>
             </div>
 
-            <div className="text-xs text-muted-foreground">
-              Data points: {asset1.dataPoints}
-            </div>
+            <div className="text-xs text-muted-foreground">Data points: {asset1.dataPoints}</div>
           </CardContent>
         </Card>
 
@@ -287,9 +287,7 @@ export default function ChartPage() {
               <div className="text-xs text-muted-foreground mt-1">Higher is better</div>
             </div>
 
-            <div className="text-xs text-muted-foreground">
-              Data points: {asset2.dataPoints}
-            </div>
+            <div className="text-xs text-muted-foreground">Data points: {asset2.dataPoints}</div>
           </CardContent>
         </Card>
       </div>
@@ -301,8 +299,8 @@ export default function ChartPage() {
         </CardHeader>
         <CardContent className="space-y-2 text-sm text-muted-foreground">
           <p>
-            <strong>Volatility-Adjusted Return</strong> measures how much return you get per unit
-            of risk (volatility).
+            <strong>Volatility-Adjusted Return</strong> measures how much return you get per unit of
+            risk (volatility).
           </p>
           <p>
             <strong>Formula:</strong> Return (%) ÷ Volatility (Standard Deviation)
