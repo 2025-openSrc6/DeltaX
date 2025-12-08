@@ -301,8 +301,7 @@ describe('RoundService.recoveryRounds (Job 6)', () => {
   // 6. roundEndedAt이 null인 경우
   // ============================================
   describe('roundEndedAt이 null인 경우', () => {
-    it('0으로 처리되어 30분 초과로 판정 → 알림', async () => {
-      // roundEndedAt이 null이면 stuckDuration = NOW - 0 = NOW (매우 큼)
+    it('경과 시간을 계산하지 않고 스킵한다', async () => {
       const stuckRound = createCalculatingRound({
         id: 'round-null-ended',
         roundEndedAt: null,
@@ -311,11 +310,13 @@ describe('RoundService.recoveryRounds (Job 6)', () => {
 
       const result = await roundService.recoveryRounds();
 
-      // NOW - 0 > 30분 이므로 alertedCount 증가
-      expect(result.alertedCount).toBe(1);
-      expect(mockRoundRepository.updateById).toHaveBeenCalledWith('round-null-ended', {
-        settlementFailureAlertSentAt: NOW,
+      expect(result).toEqual({
+        stuckCount: 1,
+        retriedCount: 0,
+        alertedCount: 0,
       });
+      expect(mockRoundRepository.updateById).not.toHaveBeenCalled();
+      expect(mockRoundRepository.findById).not.toHaveBeenCalled();
     });
   });
 
