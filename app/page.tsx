@@ -311,11 +311,14 @@ export default function HomePage() {
                   <ArrowRight className="h-4 w-4" />
                 </Button>
                 <Button
+                  asChild
                   variant="outline"
                   className="w-full justify-between rounded-xl border-purple-500/40 bg-slate-950/60 text-xs font-semibold text-purple-200 hover:bg-slate-900/80"
                 >
+                  <a href="/shop"> {/* a 태그로 감싸 /shop 이동 */}
                   NFT 상점 보기
                   <Wallet className="h-4 w-4" />
+                  </a>
                 </Button>
                 <Button
                   variant="outline"
