@@ -852,7 +852,16 @@ export class RoundService {
         continue;
       }
 
-      const stuckDuration = now - (stuckRound.roundEndedAt ?? 0);
+      // roundEndedAt가 없으면 경과 시간을 계산할 수 없으므로 스킵 (잘못된 데이터로 인한 오경보 방지)
+      if (stuckRound.roundEndedAt == null) {
+        cronLogger.warn('[Job 6] roundEndedAt missing, skipping duration check', {
+          roundId: stuckRound.id,
+          roundNumber: stuckRound.roundNumber,
+        });
+        continue;
+      }
+
+      const stuckDuration = now - stuckRound.roundEndedAt;
       if (stuckDuration >= ALERT_THRESHOLD_MS) {
         cronLogger.error('[Job 6] 30min threshold exceeded, sending alert', {
           roundId: stuckRound.id,
