@@ -32,4 +32,5 @@ export const executeSuiBetTxSchema = z.object({
   nonce: z
     .string({ error: 'nonce is required' } as const)
     .min(8, 'nonce must be at least 8 characters'),
+  betId: z.string({ error: 'betId is required' } as const).uuid('betId must be a valid UUID'),
 });
