@@ -9,6 +9,7 @@ import { executeSuiBetTxSchema, prepareSuiBetTxSchema } from './validation';
 import type { NonceStore } from './nonceStore';
 import { UpstashNonceStore } from './nonceStore';
 import { PREPARE_TX_TTL_MS, PREPARE_TX_TTL_SECONDS } from './constants';
+import { sleep } from './utils';
 
 export class SuiService {
   constructor(
@@ -17,8 +18,7 @@ export class SuiService {
   ) {}
 
   async prepareBetTransaction(rawParams: unknown): Promise<PrepareSuiBetTxResult> {
-    // 검증
-    const { userAddress, poolId, prediction, userDelCoinId } =
+    const { userAddress, poolId, prediction, userDelCoinId, betId, userId } =
       prepareSuiBetTxSchema.parse(rawParams);
 
     const sponsor = getSponsorKeypair();
@@ -59,6 +59,8 @@ export class SuiService {
       {
         txBytesHash,
         expiresAt,
+        betId,
+        userId,
       },
       PREPARE_TX_TTL_SECONDS,
     );
@@ -72,6 +74,7 @@ export class SuiService {
       userSignature,
       nonce,
       betId,
+      userId,
     } = executeSuiBetTxSchema.parse(rawParams);
 
     const prepared = await this.nonceStore.consume(nonce);
@@ -89,6 +92,12 @@ export class SuiService {
     if (Date.now() > prepared.expiresAt) {
       throw new BusinessRuleError('NONCE_EXPIRED', 'Prepared transaction has expired');
     }
+    if (prepared.betId !== betId) {
+      throw new BusinessRuleError('BET_MISMATCH', 'Prepared bet does not match execution betId');
+    }
+    if (prepared.userId !== userId) {
+      throw new BusinessRuleError('USER_MISMATCH', 'Prepared user does not match execution userId');
+    }
 
     try {
       const sponsorSigned = await sponsor.signTransaction(txBytes);
@@ -102,6 +111,8 @@ export class SuiService {
         throw new BusinessRuleError('SUI_EXECUTE_FAILED', 'Sui execute response missing digest');
       }
 
+      await this.ensureOnChain(executed.digest);
+
       // DB 업데이트: 베팅 레코드에 체인 트랜잭션 해시 기록
       await this.betService.updateBet(betId, {
         suiTxHash: executed.digest,
@@ -113,5 +124,20 @@ export class SuiService {
       const message = error instanceof Error ? error.message : 'Unknown execute error';
       throw new BusinessRuleError('SUI_EXECUTE_FAILED', 'Sui execute failed', { error: message });
     }
+  }
+
+  private async ensureOnChain(digest: string, retries = 3, delayMs = 1000) {
+    for (let i = 0; i < retries; i++) {
+      try {
+        const res = await suiClient.getTransactionBlock({ digest });
+        if (res) return res;
+      } catch {
+        // swallow and retry
+      }
+      await sleep(delayMs);
+    }
+    throw new BusinessRuleError('SUI_TX_NOT_FOUND', 'Transaction submitted but not found yet', {
+      digest,
+    });
   }
 }
