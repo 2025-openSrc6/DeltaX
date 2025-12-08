@@ -1,6 +1,6 @@
 import { getDb } from '@/lib/db';
 import { chartData, volatilitySnapshots } from '@/db/schema';
-import { fetchKlines, type SupportedAsset } from '@/lib/services/binance';
+import { fetchKlines, fetchCurrentPrice, type SupportedAsset } from '@/lib/services/binance';
 import {
   calculateStdDev,
   calculateVolatilityChangeRate,
@@ -14,11 +14,11 @@ import {
   calculateMACD,
 } from '@/lib/services/volatility';
 import { NextRequest, NextResponse } from 'next/server';
-import { eq, and, desc } from 'drizzle-orm';
+import { eq, and, desc, gte } from 'drizzle-orm';
 
 const TARGET_ASSETS: SupportedAsset[] = ['PAXG', 'BTC'];
 const VOLATILITY_LOOKBACK = 20;
-const AVERAGE_VOLATILITY_PERIOD = 500; // 더 많은 데이터 포인트로 차트를 촘촘하게
+const HISTORY_PERIOD = 500; // 과거 데이터로 변동성 계산
 
 export async function POST(request: NextRequest) {
   try {
@@ -26,17 +26,22 @@ export async function POST(request: NextRequest) {
     const results: Record<string, { chartData: string; volatilitySnapshot: string }> = {};
 
     for (const asset of TARGET_ASSETS) {
-      const klines = await fetchKlines(asset, '1m', AVERAGE_VOLATILITY_PERIOD);
-      if (klines.length === 0) continue;
+      // 1. 실시간 현재 가격 조회 (초 단위 업데이트!)
+      const currentTicker = await fetchCurrentPrice(asset);
+      const currentPrice = parseFloat(currentTicker.price);
+      const timestamp = new Date(); // 현재 시간!
 
-      const latestKline = klines[klines.length - 1];
-      const timestamp = new Date(latestKline.openTime);
-
-      // 중복 체크
+      // 2. 중복 체크 (초 단위 - 동일 초는 skip)
+      const oneSecondAgo = new Date(timestamp.getTime() - 1000);
       const existing = await db
         .select()
         .from(chartData)
-        .where(and(eq(chartData.asset, asset), eq(chartData.timestamp, timestamp)))
+        .where(
+          and(
+            eq(chartData.asset, asset),
+            gte(chartData.timestamp, oneSecondAgo)
+          )
+        )
         .limit(1);
 
       if (existing.length > 0) {
@@ -44,7 +49,18 @@ export async function POST(request: NextRequest) {
         continue;
       }
 
-      const closePrices = klines.map((k) => k.close);
+      // 3. 과거 데이터로 변동성 계산 (DB에서 조회)
+      const recentData = await db
+        .select()
+        .from(chartData)
+        .where(eq(chartData.asset, asset))
+        .orderBy(desc(chartData.timestamp))
+        .limit(HISTORY_PERIOD);
+
+      const closePrices = recentData.length > 0
+        ? [...recentData.map((d: typeof chartData.$inferSelect) => d.close).reverse(), currentPrice]
+        : [currentPrice];
+
       const recentPrices = closePrices.slice(-VOLATILITY_LOOKBACK);
 
       // 변동성 계산
@@ -56,12 +72,14 @@ export async function POST(request: NextRequest) {
       );
       const volatilityScore = calculateVolatilityScore(volatilityChangeRate);
 
-      // 게임성 지표
+      // 4. OHLC 추정 (실시간 가격 기반)
+      // 최근 가격을 기반으로 간단한 OHLC 생성
+      const recentClose = recentData[0]?.close || currentPrice;
       const ohlcData = {
-        open: latestKline.open,
-        high: latestKline.high,
-        low: latestKline.low,
-        close: latestKline.close,
+        open: recentClose,
+        high: Math.max(recentClose, currentPrice),
+        low: Math.min(recentClose, currentPrice),
+        close: currentPrice,
       };
 
       const movementIntensity = calculateMovementIntensity(ohlcData);
@@ -75,11 +93,11 @@ export async function POST(request: NextRequest) {
         .values({
           asset,
           timestamp,
-          open: latestKline.open,
-          high: latestKline.high,
-          low: latestKline.low,
-          close: latestKline.close,
-          volume: latestKline.volume,
+          open: ohlcData.open,
+          high: ohlcData.high,
+          low: ohlcData.low,
+          close: ohlcData.close,
+          volume: parseFloat(currentTicker.volume),
           volatility: currentVolatility,
           averageVolatility,
           volatilityChangeRate,
@@ -92,12 +110,14 @@ export async function POST(request: NextRequest) {
         .returning({ id: chartData.id });
 
       // volatilitySnapshots 계산 및 저장
-      const ohlcArray = klines.map((k) => ({
-        open: k.open,
-        high: k.high,
-        low: k.low,
-        close: k.close,
-      }));
+      const ohlcArray = recentData.length > 0
+        ? recentData.map((d: typeof chartData.$inferSelect) => ({
+          open: d.open,
+          high: d.high,
+          low: d.low,
+          close: d.close,
+        })).reverse()
+        : [ohlcData];
 
       const atr = calculateATR(ohlcArray);
       const bollingerBands = calculateBollingerBands(closePrices);
