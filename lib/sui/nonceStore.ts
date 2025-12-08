@@ -3,6 +3,8 @@ import { Redis } from '@upstash/redis';
 export interface PreparedTxRecord {
   txBytesHash: string;
   expiresAt: number;
+  betId: string;
+  userId: string;
 }
 
 export interface NonceStore {
