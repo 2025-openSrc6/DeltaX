@@ -18,9 +18,11 @@ export class SuiService {
   ) {}
 
   async prepareBetTransaction(rawParams: unknown): Promise<PrepareSuiBetTxResult> {
+    // 입력 검증
     const { userAddress, poolId, prediction, userDelCoinId, betId, userId } =
       prepareSuiBetTxSchema.parse(rawParams);
 
+    // 스폰서 로드
     let sponsor;
     try {
       sponsor = getSponsorKeypair();
@@ -29,9 +31,10 @@ export class SuiService {
         error: error instanceof Error ? error.message : error,
       });
     }
+    // 스폰서 주소
     const sponsorAddress = sponsor.toSuiAddress();
 
-    // 트랜잭션 생성
+    // 트랜잭션 구성
     const tx = buildPlaceBetTx({
       userAddress,
       poolId,
@@ -49,11 +52,10 @@ export class SuiService {
     tx.setGasBudget(gasParams.gasBudget);
     tx.setGasOwner(sponsorAddress);
 
-    // 트랜잭션 빌드
+    // PTB 트랜잭션 빌드
     const txBytes = await tx.build({ client: suiClient });
 
-    // 트랜잭션 건너기 (Dry Run)
-    // 잔액 부족, 라운드 종료 등의 에러를 여기서 잡아서 프론트에 알려줌
+    // PTB 건너기 (Dry Run)
     const dryRun = await suiClient.dryRunTransactionBlock({ transactionBlock: txBytes });
     if (dryRun.effects.status.status === 'failure') {
       throw new BusinessRuleError('SUI_DRY_RUN_FAILED', 'Sui dry run failed', {
@@ -61,6 +63,7 @@ export class SuiService {
       });
     }
 
+    // nonce 발급 및 저장
     const nonce = randomUUID();
     const expiresAt = Date.now() + PREPARE_TX_TTL_MS;
     const txBytesHash = createHash('sha256').update(txBytes).digest('hex');
@@ -80,6 +83,7 @@ export class SuiService {
   }
 
   async executeBetTransaction(rawParams: unknown): Promise<ExecuteSuiBetTxResult> {
+    // 입력 검증
     const {
       txBytes: txBytesBase64,
       userSignature,
@@ -88,18 +92,24 @@ export class SuiService {
       userId,
     } = executeSuiBetTxSchema.parse(rawParams);
 
+    // nonce 소비
     const prepared = await this.nonceStore.consume(nonce);
     if (!prepared) {
       throw new BusinessRuleError('INVALID_NONCE', 'Nonce not found or already used/expired');
     }
 
+    // 스폰서 로드
     const sponsor = getSponsorKeypair();
+
+    // txBytes 버퍼화 및 해시 계산
     const txBytes = Buffer.from(txBytesBase64, 'base64');
     const txBytesHash = createHash('sha256').update(txBytes).digest('hex');
 
+    // txBytes 검증
     if (prepared.txBytesHash !== txBytesHash) {
       throw new BusinessRuleError('TX_MISMATCH', 'Prepared transaction does not match execution');
     }
+    // nonce 만료 검증
     if (Date.now() > prepared.expiresAt) {
       throw new BusinessRuleError('NONCE_EXPIRED', 'Prepared transaction has expired');
     }
@@ -110,9 +120,12 @@ export class SuiService {
       throw new BusinessRuleError('USER_MISMATCH', 'Prepared user does not match execution userId');
     }
 
+    // 스폰서 서명 및 실행
     let executed;
     try {
+      // 스폰서 서명
       const sponsorSigned = await sponsor.signTransaction(txBytes);
+      // 체인 실행
       executed = await suiClient.executeTransactionBlock({
         transactionBlock: txBytes,
         signature: [userSignature, sponsorSigned.signature],
@@ -120,21 +133,26 @@ export class SuiService {
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
+      // 비율 제한 검증
       const isRateLimit = /429|rate limit/i.test(message);
+      // 타임아웃 검증
       const isTimeout = /timeout|timed out|deadline/i.test(message);
+      // 에러 반환
       throw new BusinessRuleError('SUI_EXECUTE_FAILED', 'Sui execute failed', {
         error: message,
         category: isRateLimit ? 'rate_limit' : isTimeout ? 'timeout' : 'rpc',
       });
     }
 
+    // digest 검증
     if (!executed?.digest) {
       throw new BusinessRuleError('SUI_EXECUTE_FAILED', 'Sui execute response missing digest');
     }
 
+    // 체인 실행 확인
     await this.ensureOnChain(executed.digest);
 
-    // DB 업데이트: 베팅 레코드에 체인 트랜잭션 해시 기록
+    // DB 업데이트
     await this.betService.updateBet(betId, {
       suiTxHash: executed.digest,
       processedAt: Date.now(),
