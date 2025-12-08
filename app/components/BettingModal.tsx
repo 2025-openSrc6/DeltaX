@@ -46,7 +46,7 @@ export function BettingModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!selectedPrediction || !amount) {
       setError('예측 방향과 금액을 입력해주세요.');
       return;
@@ -95,8 +95,7 @@ export function BettingModal({
     }
   };
 
-  const goldBetsPercent =
-    round.totalPool > 0 ? (round.totalGoldBets / round.totalPool) * 100 : 50;
+  const goldBetsPercent = round.totalPool > 0 ? (round.totalGoldBets / round.totalPool) * 100 : 50;
   const btcBetsPercent = 100 - goldBetsPercent;
 
   return (
@@ -155,9 +154,7 @@ export function BettingModal({
               >
                 <TrendingUp className="h-8 w-8 text-yellow-400" />
                 <span className="text-lg font-bold text-slate-50">GOLD</span>
-                <span className="text-xs text-slate-400">
-                  {goldBetsPercent.toFixed(1)}% 선택
-                </span>
+                <span className="text-xs text-slate-400">{goldBetsPercent.toFixed(1)}% 선택</span>
               </button>
 
               {/* BTC 버튼 */}
@@ -173,9 +170,7 @@ export function BettingModal({
               >
                 <TrendingDown className="h-8 w-8 text-orange-400" />
                 <span className="text-lg font-bold text-slate-50">BTC</span>
-                <span className="text-xs text-slate-400">
-                  {btcBetsPercent.toFixed(1)}% 선택
-                </span>
+                <span className="text-xs text-slate-400">{btcBetsPercent.toFixed(1)}% 선택</span>
               </button>
             </div>
           </div>
@@ -226,9 +221,7 @@ export function BettingModal({
 
           {/* 에러 메시지 */}
           {error && (
-            <div className="rounded-lg bg-red-500/10 px-4 py-3 text-sm text-red-300">
-              {error}
-            </div>
+            <div className="rounded-lg bg-red-500/10 px-4 py-3 text-sm text-red-300">{error}</div>
           )}
 
           {/* 제출 버튼 */}

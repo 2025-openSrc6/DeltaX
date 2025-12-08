@@ -26,20 +26,19 @@ const queryClientLogger = {
 
 export function Providers({ children }: { children: React.ReactNode }) {
   // QueryClient는 상태로 관리하여 매 렌더링마다 새로 생성되지 않도록 함
-  const [queryClient] = useState(
-    () =>
-      // logger 필드를 타입 강제 없이 주입
-      (() => {
-        const client = new QueryClient({
-          defaultOptions: {
-            queries: {
-              staleTime: 60 * 1000,
-            },
+  const [queryClient] = useState(() =>
+    // logger 필드를 타입 강제 없이 주입
+    (() => {
+      const client = new QueryClient({
+        defaultOptions: {
+          queries: {
+            staleTime: 60 * 1000,
           },
-        });
-        (client as { logger?: unknown }).logger = queryClientLogger;
-        return client;
-      })(),
+        },
+      });
+      (client as { logger?: unknown }).logger = queryClientLogger;
+      return client;
+    })(),
   );
 
   return (

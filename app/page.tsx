@@ -226,10 +226,7 @@ Exp: ${expMs}`;
       const wallet = wallets[0];
       const result = await connectWallet({ wallet });
 
-      const account =
-        result?.accounts?.[0] ??
-        currentWallet?.accounts?.[0] ??
-        wallet.accounts?.[0];
+      const account = result?.accounts?.[0] ?? currentWallet?.accounts?.[0] ?? wallet.accounts?.[0];
 
       if (!account) {
         throw new Error('지갑 연결 결과에 계정이 없습니다.');
@@ -243,8 +240,7 @@ Exp: ${expMs}`;
       }
 
       console.error('지갑 연결 중 오류:', error);
-      const message =
-        error instanceof Error ? error.message : '지갑 연결 중 오류가 발생했습니다.';
+      const message = error instanceof Error ? error.message : '지갑 연결 중 오류가 발생했습니다.';
       alert(message);
     }
   };
@@ -473,9 +469,11 @@ Exp: ${expMs}`;
                   variant="outline"
                   className="w-full justify-between rounded-xl border-purple-500/40 bg-slate-950/60 text-xs font-semibold text-purple-200 hover:bg-slate-900/80"
                 >
-                  <a href="/shop"> {/* a 태그로 감싸 /shop 이동 */}
-                  NFT 상점 보기
-                  <Wallet className="h-4 w-4" />
+                  <a href="/shop">
+                    {' '}
+                    {/* a 태그로 감싸 /shop 이동 */}
+                    NFT 상점 보기
+                    <Wallet className="h-4 w-4" />
                   </a>
                 </Button>
                 <Button
