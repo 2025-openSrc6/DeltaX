@@ -1,11 +1,17 @@
+import { createHash, randomUUID } from 'crypto';
 import { BusinessRuleError } from '@/lib/shared/errors';
 import { buildPlaceBetTx } from './builder';
 import { getSponsorKeypair, suiClient } from './client';
 import { getGasPayment } from './gas';
-import type { PrepareSuiBetTxResult } from './types';
-import { prepareSuiBetTxSchema } from './validation';
+import type { BetPrediction, ExecuteSuiBetTxResult, PrepareSuiBetTxResult } from './types';
+import { executeSuiBetTxSchema, prepareSuiBetTxSchema } from './validation';
+import type { NonceStore } from './nonceStore';
+import { UpstashNonceStore } from './nonceStore';
+import { PREPARE_TX_TTL_MS, PREPARE_TX_TTL_SECONDS } from './constants';
 
 export class SuiService {
+  constructor(private readonly nonceStore: NonceStore = new UpstashNonceStore()) {}
+
   async prepareBetTransaction(rawParams: unknown): Promise<PrepareSuiBetTxResult> {
     // 검증
     const { userAddress, poolId, prediction, userDelCoinId } =
@@ -15,7 +21,12 @@ export class SuiService {
     const sponsorAddress = sponsor.toSuiAddress();
 
     // 트랜잭션 생성
-    const tx = buildPlaceBetTx({ userAddress, poolId, prediction, userDelCoinId });
+    const tx = buildPlaceBetTx({
+      userAddress,
+      poolId,
+      prediction: prediction as BetPrediction,
+      userDelCoinId,
+    });
 
     // 가스비 설정
     const gasParams = await getGasPayment(sponsorAddress);
@@ -35,6 +46,57 @@ export class SuiService {
       });
     }
 
-    return { txBytes: Buffer.from(txBytes).toString('base64') };
+    const nonce = randomUUID();
+    const expiresAt = Date.now() + PREPARE_TX_TTL_MS;
+    const txBytesHash = createHash('sha256').update(txBytes).digest('hex');
+
+    await this.nonceStore.save(
+      nonce,
+      {
+        txBytesHash,
+        expiresAt,
+      },
+      PREPARE_TX_TTL_SECONDS,
+    );
+
+    return { txBytes: Buffer.from(txBytes).toString('base64'), nonce, expiresAt };
+  }
+
+  async executeBetTransaction(rawParams: unknown): Promise<ExecuteSuiBetTxResult> {
+    const { txBytes: txBytesBase64, userSignature, nonce } = executeSuiBetTxSchema.parse(rawParams);
+
+    const prepared = await this.nonceStore.consume(nonce);
+    if (!prepared) {
+      throw new BusinessRuleError('INVALID_NONCE', 'Nonce not found or already used/expired');
+    }
+
+    const sponsor = getSponsorKeypair();
+    const txBytes = Buffer.from(txBytesBase64, 'base64');
+    const txBytesHash = createHash('sha256').update(txBytes).digest('hex');
+
+    if (prepared.txBytesHash !== txBytesHash) {
+      throw new BusinessRuleError('TX_MISMATCH', 'Prepared transaction does not match execution');
+    }
+    if (Date.now() > prepared.expiresAt) {
+      throw new BusinessRuleError('NONCE_EXPIRED', 'Prepared transaction has expired');
+    }
+
+    try {
+      const sponsorSigned = await sponsor.signTransaction(txBytes);
+      const executed = await suiClient.executeTransactionBlock({
+        transactionBlock: txBytes,
+        signature: [userSignature, sponsorSigned.signature],
+        requestType: 'WaitForLocalExecution',
+      });
+
+      if (!executed?.digest) {
+        throw new BusinessRuleError('SUI_EXECUTE_FAILED', 'Sui execute response missing digest');
+      }
+
+      return { digest: executed.digest };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown execute error';
+      throw new BusinessRuleError('SUI_EXECUTE_FAILED', 'Sui execute failed', { error: message });
+    }
   }
 }
