@@ -5,3 +5,7 @@ export { VolatilityChart } from './VolatilityChart';
 export { VolatilityComparisonChart } from './VolatilityComparisonChart';
 export { VolatilityCandlestickChart } from './VolatilityCandlestickChart';
 export { TrendIndicator } from './TrendIndicator';
+export { default as NormalizedStrengthChart } from './NormalizedStrengthChart';
+export { default as SpreadCandlestickChart } from './SpreadCandlestickChart';
+
+
