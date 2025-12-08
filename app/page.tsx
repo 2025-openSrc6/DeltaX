@@ -11,6 +11,7 @@ import { RankingList } from '@/components/RankingList';
 import { AccountConnectCard } from '@/components/AccountConnectCard';
 import { PointsPanel } from '@/components/PointsPanel';
 import { DashboardMiniChart } from '@/components/DashboardMiniChart';
+import { BettingModal } from '@/components/BettingModal';
 import {
   useCurrentWallet,
   useConnectWallet,
@@ -18,6 +19,8 @@ import {
   useDisconnectWallet,
   useSignPersonalMessage,
 } from '@mysten/dapp-kit';
+import { useToast } from '@/hooks/use-toast';
+import type { Round } from '@/db/schema/rounds';
 
 // 메인 트레이드 대시보드 (Basevol 스타일 레이아웃 레퍼런스)
 export default function HomePage() {
@@ -25,12 +28,16 @@ export default function HomePage() {
   const [walletAddress, setWalletAddress] = useState('');
   const [points, setPoints] = useState(12000);
   const [timeframe, setTimeframe] = useState<'1M' | '6H' | '1D'>('1D');
+  const [currentRound, setCurrentRound] = useState<Round | null>(null);
+  const [loadingRound, setLoadingRound] = useState(false);
+  const [isBettingModalOpen, setIsBettingModalOpen] = useState(false);
 
   const { currentWallet } = useCurrentWallet();
   const { mutateAsync: connectWallet } = useConnectWallet();
   const { mutate: disconnectWallet } = useDisconnectWallet();
   const wallets = useWallets();
   const { mutateAsync: signPersonalMessage } = useSignPersonalMessage();
+  const { toast } = useToast();
 
   // 페이지 로드 시 쿠키에서 주소 읽어서 상태 복원
   useEffect(() => {
@@ -58,6 +65,78 @@ export default function HomePage() {
       setWalletAddress('');
     }
   }, [currentWallet]);
+
+  // 현재 라운드 로드
+  const loadCurrentRound = async () => {
+    setLoadingRound(true);
+    try {
+      const roundType = timeframe === '1M' ? '1MIN' : timeframe === '6H' ? '6HOUR' : '1DAY';
+      const response = await fetch(`/api/rounds/current?type=${roundType}`, {
+        credentials: 'include',
+      });
+      const data = await response.json();
+
+      if (data.success && data.data) {
+        setCurrentRound(data.data);
+      } else {
+        setCurrentRound(null);
+      }
+    } catch (error) {
+      console.error('라운드 로드 실패:', error);
+      setCurrentRound(null);
+    } finally {
+      setLoadingRound(false);
+    }
+  };
+
+  // 타임프레임 변경 시 라운드 새로 로드
+  useEffect(() => {
+    loadCurrentRound();
+    // 10초마다 라운드 정보 갱신
+    const interval = setInterval(loadCurrentRound, 10000);
+    return () => clearInterval(interval);
+  }, [timeframe]);
+
+  // 베팅 모달 열기
+  const handleOpenBettingModal = () => {
+    if (!isConnected) {
+      toast({
+        title: '지갑 연결 필요',
+        description: '베팅하려면 먼저 지갑을 연결해주세요.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (!currentRound) {
+      toast({
+        title: '라운드 없음',
+        description: '현재 진행 중인 라운드가 없습니다.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (currentRound.status !== 'BETTING_OPEN') {
+      toast({
+        title: '베팅 불가',
+        description: '현재 베팅할 수 없는 상태입니다.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsBettingModalOpen(true);
+  };
+
+  // 베팅 성공 핸들러
+  const handleBetSuccess = () => {
+    toast({
+      title: '베팅 성공! 🎉',
+      description: '베팅이 성공적으로 등록되었습니다.',
+    });
+    loadCurrentRound(); // 라운드 정보 갱신
+  };
 
   const isUserRejectionError = (error: unknown) => {
     if (!error) return false;
@@ -305,6 +384,46 @@ Exp: ${expMs}`;
                 </div>
               </div>
 
+              {/* 현재 라운드 정보 */}
+              {currentRound && (
+                <div className="mb-4 rounded-lg bg-slate-900/70 p-3">
+                  <div className="mb-2 flex items-center justify-between">
+                    <span className="text-xs font-semibold text-slate-400">
+                      라운드 #{currentRound.roundNumber}
+                    </span>
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                        currentRound.status === 'BETTING_OPEN'
+                          ? 'bg-emerald-500/20 text-emerald-300'
+                          : currentRound.status === 'BETTING_LOCKED'
+                            ? 'bg-yellow-500/20 text-yellow-300'
+                            : 'bg-slate-700/50 text-slate-400'
+                      }`}
+                    >
+                      {currentRound.status === 'BETTING_OPEN'
+                        ? '베팅 가능'
+                        : currentRound.status === 'BETTING_LOCKED'
+                          ? '베팅 마감'
+                          : currentRound.status}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <div className="rounded bg-slate-800/50 px-2 py-1.5">
+                      <span className="text-slate-500">총 풀</span>
+                      <div className="mt-0.5 font-mono font-semibold text-cyan-300">
+                        {currentRound.totalPool.toLocaleString()} DEL
+                      </div>
+                    </div>
+                    <div className="rounded bg-slate-800/50 px-2 py-1.5">
+                      <span className="text-slate-500">참여자</span>
+                      <div className="mt-0.5 font-semibold text-slate-200">
+                        {currentRound.totalBetsCount}명
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <DashboardMiniChart />
             </Card>
 
@@ -335,8 +454,18 @@ Exp: ${expMs}`;
                 Quick Actions ⚡
               </h3>
               <div className="flex flex-col gap-2.5">
-                <Button className="w-full justify-between rounded-xl bg-gradient-to-r from-cyan-500 to-emerald-500 text-xs font-semibold text-slate-950 shadow-md shadow-cyan-500/30 hover:from-cyan-400 hover:to-emerald-400 hover:shadow-cyan-400/40">
-                  오늘 라운드 참여
+                <Button
+                  onClick={handleOpenBettingModal}
+                  disabled={loadingRound || !currentRound || currentRound.status !== 'BETTING_OPEN'}
+                  className="w-full justify-between rounded-xl bg-gradient-to-r from-cyan-500 to-emerald-500 text-xs font-semibold text-slate-950 shadow-md shadow-cyan-500/30 hover:from-cyan-400 hover:to-emerald-400 hover:shadow-cyan-400/40 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {loadingRound
+                    ? '로딩 중...'
+                    : !currentRound
+                      ? '라운드 없음'
+                      : currentRound.status !== 'BETTING_OPEN'
+                        ? '베팅 마감'
+                        : '베팅하기'}
                   <ArrowRight className="h-4 w-4" />
                 </Button>
                 <Button
@@ -393,6 +522,15 @@ Exp: ${expMs}`;
           </section>
         </div>
       </div>
+
+      {/* 베팅 모달 */}
+      <BettingModal
+        isOpen={isBettingModalOpen}
+        onClose={() => setIsBettingModalOpen(false)}
+        round={currentRound}
+        userAddress={walletAddress}
+        onBetSuccess={handleBetSuccess}
+      />
     </div>
   );
 }
