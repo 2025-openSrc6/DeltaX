@@ -5,10 +5,9 @@ import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Wallet, Zap, LogOut, ArrowRight, Sparkles, BarChart3, Activity } from 'lucide-react';
+import { LogOut, ArrowRight, Sparkles, BarChart3, Wallet } from 'lucide-react';
 
 import { RankingList } from '@/components/RankingList';
-import { AccountConnectCard } from '@/components/AccountConnectCard';
 import { PointsPanel } from '@/components/PointsPanel';
 import { DashboardMiniChart } from '@/components/DashboardMiniChart';
 import { BettingModal } from '@/components/BettingModal';

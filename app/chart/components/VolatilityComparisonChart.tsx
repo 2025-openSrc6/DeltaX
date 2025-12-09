@@ -9,7 +9,6 @@ import {
   Tooltip,
   Legend,
   ResponsiveContainer,
-  Cell,
 } from 'recharts';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
@@ -71,7 +70,7 @@ export function VolatilityComparisonChart({ data }: VolatilityComparisonChartPro
                 return (
                   <div className="bg-background p-3 border rounded-lg shadow-lg">
                     <p className="text-sm font-medium mb-2">{payload[0].payload.metric}</p>
-                    {payload.map((entry: any) => (
+                    {payload.map((entry: { dataKey: string; value: number; color: string }) => (
                       <p key={entry.dataKey} className="text-sm" style={{ color: entry.color }}>
                         {entry.dataKey}: {entry.value.toFixed(2)}
                       </p>

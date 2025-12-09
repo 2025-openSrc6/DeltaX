@@ -25,7 +25,7 @@ interface BTCPriceChartProps {
 export function BTCPriceChart({
   height = 300,
   period = '24h',
-  showVolume = true,
+  // showVolume = true,
   theme = 'dark',
 }: BTCPriceChartProps) {
   const { data, loading, error } = useChartData('BTC', period);

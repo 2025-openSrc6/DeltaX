@@ -70,11 +70,7 @@ export default function NormalizedStrengthChart({
       const slicedData = rawData.slice(-maxDataPoints);
 
       const chartData = slicedData.map(
-        (item: {
-          timestamp: string;
-          paxgStrength: number;
-          btcStrength: number;
-        }) => ({
+        (item: { timestamp: string; paxgStrength: number; btcStrength: number }) => ({
           timestamp: item.timestamp,
           paxg: item.paxgStrength,
           btc: item.btcStrength,
