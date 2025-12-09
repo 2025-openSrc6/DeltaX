@@ -39,7 +39,7 @@ class ServiceRegistry {
   get roundService(): RoundService {
     if (!this._roundService) {
       // 의존성 조립: Repository를 Service에 넣어줌
-      this._roundService = new RoundService(this.roundRepository);
+      this._roundService = new RoundService(this.roundRepository, this.betService);
     }
     return this._roundService;
   }
