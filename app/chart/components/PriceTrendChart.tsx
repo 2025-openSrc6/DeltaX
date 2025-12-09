@@ -58,7 +58,7 @@ export function PriceTrendChart({ data }: PriceTrendChartProps) {
                     <p className="text-sm font-medium mb-2">
                       {new Date(payload[0].payload.timestamp).toLocaleString()}
                     </p>
-                    {payload.map((entry: any) => (
+                    {payload.map((entry: { dataKey: string; value: number; color: string }) => (
                       <p key={entry.dataKey} className="text-sm" style={{ color: entry.color }}>
                         {entry.dataKey === 'paxg' ? 'PAXG' : 'BTC'}: {entry.value.toFixed(2)}%
                       </p>

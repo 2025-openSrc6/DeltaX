@@ -1,6 +1,6 @@
 import { getDb } from '@/lib/db';
 import { chartData, volatilitySnapshots } from '@/db/schema';
-import { fetchKlines, fetchCurrentPrice, type SupportedAsset } from '@/lib/services/binance';
+import { fetchCurrentPrice, type SupportedAsset } from '@/lib/services/binance';
 import {
   calculateStdDev,
   calculateVolatilityChangeRate,
@@ -20,6 +20,7 @@ const TARGET_ASSETS: SupportedAsset[] = ['PAXG', 'BTC'];
 const VOLATILITY_LOOKBACK = 20;
 const HISTORY_PERIOD = 500; // 과거 데이터로 변동성 계산
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export async function POST(request: NextRequest) {
   try {
     const db = getDb();
@@ -175,6 +176,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export async function GET(request: NextRequest) {
   try {
     const db = getDb();

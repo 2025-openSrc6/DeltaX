@@ -254,6 +254,7 @@ export function VolatilityCandlestickChart({
             dataKey="volatility"
             stroke={colors.bullish}
             strokeWidth={2}
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             dot={(props: any) => {
               const { cx, cy, payload } = props;
               return <circle cx={cx} cy={cy} r={3} fill={payload.color} stroke="none" />;

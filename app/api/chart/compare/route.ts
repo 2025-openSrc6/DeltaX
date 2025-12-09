@@ -1,6 +1,6 @@
 import { getDb } from '@/lib/db';
 import { chartData } from '@/db/schema';
-import { eq, and, desc, gte } from 'drizzle-orm';
+import { eq, and, gte } from 'drizzle-orm';
 import { NextRequest, NextResponse } from 'next/server';
 import { compareVolatilityAdjustedReturns } from '@/lib/services/volatility';
 

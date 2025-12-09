@@ -3,7 +3,6 @@
 import {
   PAXGPriceChart,
   BTCPriceChart,
-  VolatilityChart,
   VolatilityCandlestickChart,
   NormalizedStrengthChart,
   SpreadCandlestickChart,

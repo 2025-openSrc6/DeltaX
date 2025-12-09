@@ -1,16 +1,7 @@
 'use client';
 
 import { useChartData } from '@/hooks/useChartData';
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  Tooltip,
-  ResponsiveContainer,
-  Area,
-  ComposedChart,
-} from 'recharts';
+import { Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Area, ComposedChart } from 'recharts';
 
 /**
  * PAXG 가격 차트 컴포넌트의 Props
@@ -44,7 +35,7 @@ interface PAXGPriceChartProps {
 export function PAXGPriceChart({
   height = 300,
   period = '24h',
-  showVolume = true,
+  // showVolume = true,
   theme = 'dark',
 }: PAXGPriceChartProps) {
   const { data, loading, error } = useChartData('PAXG', period);
