@@ -43,6 +43,9 @@ export const bets = sqliteTable(
     /** 지급 금액 (승리/환불 시 계산 값) */
     payoutAmount: integer('payout_amount', { mode: 'number' }).notNull().default(0),
 
+    /** 온체인 상태 (PENDING/EXECUTED/FAILED) */
+    chainStatus: text('chain_status', { length: 20 }).notNull().default('PENDING'),
+
     /** 온체인 Bet Object ID */
     suiBetObjectId: text('sui_bet_object_id', { length: 100 }),
 
