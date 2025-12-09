@@ -18,14 +18,13 @@ import { createBetWithSuiPrepareSchema, getBetsQuerySchema } from './validation'
 import { NotFoundError, BusinessRuleError, ValidationError } from '@/lib/shared/errors';
 import { generateUUID, isValidUUID } from '@/lib/shared/uuid';
 import type {
-  CreateBetResult,
   GetBetsResult,
   BetQueryParams,
-  CreateBetInput,
   BetWithRound,
   ValidatedCreateBetOffchainInput,
+  FinalizeBetExecutionInput,
 } from './types';
-import { Bet } from '@/db/schema';
+import type { Bet } from '@/db/schema/bets';
 import type { Round } from '@/db/schema/rounds';
 import type { PrepareSuiBetTxResult, ExecuteSuiBetTxResult } from '@/lib/sui/types';
 import { SuiService } from '@/lib/sui/service';
@@ -46,40 +45,13 @@ export class BetService {
     this.suiService = suiService;
   }
 
-  /**
-   * 베팅 생성
-   *
-   * Validation 3단계:
-   * 1. 라운드 상태 확인 (BETTING_OPEN만 허용)
-   * 2. 시간 확인 (lockTime 이전만 허용)
-   * 3. 유저 잔액 확인 (충분한지 확인 - Repository 레벨에서 Atomic하게 처리됨)
-   *
-   * @param rawInput - 검증되지 않은 입력
-   * @param userId - 인증된 유저 ID
-   * @returns 베팅 결과 + 업데이트된 라운드 정보
-   */
-  async createBet(
-    input: ValidatedCreateBetOffchainInput,
-    preloadedRound?: Round,
-  ): Promise<CreateBetResult> {
-    const { roundId, prediction, amount, userId } = input;
-
-    // 2. 라운드 존재 확인
-    const round = preloadedRound ?? (await this.roundRepository.findById(roundId));
-    if (!round) {
-      throw new NotFoundError('Round', roundId);
-    }
-
-    // 3. 라운드 상태 확인 (Optimistic Check)
-    // 실제 데이터 무결성은 Repository의 Atomic Update에서 보장됨
+  private async assertRoundOpen(round: Round) {
     if (round.status !== 'BETTING_OPEN') {
       throw new BusinessRuleError('BETTING_CLOSED', 'Betting is closed', {
         roundStatus: round.status,
         roundId: round.id,
       });
     }
-
-    // 4. 시간 확인 (이중 안전장치)
     const now = Date.now();
     if (now >= round.lockTime) {
       throw new BusinessRuleError('BETTING_CLOSED', 'Betting time has ended', {
@@ -88,55 +60,34 @@ export class BetService {
         timeRemaining: round.lockTime - now,
       });
     }
+  }
+
+  private async createPendingBet(
+    input: ValidatedCreateBetOffchainInput,
+    preloadedRound?: Round,
+  ): Promise<Bet> {
+    const { roundId, prediction, amount, userId } = input;
+    const round = preloadedRound ?? (await this.roundRepository.findById(roundId));
+    if (!round) {
+      throw new NotFoundError('Round', roundId);
+    }
+
+    await this.assertRoundOpen(round);
 
     try {
-      // 5. 베팅 생성 (Repository)
-      // Repository에서 다음을 Atomic하게 수행:
-      // - Bet Insert (Conditional)
-      // - Round Pool Update (Conditional)
-      // - User Balance Update (Conditional)
-
       const betId = generateUUID();
       const createdAt = Date.now();
-
-      const betInput: CreateBetInput = {
+      const bet = await this.betRepository.createPending({
         id: betId,
         roundId,
         userId,
         prediction,
         amount,
-        chainStatus: 'PENDING',
         createdAt,
-      };
-
-      const { bet, round: updatedRound } = await this.betRepository.create(betInput);
-
-      // 6. 결과 반환
-      return {
-        bet,
-        round: {
-          totalPool: updatedRound.totalPool,
-          totalGoldBets: updatedRound.totalGoldBets,
-          totalBtcBets: updatedRound.totalBtcBets,
-          totalBetsCount: updatedRound.totalBetsCount,
-        },
-        userBalance: {
-          delBalance: 0, // TODO: 유저 잔액을 리턴하려면 User 정보도 조회해야 함 (Week 1에서는 생략 or 별도 조회)
-        },
-      };
+      });
+      return bet;
     } catch (error: unknown) {
-      // Repository 에러를 적절한 비즈니스 에러로 변환
       if (error instanceof Error) {
-        if (error.message.includes('Round is not accepting bets')) {
-          throw new BusinessRuleError(
-            'BETTING_CLOSED',
-            'Betting is closed (closed during processing)',
-          );
-        }
-        if (error.message.includes('Insufficient balance')) {
-          throw new BusinessRuleError('INSUFFICIENT_BALANCE', 'Insufficient balance');
-        }
-        // Repository에서 변환된 중복 베팅 에러 처리
         if ((error as { code?: string }).code === 'ALREADY_EXISTS') {
           throw new BusinessRuleError(
             'ALREADY_BET',
@@ -165,7 +116,7 @@ export class BetService {
       throw new NotFoundError('Pool', roundId);
     }
 
-    const { bet } = await this.createBet(
+    const bet = await this.createPendingBet(
       {
         roundId,
         prediction,
@@ -188,7 +139,6 @@ export class BetService {
   }
 
   async executeBetWithUpdate(rawInput: unknown): Promise<ExecuteSuiBetTxResult> {
-    // 입력 검증
     const {
       txBytes: txBytesBase64,
       userSignature,
@@ -196,6 +146,17 @@ export class BetService {
       betId,
       userId,
     } = executeSuiBetTxSchema.parse(rawInput);
+
+    const bet = await this.betRepository.findById(betId);
+    if (!bet) {
+      throw new NotFoundError('Bet', betId);
+    }
+    if (bet.userId !== userId) {
+      throw new BusinessRuleError('USER_MISMATCH', 'Prepared user does not match execution userId');
+    }
+    if (bet.chainStatus === 'EXECUTED') {
+      return { digest: bet.suiTxHash ?? 'already-executed' };
+    }
 
     const { digest } = await this.suiService.executeBetTransaction({
       txBytes: txBytesBase64,
@@ -205,12 +166,16 @@ export class BetService {
       userId,
     });
 
-    // DB 업데이트
-    await this.updateBet(betId, {
+    const finalizeInput: FinalizeBetExecutionInput = {
+      betId,
+      roundId: bet.roundId,
+      userId: bet.userId,
+      prediction: bet.prediction as 'GOLD' | 'BTC',
+      amount: bet.amount,
       suiTxHash: digest,
-      processedAt: Date.now(),
-      chainStatus: 'EXECUTED',
-    });
+    };
+
+    await this.betRepository.finalizeExecution(finalizeInput);
 
     return { digest };
   }
