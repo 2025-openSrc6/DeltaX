@@ -127,7 +127,7 @@ export default function HomePage() {
     }
   }, [currentWallet]);
 
-  // 현재 라운드 로드 (6시간 라운드 고정)
+  // 현재 라운드 로드
   const loadCurrentRound = async () => {
     setLoadingRound(true);
     try {
