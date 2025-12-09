@@ -53,10 +53,10 @@ export class RoundService {
   private repository: RoundRepository;
   private betService: BetService;
 
-  constructor(repository?: RoundRepository, betService?: BetService) {
+  constructor(repository: RoundRepository, betService: BetService) {
     // Dependency Injection: 테스트 시 Mock 주입 가능
-    this.repository = repository ?? new RoundRepository();
-    this.betService = betService ?? new BetService();
+    this.repository = repository;
+    this.betService = betService;
   }
 
   /**
