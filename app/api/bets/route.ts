@@ -26,19 +26,15 @@ import { UnauthorizedError } from '@/lib/shared/errors';
  *   userDelCoinId: string;    // 유저-소유 DEL Coin object id (필수)
  * }
  *
- * Response:
+ * Response (준비 성공):
  * {
  *   success: true,
  *   data: {
- *     bet: Bet,               // 생성된 베팅 정보
- *     round: RoundSummary,    // 업데이트된 라운드 풀 정보
- *     userBalance: Balance    // (Optional) 베팅 후 유저 잔액
+ *     betId: "<uuid>",
+ *     txBytes: "<base64>",
+ *     nonce: "<uuid>",
+ *     expiresAt: <ms epoch>
  *   }
- * }
- * Response:
- * {
- *   success: true,
- *   data: { txBytes: "<base64>", nonce: "<uuid>", expiresAt: <ms epoch> }
  * }
  *
  * 에러 Response:
@@ -78,7 +74,7 @@ export async function POST(request: NextRequest) {
     // - 베팅 생성 및 풀 업데이트 (Atomic Batch)
     const result = await registry.betService.createBetWithSuiPrepare(body, userId);
 
-    // 4. 성공 응답 반환
+    // 4. 성공 응답 반환 (betId 포함)
     return createSuccessResponse(result);
   } catch (error) {
     // 5. 에러 처리 (Service 에러 → HTTP 응답)

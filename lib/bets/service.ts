@@ -148,7 +148,10 @@ export class BetService {
     }
   }
 
-  async createBetWithSuiPrepare(rawInput: unknown, userId: string): Promise<PrepareSuiBetTxResult> {
+  async createBetWithSuiPrepare(
+    rawInput: unknown,
+    userId: string,
+  ): Promise<PrepareSuiBetTxResult & { betId: string }> {
     const { roundId, prediction, amount, userAddress, userDelCoinId } =
       createBetWithSuiPrepareSchema.parse(rawInput);
 
@@ -181,7 +184,7 @@ export class BetService {
       userId,
     });
 
-    return prepareSuiBetTxResult;
+    return { ...prepareSuiBetTxResult, betId: bet.id };
   }
 
   async executeBetWithUpdate(rawInput: unknown): Promise<ExecuteSuiBetTxResult> {
