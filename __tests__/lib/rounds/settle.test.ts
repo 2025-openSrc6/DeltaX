@@ -111,15 +111,13 @@ describe('RoundService.settleRound', () => {
 
     mockBetService = {
       findBetsByRoundId: mockBetRepository.findByRoundId,
-      updateBetSettlement: vi
-        .fn()
-        .mockImplementation(async (betId, result) =>
-          mockBetRepository.updateById(betId, {
-            resultStatus: result.resultStatus,
-            settlementStatus: result.settlementStatus,
-            payoutAmount: result.payoutAmount,
-          }),
-        ),
+      updateBetSettlement: vi.fn().mockImplementation(async (betId, result) =>
+        mockBetRepository.updateById(betId, {
+          resultStatus: result.resultStatus,
+          settlementStatus: result.settlementStatus,
+          payoutAmount: result.payoutAmount,
+        }),
+      ),
     } as unknown as BetService;
 
     roundService = new RoundService(
