@@ -30,6 +30,24 @@ export interface CreateBetInput {
   chainStatus: 'PENDING' | 'EXECUTED' | 'FAILED';
 }
 
+export interface CreatePendingBetInput {
+  id: string;
+  roundId: string;
+  userId: string;
+  prediction: 'GOLD' | 'BTC';
+  amount: number;
+  createdAt: number;
+}
+
+export interface FinalizeBetExecutionInput {
+  betId: string;
+  roundId: string;
+  userId: string;
+  prediction: 'GOLD' | 'BTC';
+  amount: number;
+  suiTxHash: string;
+}
+
 /**
  * 베팅 생성 결과
  */

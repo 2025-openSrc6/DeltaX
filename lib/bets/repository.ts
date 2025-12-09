@@ -18,7 +18,7 @@ import { and, asc, desc, eq, sql } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
 import type { Bet } from '@/db/schema/bets';
 import type { Round } from '@/db/schema/rounds';
-import type { BetQueryParams, CreateBetInput } from './types';
+import type { BetQueryParams, CreatePendingBetInput, FinalizeBetExecutionInput } from './types';
 import { NotFoundError } from '@/lib/shared/errors';
 
 export class BetRepository {
@@ -63,125 +63,106 @@ export class BetRepository {
   }
 
   /**
-   * 베팅 생성 + 라운드 풀 Atomic 업데이트
-   *
-   * D1 Batch 전략:
-   * - db.batch()로 3개 쿼리 원자적 실행 (Bet Insert, Round Update, User Update)
-   * - 조건 불만족 시 보상 트랜잭션으로 데이터 정합성 보장
-   * - Interactive Transaction 미지원으로 인한 D1의 제약사항
-   *
-   * @param input - 베팅 생성 입력
-   * @returns 베팅 생성 결과
+   * 베팅 생성 (Pending) - 풀/잔액은 확정 차감하지 않음
    */
-  async create(input: CreateBetInput): Promise<{ bet: Bet; round: Round }> {
+  async createPending(input: CreatePendingBetInput): Promise<Bet> {
     const db = getDb();
     const { id, roundId, userId, prediction, amount, createdAt } = input;
     const now = Date.now();
 
     try {
-      const batchResults = await db.batch([
-        // [0] Insert Bet
-        db
-          .insert(bets)
-          .values({
-            id,
-            roundId,
-            userId,
-            prediction,
-            amount,
-            currency: 'DEL',
-            resultStatus: 'PENDING',
-            settlementStatus: 'PENDING',
-            createdAt,
-            processedAt: now,
-          })
-          .returning(),
+      const result = await db
+        .insert(bets)
+        .values({
+          id,
+          roundId,
+          userId,
+          prediction,
+          amount,
+          currency: 'DEL',
+          resultStatus: 'PENDING',
+          settlementStatus: 'PENDING',
+          chainStatus: 'PENDING',
+          createdAt,
+          processedAt: now,
+        })
+        .returning();
 
-        // [1] Update Round Pool (Atomic)
-        db
-          .update(rounds)
-          .set({
-            totalPool: sql`${rounds.totalPool} + ${amount}`,
-            totalGoldBets:
-              prediction === 'GOLD'
-                ? sql`${rounds.totalGoldBets} + ${amount}`
-                : rounds.totalGoldBets,
-            totalBtcBets:
-              prediction === 'BTC' ? sql`${rounds.totalBtcBets} + ${amount}` : rounds.totalBtcBets,
-            totalBetsCount: sql`${rounds.totalBetsCount} + 1`,
-            updatedAt: now,
-          })
-          .where(and(eq(rounds.id, roundId), eq(rounds.status, 'BETTING_OPEN')))
-          .returning(),
-
-        // [2] Update User Balance
-        db
-          .update(users)
-          .set({
-            delBalance: sql`${users.delBalance} - ${amount}`,
-            totalBets: sql`${users.totalBets} + 1`,
-            totalVolume: sql`${users.totalVolume} + ${amount}`,
-            updatedAt: now,
-          })
-          .where(and(eq(users.id, userId), sql`${users.delBalance} >= ${amount}`)),
-      ]);
-
-      // 결과 분석 및 보상
-      // D1 batch 결과: returning()은 배열, 일반 쿼리는 { meta: { changes } } 반환
-      const betResult = batchResults[0] as Bet[];
-      const roundResult = batchResults[1] as Round[];
-      const userUpdateResult = batchResults[2] as { meta?: { changes?: number } };
-
-      const createdBet = betResult[0];
-      const updatedRound = roundResult[0];
-      const userRowsAffected = userUpdateResult?.meta?.changes ?? 0;
-
-      const errors: string[] = [];
-
-      // Case A: 라운드 마감됨 (Ghost Bet)
-      if (!updatedRound) {
-        errors.push('Round is not accepting bets');
-        // 보상: 베팅 삭제
-        await db.delete(bets).where(eq(bets.id, id));
-      }
-
-      // Case B: 잔액 부족 (Ghost Bet + Round Pool 잘못 증가)
-      if (userRowsAffected === 0) {
-        errors.push('Insufficient balance');
-
-        // 보상 1: 베팅 삭제
-        await db.delete(bets).where(eq(bets.id, id));
-
-        // 보상 2: 라운드 풀 원복 (만약 라운드 업데이트가 성공했다면)
-        if (updatedRound) {
-          await db
-            .update(rounds)
-            .set({
-              totalPool: sql`${rounds.totalPool} - ${amount}`,
-              totalGoldBets:
-                prediction === 'GOLD'
-                  ? sql`${rounds.totalGoldBets} - ${amount}`
-                  : rounds.totalGoldBets,
-              totalBtcBets:
-                prediction === 'BTC'
-                  ? sql`${rounds.totalBtcBets} - ${amount}`
-                  : rounds.totalBtcBets,
-              totalBetsCount: sql`${rounds.totalBetsCount} - 1`,
-              updatedAt: now,
-            })
-            .where(eq(rounds.id, roundId));
-        }
-      }
-
-      if (errors.length > 0) {
-        throw new Error(errors.join(', '));
-      }
-
-      return { bet: createdBet, round: updatedRound };
+      return result[0];
     } catch (error: unknown) {
       this.handleError(error);
       throw error; // Should be unreachable due to handleError throwing
     }
+  }
+
+  /**
+   * 체인 실행 성공 후 확정 반영 (라운드 풀 + 유저 잔액 + Bet 상태)
+   */
+  async finalizeExecution(input: FinalizeBetExecutionInput): Promise<Bet> {
+    const db = getDb();
+    const { betId, roundId, userId, prediction, amount, suiTxHash } = input;
+    const now = Date.now();
+
+    const batchResults = await db.batch([
+      // [0] Update Round Pool
+      db
+        .update(rounds)
+        .set({
+          totalPool: sql`${rounds.totalPool} + ${amount}`,
+          totalGoldBets:
+            prediction === 'GOLD' ? sql`${rounds.totalGoldBets} + ${amount}` : rounds.totalGoldBets,
+          totalBtcBets:
+            prediction === 'BTC' ? sql`${rounds.totalBtcBets} + ${amount}` : rounds.totalBtcBets,
+          totalBetsCount: sql`${rounds.totalBetsCount} + 1`,
+          updatedAt: now,
+        })
+        .where(eq(rounds.id, roundId))
+        .returning(),
+
+      // [1] Update User Balance
+      db
+        .update(users)
+        .set({
+          delBalance: sql`${users.delBalance} - ${amount}`,
+          totalBets: sql`${users.totalBets} + 1`,
+          totalVolume: sql`${users.totalVolume} + ${amount}`,
+          updatedAt: now,
+        })
+        .where(and(eq(users.id, userId), sql`${users.delBalance} >= ${amount}`)),
+
+      // [2] Update Bet
+      db
+        .update(bets)
+        .set({
+          chainStatus: 'EXECUTED',
+          suiTxHash,
+          processedAt: now,
+        })
+        .where(eq(bets.id, betId))
+        .returning(),
+    ]);
+
+    const roundResult = batchResults[0] as Round[];
+    const userUpdateResult = batchResults[1] as { meta?: { changes?: number } };
+    const betResult = batchResults[2] as Bet[];
+
+    const errors: string[] = [];
+    if (!roundResult[0]) {
+      errors.push('Round update failed');
+    }
+    const userRowsAffected = userUpdateResult?.meta?.changes ?? 0;
+    if (userRowsAffected === 0) {
+      errors.push('Insufficient balance');
+    }
+    if (!betResult[0]) {
+      errors.push('Bet update failed');
+    }
+
+    if (errors.length > 0) {
+      throw new Error(errors.join(', '));
+    }
+
+    return betResult[0];
   }
 
   /**
