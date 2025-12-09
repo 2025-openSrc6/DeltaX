@@ -165,36 +165,38 @@ export default function HomePage() {
     return () => clearInterval(interval);
   }, [timeframe]);
 
-  // 베팅 모달 열기
+  // 베팅 모달 열기 (테스트용 - 검증 우회)
   const handleOpenBettingModal = () => {
-    if (!isConnected) {
-      toast({
-        title: '지갑 연결 필요',
-        description: '베팅하려면 먼저 지갑을 연결해주세요.',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    if (!currentRound) {
-      toast({
-        title: '라운드 없음',
-        description: '현재 진행 중인 라운드가 없습니다.',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    if (currentRound.status !== 'BETTING_OPEN') {
-      toast({
-        title: '베팅 불가',
-        description: '현재 베팅할 수 없는 상태입니다.',
-        variant: 'destructive',
-      });
-      return;
-    }
-
+    // 테스트: 바로 모달 열기
     setIsBettingModalOpen(true);
+
+    // 원래 검증 로직 (테스트 후 복원 필요)
+    // if (!isConnected) {
+    //   toast({
+    //     title: '지갑 연결 필요',
+    //     description: '베팅하려면 먼저 지갑을 연결해주세요.',
+    //     variant: 'destructive',
+    //   });
+    //   return;
+    // }
+
+    // if (!currentRound) {
+    //   toast({
+    //     title: '라운드 없음',
+    //     description: '현재 진행 중인 라운드가 없습니다.',
+    //     variant: 'destructive',
+    //   });
+    //   return;
+    // }
+
+    // if (currentRound.status !== 'BETTING_OPEN') {
+    //   toast({
+    //     title: '베팅 불가',
+    //     description: '현재 베팅할 수 없는 상태입니다.',
+    //     variant: 'destructive',
+    //   });
+    //   return;
+    // }
   };
 
   // 베팅 성공 핸들러
@@ -502,16 +504,9 @@ Exp: ${expMs}`;
               <div className="flex flex-col gap-2.5">
                 <Button
                   onClick={handleOpenBettingModal}
-                  disabled={loadingRound || !currentRound || currentRound.status !== 'BETTING_OPEN'}
-                  className="w-full justify-between rounded-xl bg-gradient-to-r from-cyan-500 to-emerald-500 text-xs font-semibold text-slate-950 shadow-md shadow-cyan-500/30 hover:from-cyan-400 hover:to-emerald-400 hover:shadow-cyan-400/40 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="w-full justify-between rounded-xl bg-gradient-to-r from-cyan-500 to-emerald-500 text-xs font-semibold text-slate-950 shadow-md shadow-cyan-500/30 hover:from-cyan-400 hover:to-emerald-400 hover:shadow-cyan-400/40"
                 >
-                  {loadingRound
-                    ? '로딩 중...'
-                    : !currentRound
-                      ? '라운드 없음'
-                      : currentRound.status !== 'BETTING_OPEN'
-                        ? '베팅 마감'
-                        : '베팅하기'}
+                  베팅하기 (테스트)
                   <ArrowRight className="h-4 w-4" />
                 </Button>
                 <Button
