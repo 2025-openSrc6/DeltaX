@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { suiIdSchema } from '../sui/validation';
 
 /**
  * POST /api/bets Request Body 검증
@@ -28,4 +29,18 @@ export const getBetsQuerySchema = z.object({
   pageSize: z.coerce.number().int().min(1).max(100).default(20),
   sort: z.enum(['created_at', 'amount']).default('created_at'),
   order: z.enum(['asc', 'desc']).default('desc'),
+});
+
+export const createBetWithSuiPrepareSchema = z.object({
+  roundId: z.string().uuid('Invalid UUID format'),
+  prediction: z.enum(['GOLD', 'BTC'], {
+    message: 'prediction must be one of: GOLD, BTC',
+  }),
+  amount: z
+    .number()
+    .int('Bet amount must be an integer')
+    .min(100, 'Minimum bet amount is 100')
+    .max(1000000, 'Maximum bet amount is 1,000,000'),
+  userAddress: suiIdSchema.describe('User Sui address'),
+  userDelCoinId: suiIdSchema.describe('User-owned DEL Coin object id'),
 });

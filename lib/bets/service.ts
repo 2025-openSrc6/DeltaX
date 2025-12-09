@@ -14,7 +14,7 @@
 
 import { BetRepository } from './repository';
 import { RoundRepository } from '@/lib/rounds/repository';
-import { createBetSchema, getBetsQuerySchema } from './validation';
+import { createBetWithSuiPrepareSchema, getBetsQuerySchema } from './validation';
 import { NotFoundError, BusinessRuleError, ValidationError } from '@/lib/shared/errors';
 import { generateUUID, isValidUUID } from '@/lib/shared/uuid';
 import type {
@@ -23,16 +23,30 @@ import type {
   BetQueryParams,
   CreateBetInput,
   BetWithRound,
+  ValidatedCreateBetOffchainInput,
 } from './types';
 import { Bet } from '@/db/schema';
+import type { Round } from '@/db/schema/rounds';
+import type { PrepareSuiBetTxResult } from '@/lib/sui/types';
+import { SuiService } from '@/lib/sui/service';
 
 export class BetService {
   private betRepository: BetRepository;
   private roundRepository: RoundRepository;
+  private suiService?: SuiService;
 
-  constructor(betRepository?: BetRepository, roundRepository?: RoundRepository) {
+  constructor(
+    betRepository?: BetRepository,
+    roundRepository?: RoundRepository,
+    suiService?: SuiService,
+  ) {
     this.betRepository = betRepository ?? new BetRepository();
     this.roundRepository = roundRepository ?? new RoundRepository();
+    this.suiService = suiService;
+  }
+
+  setSuiService(service: SuiService) {
+    this.suiService = service;
   }
 
   /**
@@ -47,14 +61,16 @@ export class BetService {
    * @param userId - 인증된 유저 ID
    * @returns 베팅 결과 + 업데이트된 라운드 정보
    */
-  async createBet(rawInput: unknown, userId: string): Promise<CreateBetResult> {
-    // 1. 입력 검증 (Zod)
-    const validated = createBetSchema.parse(rawInput);
+  async createBet(
+    input: ValidatedCreateBetOffchainInput,
+    preloadedRound?: Round,
+  ): Promise<CreateBetResult> {
+    const { roundId, prediction, amount, userId } = input;
 
     // 2. 라운드 존재 확인
-    const round = await this.roundRepository.findById(validated.roundId);
+    const round = preloadedRound ?? (await this.roundRepository.findById(roundId));
     if (!round) {
-      throw new NotFoundError('Round', validated.roundId);
+      throw new NotFoundError('Round', roundId);
     }
 
     // 3. 라운드 상태 확인 (Optimistic Check)
@@ -88,10 +104,11 @@ export class BetService {
 
       const betInput: CreateBetInput = {
         id: betId,
-        roundId: validated.roundId,
+        roundId,
         userId,
-        prediction: validated.prediction,
-        amount: validated.amount,
+        prediction,
+        amount,
+        chainStatus: 'PENDING',
         createdAt,
       };
 
@@ -132,6 +149,46 @@ export class BetService {
       }
       throw error;
     }
+  }
+
+  async createBetWithSuiPrepare(rawInput: unknown, userId: string): Promise<PrepareSuiBetTxResult> {
+    if (!this.suiService) {
+      throw new BusinessRuleError('SUI_SERVICE_NOT_CONFIGURED', 'Sui service is not available');
+    }
+
+    const { roundId, prediction, amount, userAddress, userDelCoinId } =
+      createBetWithSuiPrepareSchema.parse(rawInput);
+
+    // 라운드 단일 조회 (poolId 확보 + 상태/시간 검증은 createBet에서 재사용)
+    const round = await this.roundRepository.findById(roundId);
+    if (!round) {
+      throw new NotFoundError('Round', roundId);
+    }
+    const poolId = round.suiPoolAddress;
+    if (!poolId) {
+      throw new NotFoundError('Pool', roundId);
+    }
+
+    const { bet } = await this.createBet(
+      {
+        roundId,
+        prediction,
+        amount,
+        userId,
+      },
+      round,
+    );
+
+    const prepareSuiBetTxResult = await this.suiService.prepareBetTransaction({
+      userAddress,
+      userDelCoinId,
+      poolId,
+      prediction: prediction === 'GOLD' ? 1 : 2,
+      betId: bet.id,
+      userId,
+    });
+
+    return prepareSuiBetTxResult;
   }
 
   /**

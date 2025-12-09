@@ -1,8 +1,7 @@
 import { z } from 'zod';
-import { executeSuiBetTxSchema, prepareSuiBetTxSchema } from './validation';
+import { executeSuiBetTxSchema } from './validation';
 
 export type BetPrediction = 1 | 2;
-export type PrepareSuiBetTxInput = z.infer<typeof prepareSuiBetTxSchema>;
 export type ExecuteSuiBetTxInput = z.infer<typeof executeSuiBetTxSchema>;
 
 export interface PrepareSuiBetTxResult {
@@ -13,4 +12,13 @@ export interface PrepareSuiBetTxResult {
 
 export interface ExecuteSuiBetTxResult {
   digest: string;
+}
+
+export interface ValidatedPrepareSuiBetTxInput {
+  userAddress: string;
+  userDelCoinId: string;
+  poolId: string;
+  prediction: BetPrediction;
+  betId: string;
+  userId: string;
 }
