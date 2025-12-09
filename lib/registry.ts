@@ -55,8 +55,8 @@ class ServiceRegistry {
   private _betService?: BetService;
   get betService(): BetService {
     if (!this._betService) {
-      // 의존성 조립: BetService는 BetRepository와 RoundRepository가 모두 필요함 (검증용)
-      this._betService = new BetService(this.betRepository, this.roundRepository);
+      // 의존성 조립: BetService는 BetRepository, RoundRepository, SuiService가 필요함
+      this._betService = new BetService(this.betRepository, this.roundRepository, this.suiService);
     }
     return this._betService;
   }
@@ -80,10 +80,7 @@ class ServiceRegistry {
   private _suiService?: SuiService;
   get suiService(): SuiService {
     if (!this._suiService) {
-      const betService = this.betService;
-      this._suiService = new SuiService(betService, new UpstashNonceStore());
-      // 순환 의존을 피하기 위해 생성 후 BetService에 주입
-      betService.setSuiService(this._suiService);
+      this._suiService = new SuiService(new UpstashNonceStore());
     }
     return this._suiService;
   }

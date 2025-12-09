@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
 
-    const result = await registry.suiService.executeBetTransaction(body);
+    const result = await registry.betService.executeBetWithUpdate(body);
 
     return createSuccessResponse(result);
   } catch (error) {

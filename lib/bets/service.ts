@@ -27,26 +27,23 @@ import type {
 } from './types';
 import { Bet } from '@/db/schema';
 import type { Round } from '@/db/schema/rounds';
-import type { PrepareSuiBetTxResult } from '@/lib/sui/types';
+import type { PrepareSuiBetTxResult, ExecuteSuiBetTxResult } from '@/lib/sui/types';
 import { SuiService } from '@/lib/sui/service';
+import { executeSuiBetTxSchema } from '../sui/validation';
 
 export class BetService {
   private betRepository: BetRepository;
   private roundRepository: RoundRepository;
-  private suiService?: SuiService;
+  private suiService: SuiService;
 
   constructor(
-    betRepository?: BetRepository,
-    roundRepository?: RoundRepository,
-    suiService?: SuiService,
+    betRepository: BetRepository,
+    roundRepository: RoundRepository,
+    suiService: SuiService,
   ) {
-    this.betRepository = betRepository ?? new BetRepository();
-    this.roundRepository = roundRepository ?? new RoundRepository();
+    this.betRepository = betRepository;
+    this.roundRepository = roundRepository;
     this.suiService = suiService;
-  }
-
-  setSuiService(service: SuiService) {
-    this.suiService = service;
   }
 
   /**
@@ -152,10 +149,6 @@ export class BetService {
   }
 
   async createBetWithSuiPrepare(rawInput: unknown, userId: string): Promise<PrepareSuiBetTxResult> {
-    if (!this.suiService) {
-      throw new BusinessRuleError('SUI_SERVICE_NOT_CONFIGURED', 'Sui service is not available');
-    }
-
     const { roundId, prediction, amount, userAddress, userDelCoinId } =
       createBetWithSuiPrepareSchema.parse(rawInput);
 
@@ -189,6 +182,34 @@ export class BetService {
     });
 
     return prepareSuiBetTxResult;
+  }
+
+  async executeBetWithUpdate(rawInput: unknown): Promise<ExecuteSuiBetTxResult> {
+    // 입력 검증
+    const {
+      txBytes: txBytesBase64,
+      userSignature,
+      nonce,
+      betId,
+      userId,
+    } = executeSuiBetTxSchema.parse(rawInput);
+
+    const { digest } = await this.suiService.executeBetTransaction({
+      txBytes: txBytesBase64,
+      userSignature,
+      nonce,
+      betId,
+      userId,
+    });
+
+    // DB 업데이트
+    await this.updateBet(betId, {
+      suiTxHash: digest,
+      processedAt: Date.now(),
+      chainStatus: 'EXECUTED',
+    });
+
+    return { digest };
   }
 
   /**
