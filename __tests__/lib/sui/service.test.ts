@@ -1,9 +1,6 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import * as crypto from 'crypto';
-import { SuiService } from '@/lib/sui/service';
-import { PREPARE_TX_TTL_MS, PREPARE_TX_TTL_SECONDS } from '@/lib/sui/constants';
-import type { NonceStore, PreparedTxRecord } from '@/lib/sui/nonceStore';
-import type { BetService } from '@/lib/bets/service';
+import { createHash } from 'crypto';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { Mock } from 'vitest';
 
 const {
   mockGetSponsorKeypair,
@@ -44,16 +41,21 @@ vi.mock('@/lib/sui/utils', () => ({
   sleep: mockSleep,
 }));
 
+import { SuiService } from '@/lib/sui/service';
+import { PREPARE_TX_TTL_MS, PREPARE_TX_TTL_SECONDS } from '@/lib/sui/constants';
+import { BusinessRuleError } from '@/lib/shared/errors';
+import type { NonceStore, PreparedTxRecord } from '@/lib/sui/nonceStore';
+
 const TX_BYTES = new Uint8Array([1, 2, 3]);
 const TX_BYTES_BASE64 = Buffer.from(TX_BYTES).toString('base64');
-const TX_HASH = crypto.createHash('sha256').update(TX_BYTES).digest('hex');
+const TX_HASH = createHash('sha256').update(TX_BYTES).digest('hex');
 const NOW = new Date('2025-01-01T00:00:00Z').getTime();
 const NONCE = '00000000-0000-0000-0000-000000000000';
 
 const basePrepareParams = {
   userAddress: '0x1a2b3c4d',
   poolId: '0x5e6f7a8b',
-  prediction: 1,
+  prediction: 1 as const,
   userDelCoinId: '0x9c0d1e2f',
   betId: '11111111-1111-4111-8111-111111111111',
   userId: '22222222-2222-4222-8222-222222222222',
@@ -61,7 +63,7 @@ const basePrepareParams = {
 
 const baseExecuteParams = {
   txBytes: TX_BYTES_BASE64,
-  userSignature: 'dXNlci1zaWduYXR1cmU=', // 'user-signature' base64
+  userSignature: 'user-signature',
   nonce: NONCE,
   betId: basePrepareParams.betId,
   userId: basePrepareParams.userId,
@@ -77,7 +79,6 @@ const createPreparedRecord = (overrides: Partial<PreparedTxRecord> = {}): Prepar
 
 describe('SuiService', () => {
   let nonceStore: NonceStore;
-  let betService: BetService;
   let suiService: SuiService;
   let sponsorMock: {
     toSuiAddress: () => string;
@@ -118,11 +119,7 @@ describe('SuiService', () => {
       consume: vi.fn(),
     };
 
-    betService = {
-      updateBet: vi.fn(),
-    } as unknown as BetService;
-
-    suiService = new SuiService(betService, nonceStore);
+    suiService = new SuiService(nonceStore);
   });
 
   afterEach(() => {
@@ -182,8 +179,8 @@ describe('SuiService', () => {
     });
   });
 
-  it('executeBetTransaction succeeds and updates bet', async () => {
-    nonceStore.consume = vi.fn().mockResolvedValue(createPreparedRecord());
+  it('executeBetTransaction succeeds when prepared data matches', async () => {
+    (nonceStore.consume as Mock).mockResolvedValue(createPreparedRecord());
 
     const result = await suiService.executeBetTransaction(baseExecuteParams);
 
@@ -198,15 +195,11 @@ describe('SuiService', () => {
       digest: '0xdigest',
       options: { showEffects: true },
     });
-    expect(betService.updateBet).toHaveBeenCalledWith(baseExecuteParams.betId, {
-      suiTxHash: '0xdigest',
-      processedAt: NOW,
-    });
     expect(result.digest).toBe('0xdigest');
   });
 
   it('executeBetTransaction rejects when nonce is missing', async () => {
-    nonceStore.consume = vi.fn().mockResolvedValue(null);
+    (nonceStore.consume as Mock).mockResolvedValue(null);
 
     await expect(suiService.executeBetTransaction(baseExecuteParams)).rejects.toMatchObject({
       code: 'INVALID_NONCE',
@@ -214,7 +207,7 @@ describe('SuiService', () => {
   });
 
   it('executeBetTransaction rejects on tx hash mismatch', async () => {
-    nonceStore.consume = vi.fn().mockResolvedValue(createPreparedRecord({ txBytesHash: 'other' }));
+    (nonceStore.consume as Mock).mockResolvedValue(createPreparedRecord({ txBytesHash: 'other' }));
 
     await expect(suiService.executeBetTransaction(baseExecuteParams)).rejects.toMatchObject({
       code: 'TX_MISMATCH',
@@ -222,7 +215,7 @@ describe('SuiService', () => {
   });
 
   it('executeBetTransaction rejects when nonce expired', async () => {
-    nonceStore.consume = vi.fn().mockResolvedValue(createPreparedRecord({ expiresAt: NOW - 1 }));
+    (nonceStore.consume as Mock).mockResolvedValue(createPreparedRecord({ expiresAt: NOW - 1 }));
 
     await expect(suiService.executeBetTransaction(baseExecuteParams)).rejects.toMatchObject({
       code: 'NONCE_EXPIRED',
@@ -230,19 +223,19 @@ describe('SuiService', () => {
   });
 
   it('executeBetTransaction rejects when bet/user mismatch', async () => {
-    nonceStore.consume = vi.fn().mockResolvedValue(createPreparedRecord({ betId: 'other' }));
+    (nonceStore.consume as Mock).mockResolvedValue(createPreparedRecord({ betId: 'other' }));
     await expect(suiService.executeBetTransaction(baseExecuteParams)).rejects.toMatchObject({
       code: 'BET_MISMATCH',
     });
 
-    nonceStore.consume = vi.fn().mockResolvedValue(createPreparedRecord({ userId: 'other' }));
+    (nonceStore.consume as Mock).mockResolvedValue(createPreparedRecord({ userId: 'other' }));
     await expect(suiService.executeBetTransaction(baseExecuteParams)).rejects.toMatchObject({
       code: 'USER_MISMATCH',
     });
   });
 
   it('executeBetTransaction categorizes rate limit errors', async () => {
-    nonceStore.consume = vi.fn().mockResolvedValue(createPreparedRecord());
+    (nonceStore.consume as Mock).mockResolvedValue(createPreparedRecord());
     mockExecuteTransactionBlock.mockRejectedValue(new Error('429 rate limit'));
 
     await expect(suiService.executeBetTransaction(baseExecuteParams)).rejects.toMatchObject({
@@ -252,7 +245,7 @@ describe('SuiService', () => {
   });
 
   it('executeBetTransaction categorizes timeout errors', async () => {
-    nonceStore.consume = vi.fn().mockResolvedValue(createPreparedRecord());
+    (nonceStore.consume as Mock).mockResolvedValue(createPreparedRecord());
     mockExecuteTransactionBlock.mockRejectedValue(new Error('rpc timeout'));
 
     await expect(suiService.executeBetTransaction(baseExecuteParams)).rejects.toMatchObject({
@@ -262,7 +255,7 @@ describe('SuiService', () => {
   });
 
   it('executeBetTransaction fails when digest is missing', async () => {
-    nonceStore.consume = vi.fn().mockResolvedValue(createPreparedRecord());
+    (nonceStore.consume as Mock).mockResolvedValue(createPreparedRecord());
     mockExecuteTransactionBlock.mockResolvedValue({});
 
     await expect(suiService.executeBetTransaction(baseExecuteParams)).rejects.toMatchObject({
@@ -271,7 +264,7 @@ describe('SuiService', () => {
   });
 
   it('ensureOnChain retries and fails after max attempts', async () => {
-    nonceStore.consume = vi.fn().mockResolvedValue(createPreparedRecord());
+    (nonceStore.consume as Mock).mockResolvedValue(createPreparedRecord());
     mockGetTransactionBlock.mockRejectedValue(new Error('not found'));
 
     await expect(suiService.executeBetTransaction(baseExecuteParams)).rejects.toMatchObject({
@@ -282,7 +275,7 @@ describe('SuiService', () => {
   });
 
   it('ensureOnChain propagates on-chain failure status', async () => {
-    nonceStore.consume = vi.fn().mockResolvedValue(createPreparedRecord());
+    (nonceStore.consume as Mock).mockResolvedValue(createPreparedRecord());
     mockGetTransactionBlock.mockResolvedValue({
       effects: { status: { status: 'failure', error: 'reverted' } },
     });
@@ -290,5 +283,14 @@ describe('SuiService', () => {
     await expect(suiService.executeBetTransaction(baseExecuteParams)).rejects.toMatchObject({
       code: 'SUI_EXECUTE_FAILED',
     });
+  });
+
+  it('throws BusinessRuleError when executeTransactionBlock throws non-rate/timeout', async () => {
+    (nonceStore.consume as Mock).mockResolvedValue(createPreparedRecord());
+    mockExecuteTransactionBlock.mockRejectedValue(new Error('rpc other'));
+
+    await expect(suiService.executeBetTransaction(baseExecuteParams)).rejects.toBeInstanceOf(
+      BusinessRuleError,
+    );
   });
 });
