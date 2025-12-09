@@ -1,7 +1,8 @@
 import { RoundService } from '@/lib/rounds/service';
 import { describe, it, expect, vi, beforeEach, afterEach, type Mock } from 'vitest';
 import type { RoundType, Round, RoundInsert, PriceData } from '@/lib/rounds/types';
-import { RoundRepository } from '@/lib/rounds/repository';
+import type { RoundRepository } from '@/lib/rounds/repository';
+import type { BetService } from '@/lib/bets/service';
 import * as fsmModule from '@/lib/rounds/fsm';
 
 // fsm 모듈의 transitionRoundStatus를 spyOn으로 모킹
@@ -14,6 +15,12 @@ vi.mock('@/lib/rounds/fsm', async (importOriginal) => {
 });
 
 describe('RoundService', () => {
+  const createMockBetService = (): BetService =>
+    ({
+      findBetsByRoundId: vi.fn(),
+      updateBetSettlement: vi.fn(),
+    }) as unknown as BetService;
+
   describe('createNextScheduledRound', () => {
     const type: RoundType = '6HOUR';
 
@@ -22,7 +29,10 @@ describe('RoundService', () => {
       findByStartTime: vi.fn(),
       insert: vi.fn(),
     };
-    const roundService = new RoundService(mockRepository as unknown as RoundRepository);
+    const roundService = new RoundService(
+      mockRepository as unknown as RoundRepository,
+      createMockBetService(),
+    );
 
     beforeEach(() => {
       vi.useFakeTimers();
@@ -95,45 +105,47 @@ describe('RoundService', () => {
     // 테스트용 기준 시각: 2025-01-15 09:00:00 UTC
     const NOW = new Date('2025-01-15T09:00:00Z').getTime();
 
-    const createMockRound = (overrides: Partial<Round> = {}): Round => ({
-      id: '550e8400-e29b-41d4-a716-446655440000',
-      roundNumber: 1,
-      type: '6HOUR',
-      status: 'SCHEDULED',
-      startTime: NOW - 60_000, // 1분 전 시작
-      endTime: NOW + 6 * 60 * 60 * 1000, // 6시간 후 종료
-      lockTime: NOW + 60_000, // 1분 후 락
-      totalPool: 0,
-      totalGoldBets: 0,
-      totalBtcBets: 0,
-      totalBetsCount: 0,
-      goldStartPrice: null,
-      btcStartPrice: null,
-      goldEndPrice: null,
-      btcEndPrice: null,
-      goldChangePercent: null,
-      btcChangePercent: null,
-      winner: null,
-      priceSnapshotStartAt: null,
-      priceSnapshotEndAt: null,
-      startPriceSource: null,
-      endPriceSource: null,
-      startPriceIsFallback: false,
-      endPriceIsFallback: false,
-      startPriceFallbackReason: null,
-      endPriceFallbackReason: null,
-      suiPoolAddress: null,
-      suiSettlementObjectId: null,
-      platformFeeRate: '0.05',
-      platformFeeCollected: 0,
-      bettingOpenedAt: null,
-      bettingLockedAt: null,
-      roundEndedAt: null,
-      settlementCompletedAt: null,
-      createdAt: NOW - 3600_000,
-      updatedAt: NOW - 3600_000,
-      ...overrides,
-    });
+    const createMockRound = (overrides: Partial<Round> = {}): Round =>
+      ({
+        id: '550e8400-e29b-41d4-a716-446655440000',
+        roundNumber: 1,
+        type: '6HOUR',
+        status: 'SCHEDULED',
+        startTime: NOW - 60_000, // 1분 전 시작
+        endTime: NOW + 6 * 60 * 60 * 1000, // 6시간 후 종료
+        lockTime: NOW + 60_000, // 1분 후 락
+        totalPool: 0,
+        totalGoldBets: 0,
+        totalBtcBets: 0,
+        totalBetsCount: 0,
+        payoutPool: 0,
+        goldStartPrice: null,
+        btcStartPrice: null,
+        goldEndPrice: null,
+        btcEndPrice: null,
+        goldChangePercent: null,
+        btcChangePercent: null,
+        winner: null,
+        priceSnapshotStartAt: null,
+        priceSnapshotEndAt: null,
+        startPriceSource: null,
+        endPriceSource: null,
+        startPriceIsFallback: false,
+        endPriceIsFallback: false,
+        startPriceFallbackReason: null,
+        endPriceFallbackReason: null,
+        suiPoolAddress: null,
+        suiSettlementObjectId: null,
+        platformFeeRate: '0.05',
+        platformFeeCollected: 0,
+        bettingOpenedAt: null,
+        bettingLockedAt: null,
+        roundEndedAt: null,
+        settlementCompletedAt: null,
+        createdAt: NOW - 3600_000,
+        updatedAt: NOW - 3600_000,
+        ...overrides,
+      }) as Round;
 
     const mockPrices: PriceData = {
       gold: 2650.5,
@@ -145,6 +157,7 @@ describe('RoundService', () => {
     let mockRepository: {
       findLatestByStatus: Mock;
     };
+    let mockBetService: BetService;
     let roundService: RoundService;
 
     beforeEach(() => {
@@ -154,7 +167,8 @@ describe('RoundService', () => {
       mockRepository = {
         findLatestByStatus: vi.fn(),
       };
-      roundService = new RoundService(mockRepository as unknown as RoundRepository);
+      mockBetService = createMockBetService();
+      roundService = new RoundService(mockRepository as unknown as RoundRepository, mockBetService);
 
       mockTransition.mockReset();
     });
@@ -290,49 +304,52 @@ describe('RoundService', () => {
 
     const NOW = new Date('2025-01-15T09:00:00Z').getTime();
 
-    const createMockRound = (overrides: Partial<Round> = {}): Round => ({
-      id: '550e8400-e29b-41d4-a716-446655440001',
-      roundNumber: 1,
-      type: '6HOUR',
-      status: 'BETTING_OPEN',
-      startTime: NOW - 60_000,
-      endTime: NOW + 6 * 60 * 60 * 1000,
-      lockTime: NOW - 1000, // 1초 전 락 (이미 지남)
-      totalPool: 1000,
-      totalGoldBets: 600,
-      totalBtcBets: 400,
-      totalBetsCount: 10,
-      goldStartPrice: '2650.50',
-      btcStartPrice: '98234.00',
-      goldEndPrice: null,
-      btcEndPrice: null,
-      goldChangePercent: null,
-      btcChangePercent: null,
-      winner: null,
-      priceSnapshotStartAt: NOW - 60_000,
-      priceSnapshotEndAt: null,
-      startPriceSource: 'kitco',
-      endPriceSource: null,
-      startPriceIsFallback: false,
-      endPriceIsFallback: false,
-      startPriceFallbackReason: null,
-      endPriceFallbackReason: null,
-      suiPoolAddress: null,
-      suiSettlementObjectId: null,
-      platformFeeRate: '0.05',
-      platformFeeCollected: 0,
-      bettingOpenedAt: NOW - 60_000,
-      bettingLockedAt: null,
-      roundEndedAt: null,
-      settlementCompletedAt: null,
-      createdAt: NOW - 3600_000,
-      updatedAt: NOW - 60_000,
-      ...overrides,
-    });
+    const createMockRound = (overrides: Partial<Round> = {}): Round =>
+      ({
+        id: '550e8400-e29b-41d4-a716-446655440001',
+        roundNumber: 1,
+        type: '6HOUR',
+        status: 'BETTING_OPEN',
+        startTime: NOW - 60_000,
+        endTime: NOW + 6 * 60 * 60 * 1000,
+        lockTime: NOW - 1000, // 1초 전 락 (이미 지남)
+        totalPool: 1000,
+        totalGoldBets: 600,
+        totalBtcBets: 400,
+        totalBetsCount: 10,
+        payoutPool: 0,
+        goldStartPrice: '2650.50',
+        btcStartPrice: '98234.00',
+        goldEndPrice: null,
+        btcEndPrice: null,
+        goldChangePercent: null,
+        btcChangePercent: null,
+        winner: null,
+        priceSnapshotStartAt: NOW - 60_000,
+        priceSnapshotEndAt: null,
+        startPriceSource: 'kitco',
+        endPriceSource: null,
+        startPriceIsFallback: false,
+        endPriceIsFallback: false,
+        startPriceFallbackReason: null,
+        endPriceFallbackReason: null,
+        suiPoolAddress: null,
+        suiSettlementObjectId: null,
+        platformFeeRate: '0.05',
+        platformFeeCollected: 0,
+        bettingOpenedAt: NOW - 60_000,
+        bettingLockedAt: null,
+        roundEndedAt: null,
+        settlementCompletedAt: null,
+        createdAt: NOW - 3600_000,
+        updatedAt: NOW - 60_000,
+        ...overrides,
+      }) as Round;
 
     let mockRepository: {
       findLatestByStatus: Mock;
     };
+    let mockBetService: BetService;
     let roundService: RoundService;
 
     beforeEach(() => {
@@ -342,7 +359,8 @@ describe('RoundService', () => {
       mockRepository = {
         findLatestByStatus: vi.fn(),
       };
-      roundService = new RoundService(mockRepository as unknown as RoundRepository);
+      mockBetService = createMockBetService();
+      roundService = new RoundService(mockRepository as unknown as RoundRepository, mockBetService);
 
       mockTransition.mockReset();
     });
@@ -455,6 +473,7 @@ describe('RoundService', () => {
         totalGoldBets: 600,
         totalBtcBets: 400,
         totalBetsCount: 10,
+        payoutPool: 0,
         goldStartPrice: '10',
         btcStartPrice: '1',
         goldEndPrice: null,
@@ -493,6 +512,7 @@ describe('RoundService', () => {
     let mockRepository: {
       findLatestByStatus: Mock;
     };
+    let mockBetService: BetService;
     let roundService: RoundService;
 
     beforeEach(() => {
@@ -501,7 +521,8 @@ describe('RoundService', () => {
       mockRepository = {
         findLatestByStatus: vi.fn(),
       };
-      roundService = new RoundService(mockRepository as unknown as RoundRepository);
+      mockBetService = createMockBetService();
+      roundService = new RoundService(mockRepository as unknown as RoundRepository, mockBetService);
       mockTransition.mockReset();
     });
 
@@ -545,7 +566,9 @@ describe('RoundService', () => {
 
       const calculatingRound = { ...round, status: 'CALCULATING' as const };
       mockTransition.mockResolvedValue(calculatingRound);
-      const settleSpy = vi.spyOn(roundService, 'settleRound').mockResolvedValue();
+      const settleSpy = vi
+        .spyOn(roundService, 'settleRound')
+        .mockResolvedValue({ status: 'no_bets', roundId: calculatingRound.id, settledCount: 0 });
 
       const result = await roundService.finalizeRound(endPriceData);
 
