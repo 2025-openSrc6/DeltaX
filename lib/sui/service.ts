@@ -4,8 +4,13 @@ import { BetService } from '@/lib/bets/service';
 import { buildPlaceBetTx } from './builder';
 import { getSponsorKeypair, suiClient } from './client';
 import { getGasPayment } from './gas';
-import type { BetPrediction, ExecuteSuiBetTxResult, PrepareSuiBetTxResult } from './types';
-import { executeSuiBetTxSchema, prepareSuiBetTxSchema } from './validation';
+import type {
+  BetPrediction,
+  ExecuteSuiBetTxResult,
+  PrepareSuiBetTxResult,
+  ValidatedPrepareSuiBetTxInput,
+} from './types';
+import { executeSuiBetTxSchema } from './validation';
 import type { NonceStore } from './nonceStore';
 import { UpstashNonceStore } from './nonceStore';
 import { PREPARE_TX_TTL_MS, PREPARE_TX_TTL_SECONDS } from './constants';
@@ -13,14 +18,14 @@ import { sleep } from './utils';
 
 export class SuiService {
   constructor(
-    private readonly betService: BetService = new BetService(),
+    private readonly betService: BetService,
     private readonly nonceStore: NonceStore = new UpstashNonceStore(),
   ) {}
 
-  async prepareBetTransaction(rawParams: unknown): Promise<PrepareSuiBetTxResult> {
-    // 입력 검증
-    const { userAddress, poolId, prediction, userDelCoinId, betId, userId } =
-      prepareSuiBetTxSchema.parse(rawParams);
+  async prepareBetTransaction(
+    input: ValidatedPrepareSuiBetTxInput,
+  ): Promise<PrepareSuiBetTxResult> {
+    const { userAddress, poolId, prediction, userDelCoinId, betId, userId } = input;
 
     // 스폰서 로드
     let sponsor;
@@ -156,6 +161,7 @@ export class SuiService {
     await this.betService.updateBet(betId, {
       suiTxHash: executed.digest,
       processedAt: Date.now(),
+      chainStatus: 'EXECUTED',
     });
 
     return { digest: executed.digest };

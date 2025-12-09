@@ -27,6 +27,7 @@ export interface CreateBetInput {
   prediction: 'GOLD' | 'BTC';
   amount: number;
   createdAt: number;
+  chainStatus: 'PENDING' | 'EXECUTED' | 'FAILED';
 }
 
 /**
@@ -43,6 +44,13 @@ export interface CreateBetResult {
   userBalance: {
     delBalance: number;
   };
+}
+
+export interface ValidatedCreateBetOffchainInput {
+  roundId: string;
+  prediction: 'GOLD' | 'BTC';
+  amount: number;
+  userId: string;
 }
 
 /**

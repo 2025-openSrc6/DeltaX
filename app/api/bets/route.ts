@@ -5,6 +5,7 @@ import {
   createSuccessResponseWithMeta,
   handleApiError,
 } from '@/lib/shared/response';
+import { UnauthorizedError } from '@/lib/shared/errors';
 
 /**
  * POST /api/bets
@@ -12,11 +13,17 @@ import {
  * 베팅을 생성합니다.
  * 유저가 특정 라운드에 대해 GOLD 또는 BTC 예측을 하고 금액을 베팅합니다.
  *
+ * 베팅용 PTB를 서버에서 빌드한 뒤, base64 txBytes + nonce + expiresAt을 반환합니다.
+ * - 입력 검증/가스 세팅/dry-run은 Service에서 처리.
+ * - nonce/txBytes 해시는 Upstash Redis에 TTL로 저장해 실행 단계에서 재사용/변조 방지.
+ *
  * Request Body:
  * {
  *   roundId: string;          // 베팅할 라운드 ID (필수)
  *   prediction: 'GOLD' | 'BTC'; // 예측 방향 (필수)
  *   amount: number;           // 베팅 금액 (필수, 최소 100)
+ *   userAddress: string;      // 유저 Sui address (필수)
+ *   userDelCoinId: string;    // 유저-소유 DEL Coin object id (필수)
  * }
  *
  * Response:
@@ -27,6 +34,11 @@ import {
  *     round: RoundSummary,    // 업데이트된 라운드 풀 정보
  *     userBalance: Balance    // (Optional) 베팅 후 유저 잔액
  *   }
+ * }
+ * Response:
+ * {
+ *   success: true,
+ *   data: { txBytes: "<base64>", nonce: "<uuid>", expiresAt: <ms epoch> }
  * }
  *
  * 에러 Response:
@@ -45,17 +57,26 @@ export async function POST(request: NextRequest) {
     // 1. Request Body 파싱
     const body = await request.json();
 
-    // TODO: 2. 유저 인증 및 검증
-    // const session = await getSession(request);
-    // const userId = session.userId;
-    const userId = 'mock-user-id';
+    // 2. 유저 인증 및 검증
+    const suiAddress = await request.cookies.get('suiAddress')?.value;
+    if (!suiAddress) {
+      throw new UnauthorizedError('Login required');
+    }
+
+    // TODO(ehdnd): 서비스 레이어 제작 요청
+    const user = await registry.userRepository.findBySuiAddress(suiAddress);
+    if (!user) {
+      throw new UnauthorizedError('User not found');
+    }
+
+    const userId = user.id;
 
     // 3. Service 호출
     // - 라운드 상태 검증 (OPEN)
     // - 시간 검증 (Lock Time 이전)
     // - 잔액 검증
     // - 베팅 생성 및 풀 업데이트 (Atomic Batch)
-    const result = await registry.betService.createBet(body, userId);
+    const result = await registry.betService.createBetWithSuiPrepare(body, userId);
 
     // 4. 성공 응답 반환
     return createSuccessResponse(result);

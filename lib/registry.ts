@@ -80,7 +80,10 @@ class ServiceRegistry {
   private _suiService?: SuiService;
   get suiService(): SuiService {
     if (!this._suiService) {
-      this._suiService = new SuiService(this.betService, new UpstashNonceStore());
+      const betService = this.betService;
+      this._suiService = new SuiService(betService, new UpstashNonceStore());
+      // 순환 의존을 피하기 위해 생성 후 BetService에 주입
+      betService.setSuiService(this._suiService);
     }
     return this._suiService;
   }
