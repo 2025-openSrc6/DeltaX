@@ -23,6 +23,8 @@ export default defineConfig({
         'lib/rounds/**/*.ts',
         'lib/config/**/*.ts',
         'lib/cron/**/*.ts',
+        'lib/sui/**/*.ts',
+        'lib/shared/**/*.ts',
       ],
       exclude: [
         'node_modules',
