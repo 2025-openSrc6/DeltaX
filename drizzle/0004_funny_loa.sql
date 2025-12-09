@@ -1,0 +1,1 @@
+ALTER TABLE `bets` ADD `chain_status` text(20) DEFAULT 'PENDING' NOT NULL;
