@@ -1,9 +1,8 @@
 import { RoundService } from '@/lib/rounds/service';
-import { BetService } from '@/lib/bets/service';
 import { describe, it, expect, vi, beforeEach, afterEach, type Mock } from 'vitest';
 import type { Round } from '@/lib/rounds/types';
-import { RoundRepository } from '@/lib/rounds/repository';
-import { BetRepository } from '@/lib/bets/repository';
+import type { RoundRepository } from '@/lib/rounds/repository';
+import type { BetService } from '@/lib/bets/service';
 import * as fsmModule from '@/lib/rounds/fsm';
 import { RETRY_START_THRESHOLD_MS, ALERT_THRESHOLD_MS } from '@/lib/rounds/constants';
 
@@ -92,7 +91,18 @@ describe('RoundService.recoveryRounds (Job 6)', () => {
       updateById: vi.fn().mockImplementation(async (id, data) => ({ id, ...data })),
     };
 
-    mockBetService = new BetService(mockBetRepository as unknown as BetRepository);
+    mockBetService = {
+      findBetsByRoundId: mockBetRepository.findByRoundId,
+      updateBetSettlement: vi
+        .fn()
+        .mockImplementation(async (betId, result) =>
+          mockBetRepository.updateById(betId, {
+            resultStatus: result.resultStatus,
+            settlementStatus: result.settlementStatus,
+            payoutAmount: result.payoutAmount,
+          }),
+        ),
+    } as unknown as BetService;
 
     roundService = new RoundService(
       mockRoundRepository as unknown as RoundRepository,
