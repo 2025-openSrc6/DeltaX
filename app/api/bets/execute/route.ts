@@ -3,9 +3,9 @@ import { registry } from '@/lib/registry';
 import { NextRequest } from 'next/server';
 
 /**
- * POST /api/sui/bet/execute
+ * POST /api/bets/execute
  *
- * 프런트가 받은 txBytes(base64) + userSignature + nonce + betId를 받아
+ * 준비 단계에서 받은 txBytes(base64) + userSignature + nonce + betId를 받아
  * - nonce/txBytes 해시/만료 검증
  * - 스폰서 서명 후 체인 실행
  * - 실행 성공 시 bets.suiTxHash 업데이트를 수행합니다.
