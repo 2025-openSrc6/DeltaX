@@ -59,6 +59,8 @@ export async function POST(request: NextRequest) {
       throw new UnauthorizedError('Login required');
     }
 
+    // TODO(ehdnd): 유저 auth 로직 추가
+
     // TODO(ehdnd): 서비스 레이어 제작 요청
     const user = await registry.userRepository.findBySuiAddress(suiAddress);
     if (!user) {
