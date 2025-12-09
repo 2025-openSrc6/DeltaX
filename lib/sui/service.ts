@@ -1,6 +1,5 @@
 import { createHash, randomUUID } from 'crypto';
 import { BusinessRuleError } from '@/lib/shared/errors';
-import { BetService } from '@/lib/bets/service';
 import { buildPlaceBetTx } from './builder';
 import { getSponsorKeypair, suiClient } from './client';
 import { getGasPayment } from './gas';
@@ -9,18 +8,15 @@ import type {
   ExecuteSuiBetTxResult,
   PrepareSuiBetTxResult,
   ValidatedPrepareSuiBetTxInput,
+  ValidatedExecuteSuiBetTxInput,
 } from './types';
-import { executeSuiBetTxSchema } from './validation';
 import type { NonceStore } from './nonceStore';
 import { UpstashNonceStore } from './nonceStore';
 import { PREPARE_TX_TTL_MS, PREPARE_TX_TTL_SECONDS } from './constants';
 import { sleep } from './utils';
 
 export class SuiService {
-  constructor(
-    private readonly betService: BetService,
-    private readonly nonceStore: NonceStore = new UpstashNonceStore(),
-  ) {}
+  constructor(private readonly nonceStore: NonceStore = new UpstashNonceStore()) {}
 
   async prepareBetTransaction(
     input: ValidatedPrepareSuiBetTxInput,
@@ -87,15 +83,10 @@ export class SuiService {
     return { txBytes: Buffer.from(txBytes).toString('base64'), nonce, expiresAt };
   }
 
-  async executeBetTransaction(rawParams: unknown): Promise<ExecuteSuiBetTxResult> {
-    // 입력 검증
-    const {
-      txBytes: txBytesBase64,
-      userSignature,
-      nonce,
-      betId,
-      userId,
-    } = executeSuiBetTxSchema.parse(rawParams);
+  async executeBetTransaction(
+    input: ValidatedExecuteSuiBetTxInput,
+  ): Promise<ExecuteSuiBetTxResult> {
+    const { txBytes: txBytesBase64, userSignature, nonce, betId, userId } = input;
 
     // nonce 소비
     const prepared = await this.nonceStore.consume(nonce);
@@ -154,17 +145,12 @@ export class SuiService {
       throw new BusinessRuleError('SUI_EXECUTE_FAILED', 'Sui execute response missing digest');
     }
 
+    const digest = executed.digest;
+
     // 체인 실행 확인
-    await this.ensureOnChain(executed.digest);
+    await this.ensureOnChain(digest);
 
-    // DB 업데이트
-    await this.betService.updateBet(betId, {
-      suiTxHash: executed.digest,
-      processedAt: Date.now(),
-      chainStatus: 'EXECUTED',
-    });
-
-    return { digest: executed.digest };
+    return { digest };
   }
 
   private async ensureOnChain(digest: string, retries = 3, delayMs = 1000) {

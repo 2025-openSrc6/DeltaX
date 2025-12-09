@@ -22,3 +22,11 @@ export interface ValidatedPrepareSuiBetTxInput {
   betId: string;
   userId: string;
 }
+
+export interface ValidatedExecuteSuiBetTxInput {
+  txBytes: string;
+  userSignature: string;
+  nonce: string;
+  betId: string;
+  userId: string;
+}
