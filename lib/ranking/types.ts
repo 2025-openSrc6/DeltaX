@@ -2,7 +2,8 @@ export type RawRankingRow = {
   userId: string;
   walletAddress: string | null;
   delBalance: number | null;
-  achievementPurchasePrice: number | null;
+  achievementTotal: number;
+  totalAsset: number;
 };
 
 export type RankingItem = {
