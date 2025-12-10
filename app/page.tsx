@@ -87,7 +87,7 @@ function LiveChartSection() {
 export default function HomePage() {
   const [isConnected, setIsConnected] = useState(false);
   const [walletAddress, setWalletAddress] = useState('');
-  const [points, setPoints] = useState(12000);
+  const [points, setPoints] = useState(0);
   const [timeframe, setTimeframe] = useState<'3M' | '1M' | '6H' | '1D'>('3M');
   const [currentRound, setCurrentRound] = useState<Round | null>(null);
   const [loadingRound, setLoadingRound] = useState(false);
@@ -108,6 +108,7 @@ export default function HomePage() {
         if (data.success && data.data?.user) {
           setIsConnected(true);
           setWalletAddress(data.data.user.suiAddress);
+          setPoints(data.data.user.delBalance || 0);
         }
       })
       .catch(() => {
@@ -200,12 +201,23 @@ export default function HomePage() {
   };
 
   // 베팅 성공 핸들러
-  const handleBetSuccess = () => {
+  const handleBetSuccess = async () => {
     toast({
       title: '베팅 성공! 🎉',
       description: '베팅이 성공적으로 등록되었습니다.',
     });
     loadCurrentRound(); // 라운드 정보 갱신
+
+    // 포인트 업데이트 (베팅 후 잔액 반영)
+    try {
+      const response = await fetch('/api/auth/session', { credentials: 'include' });
+      const data = await response.json();
+      if (data.success && data.data?.user) {
+        setPoints(data.data.user.delBalance || 0);
+      }
+    } catch (error) {
+      console.error('포인트 업데이트 실패:', error);
+    }
   };
 
   const isUserRejectionError = (error: unknown) => {
@@ -282,6 +294,11 @@ Exp: ${expMs}`;
 
     setIsConnected(true);
     setWalletAddress(address);
+
+    // 로그인 성공 시 포인트 업데이트
+    if (parsed.data?.user) {
+      setPoints(parsed.data.user.delBalance || 0);
+    }
   };
 
   const handleConnect = async () => {
