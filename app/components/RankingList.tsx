@@ -35,7 +35,15 @@ export function RankingList() {
         setLoading(false);
       }
     }
+
+    // 초기 로드
     fetchRanking();
+
+    // 10초마다 자동 갱신
+    const interval = setInterval(fetchRanking, 10000);
+
+    // 클린업: 컴포넌트 언마운트 시 인터벌 정리
+    return () => clearInterval(interval);
   }, []);
 
   // 로딩 화면

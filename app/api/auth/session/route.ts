@@ -122,8 +122,21 @@ export async function POST(request: NextRequest) {
     // 1. 유저 조회 또는 생성
     const user = await registry.userService.findOrCreateUser(suiAddress);
 
-    // 2. 쿠키에 suiAddress 저장
-    const response = createSuccessResponse({ user });
+    // 2. 이번 라운드 첫 로그인 보상 체크 및 지급
+    const bonusResult = await registry.userService.checkAndGrantRoundLoginBonus(user.id);
+
+    // 3. 보상 지급 후 최신 유저 정보 조회 (잔액 업데이트 반영)
+    const updatedUser = bonusResult.granted
+      ? await registry.userRepository.findById(user.id)
+      : user;
+
+    // 4. 쿠키에 suiAddress 저장
+    const response = createSuccessResponse({
+      user: updatedUser || user,
+      loginBonus: bonusResult.granted
+        ? { granted: true, amount: 5000, roundId: bonusResult.roundId }
+        : { granted: false },
+    });
     response.cookies.set('suiAddress', suiAddress, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
