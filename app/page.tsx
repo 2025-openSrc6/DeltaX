@@ -5,7 +5,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { LogOut, ArrowRight, Sparkles, BarChart3, Wallet } from 'lucide-react';
+import { LogOut, ArrowRight, Sparkles, BarChart3, Wallet, Zap } from 'lucide-react';
 
 import { RankingList } from '@/components/RankingList';
 import { PointsPanel } from '@/components/PointsPanel';
@@ -349,70 +349,67 @@ Exp: ${expMs}`;
       : walletAddress;
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-[#02040a] text-slate-50 px-2 py-3 sm:px-4 sm:py-6">
+    <div className="min-h-screen bg-slate-950">
       {/* 배경 그라디언트 */}
-      <div className="pointer-events-none absolute inset-0">
-        <div className="absolute -left-40 top-[-10rem] h-72 w-72 rounded-full bg-cyan-500/15 blur-3xl" />
-        <div className="absolute right-0 top-40 h-80 w-80 rounded-full bg-purple-500/15 blur-3xl" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_#020617,_#000)] opacity-70" />
+      <div className="pointer-events-none fixed inset-0">
+        <div className="absolute top-20 right-1/4 w-96 h-96 bg-cyan-500/10 rounded-full blur-3xl" />
+        <div className="absolute bottom-20 left-1/4 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl" />
+        <div className="absolute top-1/2 right-0 w-80 h-80 bg-pink-500/5 rounded-full blur-3xl" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(34,211,238,0.06),transparent_70%)]" />
       </div>
 
-      {/* 전체 레이아웃 컨테이너 */}
-      <div className="relative mx-auto flex min-h-[calc(100vh-2rem)] max-w-6xl flex-col rounded-[32px] px-3 pb-6 pt-3 shadow-[0_0_80px_rgba(0,0,0,0.85)] lg:px-6">
-        {/* 상단 글로벌 헤더 */}
-        <header className="mb-3 flex items-center justify-between rounded-[24px] border border-slate-800/80 bg-slate-950/80 px-4 shadow-lg shadow-black/40 backdrop-blur-md lg:px-5">
-          {/* 로고 + 타이틀 */}
-          <div className="flex items-center gap-3">
-            <div className="relative h-18 w-18 overflow-hidden rounded-2xl ">
-              <Image
-                src="/logo.png"
-                alt="DeltaX Logo"
-                fill
-                className="object-contain p-1.5"
-                priority
-              />
-            </div>
-            <div className="flex flex-col leading-tight">
-              <span className="bg-gradient-to-r from-cyan-400 to-purple-400 bg-clip-text text-sm font-extrabold tracking-[0.22em] text-transparent lg:text-base">
+      {/* 상단 헤더 */}
+      <header className="sticky top-0 z-50 border-b border-cyan-500/20 backdrop-blur-xl bg-slate-950/80">
+        <div className="container mx-auto px-4 py-4">
+          <div className="flex items-center justify-between">
+            {/* 로고 + 타이틀 */}
+            <div className="flex items-center gap-3">
+              <div className="relative w-16 h-16 flex-shrink-0">
+                <Image src="/logo.png" alt="DeltaX Logo" fill className="object-contain" priority />
+              </div>
+              <h1 className="text-3xl font-black bg-gradient-to-r from-cyan-400 via-purple-500 to-pink-500 bg-clip-text text-transparent drop-shadow-lg">
                 DELTA X
-              </span>
+              </h1>
             </div>
-          </div>
 
-          {/* 헤더 오른쪽: 연결 상태 */}
-          <div className="flex items-center gap-3">
-            {/* 연결 상태 뱃지 */}
-            {isConnected ? (
-              <Card className="flex items-center gap-2 rounded-full border border-emerald-500/40 bg-emerald-950/60 px-3 py-1.5 text-xs shadow-md shadow-emerald-500/25">
-                <div className="flex items-center gap-1.5">
-                  <span className="h-2 w-2 rounded-full bg-emerald-400" />
-                  <span className="font-semibold text-emerald-100">Connected</span>
-                </div>
-                <span className="max-w-[120px] truncate font-mono text-[11px] text-emerald-200/80 max-sm:hidden">
-                  {displayAddress}
-                </span>
+            {/* 헤더 오른쪽: 포인트 + 연결 상태 */}
+            <div className="flex items-center gap-4">
+              {isConnected && (
+                <Card className="px-4 py-2 bg-gradient-to-r from-cyan-500/10 to-purple-500/10 border border-cyan-500/50 backdrop-blur-sm hover:border-cyan-400/80 transition-all duration-300 shadow-lg shadow-cyan-500/20">
+                  <div className="flex items-center gap-2">
+                    <Zap className="h-4 w-4 text-cyan-400 animate-pulse" />
+                    <span className="font-mono font-bold text-cyan-300">
+                      {points.toLocaleString()}
+                    </span>
+                    <span className="text-sm text-cyan-200/60">DEL</span>
+                  </div>
+                </Card>
+              )}
+
+              {isConnected ? (
                 <Button
                   onClick={handleDisconnect}
-                  variant="ghost"
-                  size="icon"
-                  className="ml-1 h-6 w-6 rounded-full text-emerald-300 hover:bg-emerald-500/10 hover:text-red-300"
+                  className="border border-cyan-500/50 hover:border-cyan-400 hover:bg-cyan-500/10 bg-transparent text-cyan-300 transition-all duration-300"
                 >
-                  <LogOut className="h-3 w-3" />
+                  <Wallet className="mr-2 h-4 w-4" />
+                  {displayAddress}
                 </Button>
-              </Card>
-            ) : (
-              <Button
-                onClick={handleConnect}
-                className="flex items-center gap-2 rounded-full bg-gradient-to-r from-cyan-500 to-purple-500 px-4 py-2 text-xs font-semibold text-white shadow-lg shadow-cyan-500/40 transition-all hover:from-cyan-400 hover:to-purple-400 hover:shadow-cyan-400/50"
-              >
-                <Wallet className="h-4 w-4" />
-                <span>지갑 연결</span>
-              </Button>
-            )}
+              ) : (
+                <Button
+                  onClick={handleConnect}
+                  className="bg-gradient-to-r from-cyan-500 to-purple-600 hover:shadow-lg hover:shadow-cyan-500/50 transition-all duration-300 text-white font-bold"
+                >
+                  <Wallet className="mr-2 h-4 w-4" />
+                  Connect
+                </Button>
+              )}
+            </div>
           </div>
-        </header>
+        </div>
+      </header>
 
-        {/* 메인 그리드: 좌측 마켓 / 중앙 차트 / 우측 내 정보 */}
+      {/* 메인 그리드: 좌측 마켓 / 중앙 차트 / 우측 내 정보 */}
+      <div className="container mx-auto px-4 py-8">
         <div className="mt-3 grid flex-1 gap-4 rounded-[24px] bg-slate-950/60 p-3 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,2fr)_minmax(0,1.3fr)] lg:p-4">
           {/* 중앙: 차트 & 라운드 요약 (Basevol 메인 영역 느낌) */}
           <section className="flex flex-col gap-4 lg:col-span-2">
@@ -504,9 +501,16 @@ Exp: ${expMs}`;
               <div className="flex flex-col gap-2.5">
                 <Button
                   onClick={handleOpenBettingModal}
-                  className="w-full justify-between rounded-xl bg-gradient-to-r from-cyan-500 to-emerald-500 text-xs font-semibold text-slate-950 shadow-md shadow-cyan-500/30 hover:from-cyan-400 hover:to-emerald-400 hover:shadow-cyan-400/40"
+                  disabled={loadingRound || !currentRound || currentRound.status !== 'BETTING_OPEN'}
+                  className="w-full justify-between rounded-xl bg-gradient-to-r from-cyan-500 to-emerald-500 text-xs font-semibold text-slate-950 shadow-md shadow-cyan-500/30 hover:from-cyan-400 hover:to-emerald-400 hover:shadow-cyan-400/40 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  베팅하기 (테스트)
+                  {loadingRound
+                    ? '로딩 중...'
+                    : !currentRound
+                      ? '라운드 없음'
+                      : currentRound.status !== 'BETTING_OPEN'
+                        ? '베팅 마감'
+                        : '베팅하기'}
                   <ArrowRight className="h-4 w-4" />
                 </Button>
                 <Button

@@ -41,42 +41,61 @@ export function RankingList() {
   // 로딩 화면
   if (loading) {
     return (
-      <Card className="bg-slate-900/40 p-4 text-slate-50">
-        <h2 className="mb-4 text-lg font-semibold text-slate-100">오늘의 랭킹</h2>
-        <div className="text-slate-400">랭킹 불러오는 중...</div>
-      </Card>
+      <div className="text-center py-8">
+        <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-cyan-500/20 border-t-cyan-500" />
+        <p className="mt-4 text-cyan-300/60 font-mono text-sm">Loading rankings...</p>
+      </div>
     );
   }
 
+  const getMedalEmoji = (index: number) => {
+    if (index === 0) return '🥇';
+    if (index === 1) return '🥈';
+    if (index === 2) return '🥉';
+    return '';
+  };
+
   return (
-    <Card className="bg-slate-900/40 p-4 text-slate-50">
-      <div className="mb-4 flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-slate-100">오늘의 랭킹</h2>
-        <span className="text-xs text-slate-400">자산 총계 기준</span>
-      </div>
-
-      <ul className="space-y-2">
-        {ranking.map((user, index) => (
-          <li
-            key={user.walletAddress}
-            className="flex items-center justify-between rounded-lg bg-slate-900/40 px-3 py-2"
-          >
-            <div className="flex items-center gap-3">
-              <span className="flex h-6 w-6 items-center justify-center rounded bg-slate-800 text-xs font-bold text-cyan-200">
-                {index + 1}
-              </span>
-
-              <span className="text-sm font-mono">
-                {user.walletAddress.slice(0, 6)}...{user.walletAddress.slice(-4)}
-              </span>
-            </div>
-
-            <span className="text-sm font-mono text-cyan-200">
-              {user.totalAsset.toLocaleString()} DEL
+    <div className="space-y-3">
+      {ranking.map((user, index) => (
+        <div
+          key={user.walletAddress}
+          className={`flex items-center justify-between rounded-lg p-4 transition-all duration-300 ${
+            index < 3
+              ? 'bg-gradient-to-r from-cyan-500/10 to-purple-500/10 border border-cyan-500/40 hover:border-cyan-400/60 shadow-lg shadow-cyan-500/10'
+              : 'bg-slate-900/50 border border-slate-700/50 hover:border-slate-600/70'
+          }`}
+        >
+          <div className="flex items-center gap-4">
+            <span
+              className={`flex h-10 w-10 items-center justify-center rounded-lg font-black text-lg ${
+                index < 3
+                  ? 'bg-gradient-to-br from-cyan-500 to-purple-600 text-white shadow-lg'
+                  : 'bg-slate-800 text-slate-400'
+              }`}
+            >
+              {getMedalEmoji(index) || index + 1}
             </span>
-          </li>
-        ))}
-      </ul>
-    </Card>
+
+            <span className="font-mono text-sm text-cyan-300/90 font-semibold">
+              {user.walletAddress.slice(0, 6)}...{user.walletAddress.slice(-4)}
+            </span>
+          </div>
+
+          <div className="text-right">
+            <span className="text-lg font-black text-cyan-300 font-mono">
+              {user.totalAsset.toLocaleString()}
+            </span>
+            <span className="ml-1 text-xs text-cyan-400/60">DEL</span>
+          </div>
+        </div>
+      ))}
+
+      {ranking.length === 0 && (
+        <div className="text-center py-8 text-slate-500 font-mono text-sm">
+          No rankings available
+        </div>
+      )}
+    </div>
   );
 }
