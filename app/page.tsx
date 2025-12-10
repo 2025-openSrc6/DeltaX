@@ -5,7 +5,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { LogOut, ArrowRight, Sparkles, BarChart3, Wallet, Zap } from 'lucide-react';
+import { LogOut, ArrowRight, Sparkles, BarChart3, Wallet, Zap, Activity } from 'lucide-react';
 
 import { RankingList } from '@/components/RankingList';
 import { PointsPanel } from '@/components/PointsPanel';
