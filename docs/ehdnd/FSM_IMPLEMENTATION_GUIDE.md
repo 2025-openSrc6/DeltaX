@@ -254,15 +254,15 @@ export type TransitionMetadata =
 
 ### 각 전이별 필수 필드 요약
 
-| 전이                            | 필수 필드                                                                                                             |
-| ------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| SCHEDULED → BETTING_OPEN        | goldStartPrice, btcStartPrice, priceSnapshotStartAt, startPriceSource, suiPoolAddress, bettingOpenedAt               |
-| BETTING_OPEN → BETTING_LOCKED   | bettingLockedAt                                                                                                       |
-| BETTING_LOCKED → PRICE_PENDING  | roundEndedAt                                                                                                          |
-| PRICE_PENDING → CALCULATING     | goldEndPrice, btcEndPrice, priceSnapshotEndAt, endPriceSource, goldChangePercent, btcChangePercent, winner           |
-| CALCULATING → SETTLED           | platformFeeCollected, suiSettlementObjectId, settlementCompletedAt                                                    |
-| CALCULATING → VOIDED            | settlementCompletedAt (winner는 이미 'DRAW')                                                                          |
-| ANY → CANCELLED                 | (없음, Week 2+에서 추가)                                                                                              |
+| 전이                           | 필수 필드                                                                                                  |
+| ------------------------------ | ---------------------------------------------------------------------------------------------------------- |
+| SCHEDULED → BETTING_OPEN       | goldStartPrice, btcStartPrice, priceSnapshotStartAt, startPriceSource, suiPoolAddress, bettingOpenedAt     |
+| BETTING_OPEN → BETTING_LOCKED  | bettingLockedAt                                                                                            |
+| BETTING_LOCKED → PRICE_PENDING | roundEndedAt                                                                                               |
+| PRICE_PENDING → CALCULATING    | goldEndPrice, btcEndPrice, priceSnapshotEndAt, endPriceSource, goldChangePercent, btcChangePercent, winner |
+| CALCULATING → SETTLED          | platformFeeCollected, suiSettlementObjectId, settlementCompletedAt                                         |
+| CALCULATING → VOIDED           | settlementCompletedAt (winner는 이미 'DRAW')                                                               |
+| ANY → CANCELLED                | (없음, Week 2+에서 추가)                                                                                   |
 
 ---
 
@@ -313,11 +313,7 @@ export class RoundRepository {
     const db = getDb();
 
     // 1. 업데이트 실행
-    const result = await db
-      .update(rounds)
-      .set(updateData)
-      .where(eq(rounds.id, id))
-      .returning();
+    const result = await db.update(rounds).set(updateData).where(eq(rounds.id, id)).returning();
 
     // 2. 결과 확인
     if (!result || result.length === 0) {
@@ -593,7 +589,9 @@ function validateTransitionMetadata(
  * @private
  */
 function validateRequired(metadata: Record<string, unknown>, fields: string[]): void {
-  const missing = fields.filter((field) => metadata[field] === undefined || metadata[field] === null);
+  const missing = fields.filter(
+    (field) => metadata[field] === undefined || metadata[field] === null,
+  );
 
   if (missing.length > 0) {
     throw new ValidationError('Missing required metadata fields', {
@@ -1250,6 +1248,7 @@ RoundRepository (lib/rounds/repository.ts)
 ---
 
 **다음 단계**:
+
 1. `lib/rounds/repository.ts`에 `updateById` 메서드 추가
 2. `lib/rounds/types.ts`에 metadata 타입 추가
 3. `lib/rounds/fsm.ts` 완성
