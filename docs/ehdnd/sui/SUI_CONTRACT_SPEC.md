@@ -31,15 +31,15 @@ deltaX Sui 블록체인 통합 기술 명세서
 
 ### 1.2 핵심 결정사항
 
-| #   | 항목          | 결정                              | 근거                     |
-| --- | ------------- | --------------------------------- | ------------------------ |
-| 1   | DEL 발행 정책 | **무제한 발행**                   | 프로토타입 단계, 단순성  |
+| #   | 항목          | 결정                               | 근거                                     |
+| --- | ------------- | ---------------------------------- | ---------------------------------------- |
+| 1   | DEL 발행 정책 | **무제한 발행**                    | 프로토타입 단계, 단순성                  |
 | 2   | 트랜잭션 방식 | **유저 서명 + 스폰서 가스(2서명)** | 유저 DEL 소비엔 서명 필수, 가스는 스폰서 |
-| 3   | Pool 구조     | **라운드당 1개 Pool**             | 격리, 정산 단순화        |
-| 4   | 가격 데이터   | **Settlement에 온체인 기록**      | 투명성, 검증 가능성      |
-| 5   | 수수료 수취   | **Coin 반환 (호출자가 transfer)** | Composability, PTB 호환  |
-| 6   | 유저 인증     | **지갑 서명 검증**                | 보안                     |
-| 7   | Object 설계   | **Pool=Shared, Bet=Owned**        | 병렬성 + 소유권          |
+| 3   | Pool 구조     | **라운드당 1개 Pool**              | 격리, 정산 단순화                        |
+| 4   | 가격 데이터   | **Settlement에 온체인 기록**       | 투명성, 검증 가능성                      |
+| 5   | 수수료 수취   | **Coin 반환 (호출자가 transfer)**  | Composability, PTB 호환                  |
+| 6   | 유저 인증     | **지갑 서명 검증**                 | 보안                                     |
+| 7   | Object 설계   | **Pool=Shared, Bet=Owned**         | 병렬성 + 소유권                          |
 
 ### 1.3 Sponsored Transaction + Event 정책 (업데이트)
 
@@ -438,9 +438,7 @@ import { Ed25519Keypair } from '@mysten/sui.js/keypairs/ed25519';
 export const suiClient = new SuiClient({ url: process.env.SUI_RPC_URL! });
 
 export function getSponsorKeypair(): Ed25519Keypair {
-  return Ed25519Keypair.fromSecretKey(
-    Buffer.from(process.env.SUI_SPONSOR_PRIVATE_KEY!, 'base64'),
-  );
+  return Ed25519Keypair.fromSecretKey(Buffer.from(process.env.SUI_SPONSOR_PRIVATE_KEY!, 'base64'));
 }
 ```
 
@@ -494,10 +492,10 @@ const executed = await suiClient.executeTransactionBlock({
 
 ### 4.6 프런트 호출 흐름 요약
 
-1) `POST /api/sui/bet/tx` → `txBytes`/nonce 받기  
-2) 지갑에서 `signTransactionBlock({ transactionBlock: txBytes })` → `userSignature` 획득  
-3) `POST /api/sui/bet/execute`로 `txBytes + userSignature + nonce` 전송  
-4) 서버가 sponsor 서명+실행 → `txDigest` 반환 → UI 반영
+1. `POST /api/sui/bet/tx` → `txBytes`/nonce 받기
+2. 지갑에서 `signTransactionBlock({ transactionBlock: txBytes })` → `userSignature` 획득
+3. `POST /api/sui/bet/execute`로 `txBytes + userSignature + nonce` 전송
+4. 서버가 sponsor 서명+실행 → `txDigest` 반환 → UI 반영
 
 ---
 

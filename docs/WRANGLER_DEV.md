@@ -58,18 +58,18 @@ CI나 네트워크가 막힌 환경에서 Google Fonts를 받지 못해 빌드�
 
 ## 4. 로컬 D1 개발 흐름
 
-- `npm run dev`도 `getPlatformProxy()`를 통해 wrangler D1 로컬 시뮬레이션(.wrangler/state/**)을 사용합니다. 별도의 `delta.db` 파일은 더 이상 쓰지 않습니다.
+- `npm run dev`도 `getPlatformProxy()`를 통해 wrangler D1 로컬 시뮬레이션(.wrangler/state/\*\*)을 사용합니다. 별도의 `delta.db` 파일은 더 이상 쓰지 않습니다.
 - 기본 작업은 `npm run dev`에서 진행하고, 스키마 변경 시 `npm run db:generate` 후 `wrangler d1 migrations apply DB --local`로 반영하세요. Cloudflare 런타임 검증은 체크포인트마다 `npm run cf:build`/`npm run cf:preview`로 확인합니다.
 
 ---
 
 ## 5. 트러블슈팅
 
-| 증상                                       | 확인 사항                                                                                         |
-| ------------------------------------------ | ------------------------------------------------------------------------------------------------- |
-| `D1 database not available`                | `wrangler.toml`의 `database_id`가 올바른지, `npm run cf:preview:remote`를 썼는지 확인 |
-| `wrangler dev`가 빌드 결과를 못 찾음       | `.open-next/` 폴더가 있는지, 직전에 `npm run cf:build`를 실행했는지 확인           |
-| Next 빌드가 오래 걸림                      | 잦은 수정이 필요하면 `npm run dev`로 작업하고, 체크포인트마다 `cf:build`/`cf:preview`를 실행 |
-| Cloudflare API 권한 오류                   | `npx wrangler login` 재실행 혹은 API Token 권한(D1 RW)을 확인                                     |
+| 증상                                 | 확인 사항                                                                                    |
+| ------------------------------------ | -------------------------------------------------------------------------------------------- |
+| `D1 database not available`          | `wrangler.toml`의 `database_id`가 올바른지, `npm run cf:preview:remote`를 썼는지 확인        |
+| `wrangler dev`가 빌드 결과를 못 찾음 | `.open-next/` 폴더가 있는지, 직전에 `npm run cf:build`를 실행했는지 확인                     |
+| Next 빌드가 오래 걸림                | 잦은 수정이 필요하면 `npm run dev`로 작업하고, 체크포인트마다 `cf:build`/`cf:preview`를 실행 |
+| Cloudflare API 권한 오류             | `npx wrangler login` 재실행 혹은 API Token 권한(D1 RW)을 확인                                |
 
 필요 시 `docs/LOCAL_DEV_DB.md`와 이 문서를 함께 참고해 팀 내 표준 운영 흐름을 맞춰 주세요.

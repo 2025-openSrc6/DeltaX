@@ -1043,11 +1043,13 @@ curl http://localhost:3000/api/bets -X POST -d '{...}'
 ### 성공 지표
 
 **코드 감소**:
+
 - ✅ `lib/db.ts`: 85줄 → 56줄 (34% 감소)
 - ✅ `lib/bets/repository.ts`: 316줄 → 216줄 (32% 감소)
 - ✅ **총 129줄 삭제** (약 33% 감소)
 
 **제거된 항목**:
+
 - ❌ `getLocalDrizzle()` 함수
 - ❌ `LocalDrizzleClient` 타입
 - ❌ `isD1()` 타입 가드
@@ -1056,11 +1058,13 @@ curl http://localhost:3000/api/bets -X POST -d '{...}'
 - ❌ 환경 분기 로직
 
 **추가된 항목**:
+
 - ✅ `next.config.ts`: `initOpenNextCloudflareForDev()` 활성화
 - ✅ `wrangler.toml`: `migrations_dir = "drizzle"` 설정
 - ✅ D1 로컬 마이그레이션 (44 commands)
 
 **검증 완료**:
+
 - ✅ GET /api/rounds → 정상 작동
 - ✅ POST /api/rounds → 라운드 생성 성공
 - ✅ POST /api/bets → 베팅 생성 성공 (D1 batch 사용)
