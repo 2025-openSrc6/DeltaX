@@ -49,38 +49,192 @@ GET https://api.binance.com/api/v3/ticker/price?symbol=PAXGUSDT
 Response: { "symbol": "PAXGUSDT", "price": "2650.50" }
 ```
 
-**기존 코드 참고**: `fetchCurrentPrice` (L165-217)와 유사하지만 endpoint만 변경
+**비고**
+
+- 기존 코드의 `fetchCurrentPrice`는 `ticker/24hr` (무거움) → 이 함수로 교체
+- 정산(온체인 검증 목적)에는 tick 가격을 쓰지 않고 **klines close 기반**을 기본으로 함
 
 ---
 
-### 2.2 `getKlinesForSettlement` (신규 또는 기존 활용)
+### 2.2 `fetchKlinesWithMeta` (신규: 공통)
 
-**위치**: `lib/services/binance.ts` 또는 `lib/rounds/priceSnapshot.service.ts`
+**위치**: `lib/services/binance.ts`
 
-**목적**: 정산용 avgVol 계산을 위한 1시간 캔들 720개 (30일) 조회
+**목적**: 정산(온체인 입력)에서 필요한 1m/1h klines를 **메타데이터 포함**으로 가져오기
+
+정산은 “재현 가능성/검증 가능성”이 핵심이라, **가격/avgVol 계산에 사용한 데이터 소스/윈도우를 온체인 Settlement에 같이 기록**해야 합니다.
+
+```typescript
+export type BinanceKline = {
+  openTimeMs: number;
+  closeTimeMs: number;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+  numberOfTrades: number;
+};
+
+export type KlinesMeta = {
+  exchange: 'binance';
+  endpoint: '/api/v3/klines';
+  symbol: string; // e.g. 'PAXGUSDT', 'BTCUSDT'
+  asset: 'PAXG' | 'BTC';
+  interval: '1m' | '1h';
+  limit: number;
+
+  // “이 가격은 어떤 캔들의 close인가?”를 온체인에서 검증할 수 있어야 함
+  firstOpenTimeMs: number;
+  lastCloseTimeMs: number;
+
+  // 옵션: 구현 가능하면 포함 (없어도 됨)
+  requestedAtMs?: number; // 서버가 Binance에 요청한 시간
+};
+
+/**
+ * Binance klines 조회 + 온체인용 메타데이터 포함
+ *
+ * @param asset - 'PAXG' | 'BTC'
+ * @param interval - '1m' | '1h'
+ * @param limit - 예: 1m 스냅샷은 1, avgVol은 1h 720
+ * @returns candles + meta (온체인에 기록할 필수 정보)
+ */
+export async function fetchKlinesWithMeta(
+  asset: 'PAXG' | 'BTC',
+  interval: '1m' | '1h',
+  limit: number,
+): Promise<{ candles: BinanceKline[]; meta: KlinesMeta }>;
+```
+
+**중요 (온체인에 넣어야 하는 메타데이터: 필수)**
+
+- `exchange`, `endpoint`, `symbol`, `interval`, `limit`
+- `firstOpenTimeMs`, `lastCloseTimeMs`
+
+**설명**
+
+- 정산 입력인 start/end 가격은 “특정 1m 캔들의 close”여야 재현 가능
+- avgVol은 “1h 캔들 720개 범위(= 30일)”가 고정되어야 룰이 변하지 않음
+
+---
+
+### 2.3 `fetchRoundSnapshotKline1m` (신규: 라운드 오픈/종료)
+
+**위치**: `lib/services/binance.ts`
+
+**목적**: 라운드 오픈/종료 시점에 온체인에 넣을 start/end 가격을 **1m close 기준으로 캡처**
 
 ```typescript
 /**
- * 정산용 klines 조회 (avgVol 계산용)
+ * 라운드 가격 스냅샷용 1m kline 1개 조회
  *
- * @param asset - 'PAXG' | 'BTC'
- * @returns 1시간 캔들 720개의 close 배열
+ * @returns snapshot close + onchainMeta
  *
- * @description
- * - 정산 시점에 호출
- * - avgVol = 수익률(%) 시퀀스의 표준편차
- * - 기존 fetchKlines 함수가 있으나 사용처 없음 → 이걸 활용하면 됨
+ * @note
+ * - "tick"은 재현 불가하므로 정산 입력에는 사용하지 않음
+ * - onchainMeta는 Settlement에 반드시 포함되어야 함
  */
-export async function getKlinesForSettlement(
-  asset: 'PAXG' | 'BTC',
-): Promise<{ closes: number[]; meta: { interval: string; count: number; source: string } }>;
+export async function fetchRoundSnapshotKline1m(asset: 'PAXG' | 'BTC'): Promise<{
+  close: number;
+  closeTimeMs: number;
+  onchainMeta: {
+    exchange: 'binance';
+    endpoint: '/api/v3/klines';
+    symbol: string;
+    interval: '1m';
+    limit: 1;
+    candleOpenTimeMs: number;
+    candleCloseTimeMs: number;
+  };
+}>;
 ```
-
-**참고**: 기존 `fetchKlines` 함수 (L125-163) 있음. 그대로 사용 가능.
 
 ---
 
-### 2.3 `collectChartData` 간소화 (기존 수정)
+### 2.4 `fetchAvgVolKlines1h720` (신규: avgVol)
+
+**위치**: `lib/services/binance.ts`
+
+**목적**: avgVol 계산용 1h 캔들 720개(30일) 조회 + 온체인용 메타데이터 포함
+
+> 이 함수는 **avgVol을 계산해서 리턴하는 함수가 아니라**,
+> avgVol 계산에 필요한 **원천 데이터(720 close) + 온체인 검증용 fetch 메타데이터(조회 범위/심볼/인터벌)**를 제공하는 함수입니다.
+> avgVol 계산은 Next 백엔드에서 `calculateAverageVolatility`로 수행합니다.
+
+```typescript
+/**
+ * avgVol 계산용 1h klines 720개 조회
+ *
+ * @returns closes[] + onchainMeta
+ */
+export async function fetchAvgVolKlines1h720(asset: 'PAXG' | 'BTC'): Promise<{
+  closes: number[];
+  onchainMeta: {
+    exchange: 'binance';
+    endpoint: '/api/v3/klines';
+    symbol: string;
+    interval: '1h';
+    limit: 720;
+    firstOpenTimeMs: number;
+    lastCloseTimeMs: number;
+  };
+}>;
+```
+
+**비고**
+
+- “정산 룰 고정”을 위해 `avgVolDefinition/methodVersion/window` 같은 **계산 메타데이터**는 Settlement에 반드시 들어가야 함
+- 다만 이 값들은 fetch 단계가 아니라 **계산 결과(avgVol)와 함께 패키징해서 반환**하는 편이 안전함 (아래 2.5 참고)
+
+---
+
+### 2.5 `calculateAvgVolForSettlement` (정산 도메인: 태웅 구현 / 참고용)
+
+**위치**: `lib/rounds/priceSnapshot.service.ts` (또는 정산 전용 서비스)
+
+**목적**: (2.4에서 받은) `closes[]`를 avgVol(%)로 계산하고, **온체인 Settlement에 넣을 메타데이터를 함께 구성**
+
+레포에 이미 존재하는 계산 함수:
+
+- `lib/services/normalizedStrength.ts`의 `calculateAverageVolatility`
+
+```typescript
+export async function calculateAvgVolForSettlement(input: {
+  asset: 'PAXG' | 'BTC';
+  closes: number[];
+  klinesFetchMeta: {
+    exchange: 'binance';
+    endpoint: '/api/v3/klines';
+    symbol: string;
+    interval: '1h';
+    limit: 720;
+    firstOpenTimeMs: number;
+    lastCloseTimeMs: number;
+  };
+}): Promise<{
+  avgVolPercent: number;
+  onchainMeta: {
+    // fetch 메타(검증 가능성)
+    exchange: 'binance';
+    endpoint: '/api/v3/klines';
+    symbol: string;
+    interval: '1h';
+    limit: 720;
+    firstOpenTimeMs: number;
+    lastCloseTimeMs: number;
+
+    // 계산 메타(룰 고정)
+    avgVolDefinition: 'returns_stddev_percent';
+    window: { unit: 'candles'; count: 720 };
+    methodVersion: 'v1';
+  };
+}>;
+```
+
+---
+
+### 2.6 `collectChartData` 간소화 (기존 수정)
 
 **위치**: `app/api/chart/collect/route.ts`
 
@@ -189,17 +343,23 @@ const SETTLEMENT_AVGVOL_CONFIG = {
 
 ## 5. 우선순위
 
-| 순위 | 항목                                     | 담당 | 비고                      |
-| ---- | ---------------------------------------- | ---- | ------------------------- |
-| 1    | `fetchTickPrice` 함수 추가               | 현준 | 경량 API로 교체           |
-| 2    | `collect/route.ts` 간소화                | 현준 | 파생지표 제거             |
-| 3    | 기존 차트 UI 동작 확인                   | 현준 | close만 써서 영향 없을 것 |
-| 4    | (선택) `volatility_snapshots` deprecated | 현준 | 나중에                    |
+| 순위 | 항목                                     | 담당 | 비고                       |
+| ---- | ---------------------------------------- | ---- | -------------------------- |
+| 1    | `fetchKlinesWithMeta` 구현               | 현준 | 1m/1h 모두 커버, 메타 필수 |
+| 2    | `fetchRoundSnapshotKline1m` 구현         | 현준 | 오픈/종료 가격 스냅샷용    |
+| 3    | `fetchAvgVolKlines1h720` 구현            | 현준 | avgVol 입력 시계열용       |
+| 4    | `fetchTickPrice` 함수 추가               | 현준 | 차트 수집(UX)용 경량 API   |
+| 5    | `collect/route.ts` 간소화                | 현준 | 파생지표 제거              |
+| 6    | 기존 차트 UI 동작 확인                   | 현준 | close만 써서 영향 없을 것  |
+| 7    | (선택) `volatility_snapshots` deprecated | 현준 | 나중에                     |
 
 ---
 
 ## 6. 테스트 체크리스트
 
+- [ ] `fetchKlinesWithMeta` 호출 시 candles+meta 정상 반환 (meta 필드 누락 없음)
+- [ ] `fetchRoundSnapshotKline1m` 호출 시 close/closeTimeMs/onchainMeta 정상
+- [ ] `fetchAvgVolKlines1h720` 호출 시 closes.length=720 + onchainMeta 정상
 - [ ] `fetchTickPrice` 호출 시 가격 정상 반환
 - [ ] `collect/route.ts` 간소화 후 5초 폴링 정상 동작
 - [ ] 기존 차트 UI (BTCPriceChart, PAXGPriceChart 등) 정상 렌더링
