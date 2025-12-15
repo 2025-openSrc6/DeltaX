@@ -1,11 +1,19 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useCurrentWallet, useSignPersonalMessage, useSignTransaction } from '@mysten/dapp-kit';
+import {
+  useCurrentWallet,
+  useSignPersonalMessage,
+  useSignTransaction,
+  useSuiClient,
+} from '@mysten/dapp-kit';
 import { Transaction } from '@mysten/sui/transactions';
 import { ConnectButton } from '@mysten/dapp-kit';
 import { useSession } from '@/app/hooks/useSession';
 import { toBase64 } from '@mysten/sui/utils';
+
+// 1 DEL = 10^9 MIST
+const MIST_PER_DEL = 1_000_000_000;
 
 export default function DevDemoPage() {
   const { currentWallet, isConnected } = useCurrentWallet();
@@ -137,14 +145,89 @@ export default function DevDemoPage() {
   };
 
   // ----- Actions: Betting Flow -----
+  const [availableCoins, setAvailableCoins] = useState<{ id: string; balance: number }[]>([]);
+  const [isFetchingCoins, setIsFetchingCoins] = useState(false);
+  const [suiPackageId, setSuiPackageId] = useState<string>('');
+  const suiClient = useSuiClient();
+
+  useEffect(() => {
+    fetch('/api/public-config')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.suiPackageId) setSuiPackageId(data.suiPackageId);
+      })
+      .catch(console.error);
+  }, []);
+
   const fetchUserCoins = async () => {
-    // TODO: Implement proper coin fetching. For now manual or assuming user knows.
-    // Actually, we can use suiClient locally if we import it, but we can't easily in client component without setup.
-    // Let's rely on user finding it from Explorer for "Dev" Demo, or implement simple fetcher if needed.
-    // Or... create a small api helper?
-    // "scripts/sui-list-del-coins.ts" exists.
-    // Let's just ask user to paste it for now to save complexity, or maybe simple input.
+    if (!currentWallet?.accounts[0]?.address) return;
+    if (!suiPackageId) {
+      alert('SUI_PACKAGE_ID not loaded yet. Please wait or refresh.');
+      return;
+    }
+
+    setIsFetchingCoins(true);
+    const targetCoinType = `${suiPackageId}::del::DEL`;
+    console.log(`DEBUG: Fetching coins of type ${targetCoinType}`);
+
+    try {
+      let hasNextPage = true;
+      let cursor: string | null | undefined = null;
+      let allCoins: any[] = [];
+
+      // Fetch all pages
+      while (hasNextPage) {
+        const res: any = await suiClient.getCoins({
+          owner: currentWallet.accounts[0].address,
+          cursor,
+          limit: 50,
+          coinType: targetCoinType, // Explicitly request DEL coins
+        });
+        allCoins = [...allCoins, ...res.data];
+        hasNextPage = res.hasNextPage;
+        cursor = res.nextCursor;
+      }
+
+      console.log(`DEBUG: Fetched ${allCoins.length} DEL coins directly.`);
+
+      const delCoins = allCoins.map((coin) => ({
+        id: coin.coinObjectId,
+        balance: Number(coin.balance) / MIST_PER_DEL,
+        type: coin.coinType,
+      }));
+
+      if (delCoins.length === 0) {
+        console.warn('DEBUG: No DEL coins found. Check if you minted DEL.');
+      }
+
+      setAvailableCoins(delCoins);
+      if (delCoins.length > 0) {
+        if (!userDelCoinId || !delCoins.find((c) => c.id === userDelCoinId)) {
+          setUserDelCoinId(delCoins[0].id);
+        }
+      }
+    } catch (e) {
+      console.error('Failed to fetch coins', e);
+    } finally {
+      setIsFetchingCoins(false);
+    }
   };
+
+  // ... (rest unrelated)
+
+  // In HTML:
+  /*
+                <label className="text-xs text-zinc-500 uppercase flex justify-between mb-1">
+                  <span>DEL Coin Object ID</span>
+                  <button
+                    onClick={fetchUserCoins}
+                    disabled={isFetchingCoins}
+                    className="text-blue-500 hover:text-blue-400 underline cursor-pointer disabled:opacity-50 disabled:cursor-wait"
+                  >
+                    {isFetchingCoins ? '⏳ Loading...' : '🔄 Refresh'}
+                  </button>
+                </label>
+  */
 
   const handleBetPrepare = async () => {
     logBet('Preparing bet...');
@@ -200,6 +283,25 @@ export default function DevDemoPage() {
   };
 
   // ----- Actions: Claim Flow -----
+  const [myBets, setMyBets] = useState<any[]>([]);
+
+  const fetchMyBets = async () => {
+    if (!user?.id) return;
+    try {
+      const res = await fetch(`/api/bets?userId=${user.id}&pageSize=5`);
+      const data = await res.json();
+      if (data.success) {
+        setMyBets(data.data);
+      }
+    } catch (e) {
+      console.error('Failed to fetch my bets', e);
+    }
+  };
+
+  useEffect(() => {
+    if (user?.id) fetchMyBets();
+  }, [user?.id]);
+
   const handleClaim = async () => {
     logClaim(`Claiming Bet ${claimBetId}...`);
     try {
@@ -237,8 +339,9 @@ export default function DevDemoPage() {
       if (!execRes.ok) throw new Error(execData.error?.message);
 
       logClaim(
-        `Claimed! Payout: ${execData.data.payoutAmount} DEL, Digest: ${execData.data.digest}`,
+        `Claimed! Payout: ${execData.data.payoutAmount / MIST_PER_DEL} DEL, Digest: ${execData.data.digest}`,
       );
+      fetchMyBets(); // Refresh list
     } catch (e) {
       logClaim('Error: ' + (e as Error).message);
     }
@@ -423,23 +526,37 @@ export default function DevDemoPage() {
                 />
               </div>
               <div>
-                <label className="text-xs text-zinc-500 uppercase block mb-1">
-                  DEL Coin Object ID
-                  <a
-                    href={`https://suiscan.xyz/testnet/account/${currentWallet?.accounts[0]?.address}`}
-                    target="_blank"
-                    className="ml-2 text-blue-500 hover:text-blue-400 underline"
+                <label className="text-xs text-zinc-500 uppercase flex justify-between mb-1">
+                  <span>DEL Coin Object ID</span>
+                  <button
+                    onClick={fetchUserCoins}
+                    disabled={isFetchingCoins}
+                    className="text-blue-500 hover:text-blue-400 underline cursor-pointer disabled:opacity-50 disabled:cursor-wait"
                   >
-                    Find in Explorer ↗
-                  </a>
+                    {isFetchingCoins ? '⏳ Loading...' : '🔄 Refresh'}
+                  </button>
                 </label>
-                <input
-                  type="text"
-                  value={userDelCoinId}
-                  onChange={(e) => setUserDelCoinId(e.target.value)}
-                  className="w-full bg-zinc-950 border border-zinc-700 rounded px-3 py-2 text-xs font-mono focus:border-blue-500 focus:outline-none"
-                  placeholder="0x..."
-                />
+                {availableCoins.length > 0 ? (
+                  <select
+                    value={userDelCoinId}
+                    onChange={(e) => setUserDelCoinId(e.target.value)}
+                    className="w-full bg-zinc-950 border border-zinc-700 rounded px-3 py-2 text-xs font-mono focus:border-blue-500 focus:outline-none text-white"
+                  >
+                    {availableCoins.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.balance} DEL ({c.id.slice(0, 6)}...{c.id.slice(-4)})
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    type="text"
+                    value={userDelCoinId}
+                    onChange={(e) => setUserDelCoinId(e.target.value)}
+                    className="w-full bg-zinc-950 border border-zinc-700 rounded px-3 py-2 text-xs font-mono focus:border-blue-500 focus:outline-none"
+                    placeholder="Click Refresh or Paste ID..."
+                  />
+                )}
               </div>
             </div>
 
@@ -496,6 +613,56 @@ export default function DevDemoPage() {
           <h2 className="text-sm font-bold text-zinc-400 uppercase tracking-wider mb-4 border-b border-zinc-800 pb-2">
             5. Claim Payout
           </h2>
+          <div className="mb-6">
+            <div className="flex justify-between items-center mb-2">
+              <h3 className="text-xs text-zinc-500 uppercase">My Last 5 Bets</h3>
+              <button onClick={fetchMyBets} className="text-xs text-blue-500 hover:text-blue-400">
+                🔄 Refresh List
+              </button>
+            </div>
+            <div className="bg-zinc-950 border border-zinc-800 rounded overflow-hidden">
+              <table className="w-full text-xs text-left">
+                <thead className="bg-zinc-900/50 text-zinc-500">
+                  <tr>
+                    <th className="p-2">Bet ID</th>
+                    <th className="p-2">Amount</th>
+                    <th className="p-2">Status</th>
+                    <th className="p-2">Result</th>
+                    <th className="p-2">Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {myBets.length === 0 && (
+                    <tr>
+                      <td colSpan={5} className="p-4 text-center text-zinc-600">
+                        No bets found
+                      </td>
+                    </tr>
+                  )}
+                  {myBets.map((bet) => (
+                    <tr key={bet.id} className="border-t border-zinc-900 hover:bg-zinc-900/30">
+                      <td className="p-2 font-mono text-zinc-400" title={bet.id}>
+                        {bet.id.slice(0, 8)}...
+                      </td>
+                      <td className="p-2">{bet.amount / MIST_PER_DEL} DEL</td>
+                      <td className="p-2">{bet.chainStatus}</td>
+                      <td className="p-2">{bet.resultStatus}</td>
+                      <td className="p-2">
+                        <button
+                          onClick={() => setClaimBetId(bet.id)}
+                          className="text-blue-500 hover:underline disabled:opacity-50 disabled:no-underline"
+                          disabled={bet.chainStatus !== 'EXECUTED'}
+                        >
+                          Select
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
           <div className="flex gap-4 items-end mb-4">
             <div className="flex-1">
               <label className="text-xs text-zinc-500 uppercase block mb-1">Target Bet ID</label>
