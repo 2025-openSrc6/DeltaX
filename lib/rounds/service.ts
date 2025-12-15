@@ -427,6 +427,23 @@ export class RoundService {
       };
     }
 
+    // 시작가 유효성 검증 (0/NaN 방어)
+    const isValidPrice = (v: number) => Number.isFinite(v) && v > 0;
+    if (!isValidPrice(prices.gold) || !isValidPrice(prices.btc)) {
+      cronLogger.warn('[Job 2] Invalid start price snapshot, skipping open', {
+        roundId: round.id,
+        gold: prices.gold,
+        btc: prices.btc,
+        timestamp: prices.timestamp,
+        source: prices.source,
+      });
+      return {
+        status: 'not_ready',
+        round,
+        message: 'Invalid start price snapshot',
+      };
+    }
+
     // lockTime 이미 지났으면 CANCEL (복구 안함)
     if (now >= round.lockTime) {
       cronLogger.warn('[Job 2] lockTime passed, cancelling', {
@@ -702,14 +719,24 @@ export class RoundService {
         endPriceFallbackReason,
       });
 
-      // 배당 계산
-      const payoutResult: CalculatePayoutResult = calculatePayout({
-        winner,
-        totalPool: round.totalPool!,
-        totalGoldBets: round.totalGoldBets!,
-        totalBtcBets: round.totalBtcBets!,
-        platformFeeRate: 0.05,
-      });
+      const losingPool = winner === 'GOLD' ? round.totalBtcBets! : round.totalGoldBets!;
+
+      // 배당 계산 (VOID 시 on-chain과 동일하게 fee/payoutPool=0)
+      const payoutResult: CalculatePayoutResult = isVoid
+        ? {
+            platformFee: 0,
+            payoutPool: 0,
+            payoutRatio: 0,
+            winningPool,
+            losingPool,
+          }
+        : calculatePayout({
+            winner,
+            totalPool: round.totalPool!,
+            totalGoldBets: round.totalGoldBets!,
+            totalBtcBets: round.totalBtcBets!,
+            platformFeeRate: 0.05,
+          });
 
       cronLogger.info('[Job 4] Payout calculated', {
         roundId: round.id,
@@ -751,7 +778,7 @@ export class RoundService {
       let suiSettlementObjectId = round.suiSettlementObjectId ?? undefined;
       let suiFeeCoinObjectId = round.suiFeeCoinObjectId ?? undefined;
 
-      if (!suiFinalizeTxDigest || !suiSettlementObjectId || !suiFeeCoinObjectId) {
+      if (!suiFinalizeTxDigest) {
         const res = await finalizeRoundOnChain(
           round.suiPoolAddress,
           { goldStart, goldEnd, btcStart, btcEnd },
@@ -772,6 +799,41 @@ export class RoundService {
 
         // txDigest/objectId를 먼저 저장 (Sui-first)
         await this.repository.updateById(round.id, {
+          suiFinalizeTxDigest,
+          suiSettlementObjectId,
+          suiFeeCoinObjectId,
+        });
+      } else if (!suiSettlementObjectId || !suiFeeCoinObjectId) {
+        // 이미 실행된 finalize tx가 있으나 ID가 비어 있으면 체인 조회로 보강
+        try {
+          const tx = await fetchTransactionBlockForRecovery(suiFinalizeTxDigest);
+          const parsedSettlementId = parseCreatedSettlementIdFromTx(tx);
+          const parsedFeeCoinId = parseCreatedFeeCoinIdFromTx(tx);
+
+          const updates: { suiSettlementObjectId?: string; suiFeeCoinObjectId?: string } = {};
+          if (!suiSettlementObjectId && parsedSettlementId) {
+            suiSettlementObjectId = parsedSettlementId;
+            updates.suiSettlementObjectId = parsedSettlementId;
+          }
+          if (!suiFeeCoinObjectId && parsedFeeCoinId) {
+            suiFeeCoinObjectId = parsedFeeCoinId;
+            updates.suiFeeCoinObjectId = parsedFeeCoinId;
+          }
+          if (Object.keys(updates).length > 0) {
+            await this.repository.updateById(round.id, updates);
+          }
+        } catch (error) {
+          cronLogger.warn('[Job 4] Failed to backfill finalize IDs from existing digest', {
+            roundId: round.id,
+            digest: suiFinalizeTxDigest,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+      }
+
+      if (!suiFinalizeTxDigest || !suiSettlementObjectId || !suiFeeCoinObjectId) {
+        throw new BusinessRuleError('ROUND_DATA_MISSING', 'Missing finalize receipt fields', {
+          roundId: round.id,
           suiFinalizeTxDigest,
           suiSettlementObjectId,
           suiFeeCoinObjectId,
