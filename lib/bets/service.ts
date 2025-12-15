@@ -87,9 +87,10 @@ export class BetService {
 
     await this.assertRoundOpen(round);
 
+    const createdAt = Date.now();
+
     try {
       const betId = generateUUID();
-      const createdAt = Date.now();
       const bet = await this.betRepository.createPending({
         id: betId,
         roundId,
@@ -102,10 +103,29 @@ export class BetService {
     } catch (error: unknown) {
       if (error instanceof Error) {
         if ((error as { code?: string }).code === 'ALREADY_EXISTS') {
-          throw new BusinessRuleError(
-            'ALREADY_BET',
-            'You have already placed a bet on this round.',
-          );
+          // Check if retry is allowed
+          const existing = await this.betRepository.findByUserAndRound(userId, roundId);
+          if (existing) {
+            if (existing.chainStatus === 'EXECUTED') {
+              throw new BusinessRuleError(
+                'ALREADY_BET',
+                'You have already placed a bet on this round.',
+              );
+            }
+            // Retry: Update existing pending/failed bet
+            const updated = await this.betRepository.updateById(existing.id, {
+              prediction,
+              amount,
+              createdAt, // Refresh timestamp
+              chainStatus: 'PENDING',
+              resultStatus: 'PENDING',
+              settlementStatus: 'PENDING',
+              // Reset tx fields
+              suiTxHash: null,
+              suiBetObjectId: null,
+            });
+            return updated;
+          }
         }
       }
       throw error;
