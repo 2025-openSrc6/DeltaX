@@ -4,6 +4,7 @@ import type { RoundType, Round, RoundInsert, PriceData } from '@/lib/rounds/type
 import type { RoundRepository } from '@/lib/rounds/repository';
 import type { BetService } from '@/lib/bets/service';
 import * as fsmModule from '@/lib/rounds/fsm';
+import { createPool } from '@/lib/sui/admin';
 
 // fsm 모듈의 transitionRoundStatus를 spyOn으로 모킹
 vi.mock('@/lib/rounds/fsm', async (importOriginal) => {
@@ -13,6 +14,10 @@ vi.mock('@/lib/rounds/fsm', async (importOriginal) => {
     transitionRoundStatus: vi.fn(),
   };
 });
+
+vi.mock('@/lib/sui/admin', () => ({
+  createPool: vi.fn(),
+}));
 
 describe('RoundService', () => {
   const createMockBetService = (): BetService =>
@@ -101,6 +106,7 @@ describe('RoundService', () => {
 
   describe('openRound', () => {
     const mockTransition = fsmModule.transitionRoundStatus as Mock;
+    const mockCreatePool = createPool as Mock;
 
     // 테스트용 기준 시각: 2025-01-15 09:00:00 UTC
     const NOW = new Date('2025-01-15T09:00:00Z').getTime();
@@ -136,6 +142,14 @@ describe('RoundService', () => {
         endPriceFallbackReason: null,
         suiPoolAddress: null,
         suiSettlementObjectId: null,
+        suiCreatePoolTxDigest: null,
+        suiLockPoolTxDigest: null,
+        suiFinalizeTxDigest: null,
+        suiFeeCoinObjectId: null,
+        goldAvgVol: null,
+        btcAvgVol: null,
+        priceSnapshotMeta: null,
+        avgVolMeta: null,
         platformFeeRate: '0.05',
         platformFeeCollected: 0,
         bettingOpenedAt: null,
@@ -152,10 +166,12 @@ describe('RoundService', () => {
       btc: 98234.0,
       timestamp: NOW,
       source: 'kitco',
+      meta: { exchange: 'mock', note: 'test' },
     };
 
     let mockRepository: {
       findLatestByStatus: Mock;
+      updateById: Mock;
     };
     let mockBetService: BetService;
     let roundService: RoundService;
@@ -166,11 +182,16 @@ describe('RoundService', () => {
 
       mockRepository = {
         findLatestByStatus: vi.fn(),
+        updateById: vi.fn(),
       };
       mockBetService = createMockBetService();
       roundService = new RoundService(mockRepository as unknown as RoundRepository, mockBetService);
 
       mockTransition.mockReset();
+
+      // Sui createPool mock (module mock)
+      mockCreatePool.mockReset();
+      mockCreatePool.mockResolvedValue({ poolId: '0xpool', txDigest: '0xdigest' });
     });
 
     afterEach(() => {
@@ -247,6 +268,9 @@ describe('RoundService', () => {
           btcStartPrice: '98234',
           priceSnapshotStartAt: mockPrices.timestamp,
           startPriceSource: 'kitco',
+          suiPoolAddress: '0xpool',
+          suiCreatePoolTxDigest: '0xdigest',
+          priceSnapshotMeta: expect.any(String),
         }),
       );
     });

@@ -103,6 +103,8 @@ export interface OpenRoundMetadata {
   startPriceIsFallback?: boolean; // 기본값: false
   startPriceFallbackReason?: string; // fallback인 경우 사유
   suiPoolAddress?: string; // Sui BettingPool Object ID, Week 2까지 옵셔널
+  suiCreatePoolTxDigest?: string; // Sui pool 생성 tx digest
+  priceSnapshotMeta?: string; // JSON text (audit)
   bettingOpenedAt: number; // Epoch milliseconds, 필수
 }
 
@@ -228,6 +230,12 @@ export interface PriceData {
   btc: number;
   timestamp: number; // Epoch milliseconds
   source: string; // 'kitco' | 'coingecko' | 'mock' 등
+  /**
+   * 재현/감사/검증용 메타데이터 (캔들/소스/샘플링 등)
+   * - route에서 외부 API가 제공하는 메타를 그대로 전달하는 용도
+   * - DB에는 JSON text로 저장
+   */
+  meta?: unknown;
 }
 
 /**
