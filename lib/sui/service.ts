@@ -314,10 +314,15 @@ export class SuiService {
         }
 
         if (status?.status === 'failure') {
-          throw new BusinessRuleError('SUI_EXECUTE_FAILED', 'Sui execution failed on chain', {
-            error: status.error,
-            digest,
-          });
+          const detailMsg = status.error ? `: ${status.error}` : '';
+          throw new BusinessRuleError(
+            'SUI_EXECUTE_FAILED',
+            'Sui execution failed on chain' + detailMsg,
+            {
+              error: status.error,
+              digest,
+            },
+          );
         }
       } catch (error) {
         if (error instanceof BusinessRuleError) {
