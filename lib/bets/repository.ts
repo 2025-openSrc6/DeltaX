@@ -172,16 +172,15 @@ export class BetRepository {
         .where(eq(rounds.id, roundId))
         .returning(),
 
-      // [1] Update User Balance
+      // [1] Update User Balance (Only stats, no balance deduction)
       db
         .update(users)
         .set({
-          delBalance: sql`${users.delBalance} - ${amount}`,
           totalBets: sql`${users.totalBets} + 1`,
           totalVolume: sql`${users.totalVolume} + ${amount}`,
           updatedAt: now,
         })
-        .where(and(eq(users.id, userId), sql`${users.delBalance} >= ${amount}`)),
+        .where(eq(users.id, userId)),
 
       // [2] Update Bet
       db
@@ -197,17 +196,14 @@ export class BetRepository {
     ]);
 
     const roundResult = batchResults[0] as Round[];
-    const userUpdateResult = batchResults[1] as { meta?: { changes?: number } };
+    // const userUpdateResult = batchResults[1];
     const betResult = batchResults[2] as Bet[];
 
     const errors: string[] = [];
     if (!roundResult[0]) {
       errors.push('Round update failed');
     }
-    const userRowsAffected = userUpdateResult?.meta?.changes ?? 0;
-    if (userRowsAffected === 0) {
-      errors.push('Insufficient balance');
-    }
+    // Removed balance check
     if (!betResult[0]) {
       errors.push('Bet update failed');
     }
@@ -234,6 +230,16 @@ export class BetRepository {
       .orderBy(asc(bets.createdAt));
 
     return result;
+  }
+
+  async findByUserAndRound(userId: string, roundId: string): Promise<Bet | undefined> {
+    const db = getDb();
+    const result = await db
+      .select()
+      .from(bets)
+      .where(and(eq(bets.userId, userId), eq(bets.roundId, roundId)))
+      .limit(1);
+    return result[0];
   }
 
   /**
