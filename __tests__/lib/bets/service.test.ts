@@ -11,47 +11,48 @@ const BET_ID = '33333333-3333-4333-8333-333333333333';
 
 const baseTime = new Date('2024-01-01T00:00:00Z');
 
-const createRound = (overrides: Partial<Round> = {}): Round => ({
-  id: ROUND_ID,
-  roundNumber: 1,
-  type: '6HOUR',
-  status: 'BETTING_OPEN',
-  startTime: baseTime.getTime() - 60_000,
-  endTime: baseTime.getTime() + 6 * 60 * 60 * 1000,
-  lockTime: baseTime.getTime() + 30_000,
-  totalPool: 0,
-  totalGoldBets: 0,
-  totalBtcBets: 0,
-  totalBetsCount: 0,
-  platformFeeRate: '0.05',
-  platformFeeCollected: 0,
-  payoutPool: 0,
-  createdAt: baseTime.getTime() - 1_000,
-  updatedAt: baseTime.getTime() - 1_000,
-  goldStartPrice: null,
-  goldEndPrice: null,
-  btcStartPrice: null,
-  btcEndPrice: null,
-  startPriceSource: null,
-  startPriceIsFallback: false,
-  startPriceFallbackReason: null,
-  endPriceSource: null,
-  endPriceIsFallback: false,
-  endPriceFallbackReason: null,
-  priceSnapshotStartAt: null,
-  priceSnapshotEndAt: null,
-  goldChangePercent: null,
-  btcChangePercent: null,
-  winner: null,
-  suiPoolAddress: 'pool-1',
-  suiSettlementObjectId: null,
-  bettingOpenedAt: null,
-  bettingLockedAt: null,
-  roundEndedAt: null,
-  settlementCompletedAt: null,
-  settlementFailureAlertSentAt: null,
-  ...overrides,
-});
+const createRound = (overrides: Partial<Round> = {}): Round =>
+  ({
+    id: ROUND_ID,
+    roundNumber: 1,
+    type: '6HOUR',
+    status: 'BETTING_OPEN',
+    startTime: baseTime.getTime() - 60_000,
+    endTime: baseTime.getTime() + 6 * 60 * 60 * 1000,
+    lockTime: baseTime.getTime() + 30_000,
+    totalPool: 0,
+    totalGoldBets: 0,
+    totalBtcBets: 0,
+    totalBetsCount: 0,
+    platformFeeRate: '0.05',
+    platformFeeCollected: 0,
+    payoutPool: 0,
+    createdAt: baseTime.getTime() - 1_000,
+    updatedAt: baseTime.getTime() - 1_000,
+    goldStartPrice: null,
+    goldEndPrice: null,
+    btcStartPrice: null,
+    btcEndPrice: null,
+    startPriceSource: null,
+    startPriceIsFallback: false,
+    startPriceFallbackReason: null,
+    endPriceSource: null,
+    endPriceIsFallback: false,
+    endPriceFallbackReason: null,
+    priceSnapshotStartAt: null,
+    priceSnapshotEndAt: null,
+    goldChangePercent: null,
+    btcChangePercent: null,
+    winner: null,
+    suiPoolAddress: 'pool-1',
+    suiSettlementObjectId: null,
+    bettingOpenedAt: null,
+    bettingLockedAt: null,
+    roundEndedAt: null,
+    settlementCompletedAt: null,
+    settlementFailureAlertSentAt: null,
+    ...overrides,
+  }) as Round;
 
 const createBet = (overrides: Partial<Bet> = {}): Bet => ({
   id: BET_ID,
@@ -96,6 +97,7 @@ describe('BetService', () => {
       count: vi.fn(),
       updateById: vi.fn(),
       findByRoundId: vi.fn(),
+      findByUserAndRound: vi.fn(),
     };
 
     roundRepository = {
@@ -231,6 +233,9 @@ describe('BetService', () => {
       (err as any).code = 'ALREADY_EXISTS';
       roundRepository.findById.mockResolvedValue(createRound());
       betRepository.createPending.mockRejectedValue(err);
+
+      // Mock finding an existing EXECUTED bet (which triggers the error)
+      betRepository.findByUserAndRound.mockResolvedValue(createBet({ chainStatus: 'EXECUTED' }));
 
       await expect(
         service.createBetWithSuiPrepare(
