@@ -4,6 +4,7 @@ import { cronLogger } from '@/lib/cron/logger';
 import { registry } from '@/lib/registry';
 import { createErrorResponse, createSuccessResponse, handleApiError } from '@/lib/shared/response';
 import { PriceData } from '@/lib/rounds/types';
+import { fetchStartPriceSnapshot } from '@/lib/rounds/priceSnapshot.service';
 
 /**
  * POST /api/cron/rounds/open
@@ -35,15 +36,9 @@ export async function POST(request: NextRequest) {
     }
     cronLogger.info('[Job 2] Auth success');
 
-    // 가격 스냅샷 가져오기 (외부 API 호출)
-    // TODO: 현준에게 받아서 수정하기
-    const prices: PriceData = {
-      gold: 2650.5,
-      btc: 98234.0,
-      timestamp: Date.now(),
-      source: 'kitco',
-    };
-    cronLogger.info('[Job 2] Prices fetched (mock)', {
+    // 가격 스냅샷 가져오기 (Binance 1m kline close)
+    const prices: PriceData = await fetchStartPriceSnapshot();
+    cronLogger.info('[Job 2] Prices fetched (binance 1m close)', {
       gold: prices.gold,
       btc: prices.btc,
       timestamp: new Date(prices.timestamp).toISOString(),
