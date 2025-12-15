@@ -19,7 +19,7 @@
 
 ---
 
-## 1. 현재 구현 상태 (2025-12-15 분석)
+## 1. 현재 구현 상태 (2025-12-15 분석 / Claim 구현 반영)
 
 > 표기: ✅ 완료, ⚠️ 부분 구현, ❌ 미구현
 
@@ -40,7 +40,7 @@
 | 베팅 `place_bet` 플로우                | ✅   | `POST /api/bets` + `POST /api/bets/execute`                                        |
 | 라운드 크론 뼈대                       | ✅   | `app/api/cron/rounds/{create,open,lock,finalize}/route.ts` (settle는 Job5 폐기)    |
 | **온체인 lock/finalize 호출**          | ✅   | `RoundService.openRound/lockRound/finalizeRound` → `lib/sui/admin.ts`              |
-| **payout(배당) 호출**                  | ❌   | Job5 폐기. 유저 Claim(prepare/execute + `claim_payout`)로 전환(다음 스코프)        |
+| **payout(배당) 호출**                  | ✅   | Job5 폐기. 유저 Claim(prepare/execute + `claim_payout`)로 전환 완료(서버 경유)     |
 | RoundService 승자 판정                 | ✅   | on-chain과 동일한 정규화 강도 비교(cross-multiply)로 계산                           |
 | 가격 스냅샷 API                        | ✅   | `GET /api/price/snapshot` (Binance 기반)                                           |
 | **크론에서 가격 API 호출**             | ❌   | 현재 mock 가격 사용 중 (hardcoded)                                                 |
@@ -54,7 +54,7 @@
 | `SUI_CAP_OBJECT_ID` 사용               | ✅   | `SUI_ADMIN_CAP_ID` 우선, 없으면 `SUI_CAP_OBJECT_ID` fallback 처리                  |
 | 출석 보상 API/서비스                   | ❌   | 미구현                                                                             |
 | Settlement tx digest/영수증 저장       | ✅   | Job4에서 `suiFinalizeTxDigest/suiSettlementObjectId/suiFeeCoinObjectId` 저장        |
-| Job6(Recovery)                         | ⚠️   | Claim 모델 전환 중이라 현재는 noop(다음 스코프에서 복구 설계/구현)                 |
+| Job6(Recovery)                         | ⚠️   | 라운드 recovery 골격은 있으나, bet/claim 복구 API는 아직 없음(다음 작업)           |
 
 ### 1.3 차트 데이터 수집 (현준 담당)
 
@@ -175,11 +175,19 @@ const winner = goldChange > btcChange ? 'GOLD' : 'BTC';
 
 ### 2.6 Claim(prepare/execute) API 구현 (다음 스코프)
 
+- 상태: ✅ 구현 완료 (서버 경유 claim만 허용)
 - 목표: `rounds.status in (SETTLED, VOIDED)` + `rounds.suiSettlementObjectId` + `bets.suiBetObjectId` 기반으로
   유저가 `claim_payout`을 호출할 수 있는 sponsored tx 흐름 제공.
 - 구현:
   - `POST /api/bets/claim/prepare` (txBytes + nonce)
-  - `POST /api/bets/claim/execute` (userSig + sponsor execute → txDigest 저장)
+  - `POST /api/bets/claim/execute` (userSig + sponsor execute → txDigest + payoutAmount 저장)
+  - A안: betObjectId는 `POST /api/bets/execute`에서 objectChanges 파싱으로 `bets.suiBetObjectId`에 저장
+
+### 2.7 다음 작업 (보안/운영)
+
+- [ ] `/api/bets/execute`에서 `userId`를 body로 받지 않도록 인증 흐름 일괄화(쿠키 `suiAddress` → userId)
+- [ ] bet/claim recovery API 추가 (체인 성공, DB 실패 보정)
+- [ ] Settlement 영수증 UI/조회 연결 (round별 settlementId 링크/표시)
 
 ---
 
