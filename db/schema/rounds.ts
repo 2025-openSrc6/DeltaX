@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, index, uniqueIndex } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text, integer, real, index, uniqueIndex } from 'drizzle-orm/sqlite-core';
 
 /**
  * rounds 테이블
@@ -42,6 +42,27 @@ export const rounds = sqliteTable(
 
     /** BTC 종료가 */
     btcEndPrice: text('btc_end_price'),
+
+    /**
+     * 정산용 avgVol (%)
+     * - 오프체인에서 계산 후 저장
+     * - on-chain에는 *10_000 스케일된 u64로 전달되며, 이 값은 "원본(%)"을 기록하기 위함
+     */
+    goldAvgVol: real('gold_avg_vol'),
+    btcAvgVol: real('btc_avg_vol'),
+
+    /**
+     * 가격 스냅샷 메타데이터(JSON text)
+     * - 어떤 소스/캔들에서 캡처했는지 재현/감사용
+     * - 예: { start: {...}, end: {...} } 또는 { gold: {...}, btc: {...} }
+     */
+    priceSnapshotMeta: text('price_snapshot_meta'),
+
+    /**
+     * avgVol 계산 메타데이터(JSON text)
+     * - interval/lookback/source/version/calculatedAt 등
+     */
+    avgVolMeta: text('avg_vol_meta'),
 
     /** 시작가 소스 (kitco/coingecko/average/fallback) */
     startPriceSource: text('start_price_source', { length: 20 }),
@@ -108,6 +129,18 @@ export const rounds = sqliteTable(
 
     /** Sui Settlement Object ID */
     suiSettlementObjectId: text('sui_settlement_object_id', { length: 100 }),
+
+    /** Sui tx digest (pool 생성) */
+    suiCreatePoolTxDigest: text('sui_create_pool_tx_digest', { length: 100 }),
+
+    /** Sui tx digest (pool lock) */
+    suiLockPoolTxDigest: text('sui_lock_pool_tx_digest', { length: 100 }),
+
+    /** Sui tx digest (finalize/settlement 생성) */
+    suiFinalizeTxDigest: text('sui_finalize_tx_digest', { length: 100 }),
+
+    /** finalize 시 생성된 platform fee coin object id (admin 소유) */
+    suiFeeCoinObjectId: text('sui_fee_coin_object_id', { length: 100 }),
 
     /** BETTING_OPEN 전환 시각 (Epoch milliseconds) */
     bettingOpenedAt: integer('betting_opened_at', { mode: 'number' }),
