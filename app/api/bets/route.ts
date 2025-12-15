@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
 
     // 2. 유저 인증 및 검증
-    const suiAddress = await request.cookies.get('suiAddress')?.value;
+    const suiAddress = request.cookies.get('suiAddress')?.value;
     if (!suiAddress) {
       throw new UnauthorizedError('Login required');
     }
