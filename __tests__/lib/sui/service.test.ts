@@ -70,6 +70,7 @@ const baseExecuteParams = {
 };
 
 const createPreparedRecord = (overrides: Partial<PreparedTxRecord> = {}): PreparedTxRecord => ({
+  action: 'BET',
   txBytesHash: TX_HASH,
   expiresAt: NOW + PREPARE_TX_TTL_MS / 2,
   betId: basePrepareParams.betId,
@@ -140,6 +141,7 @@ describe('SuiService', () => {
     expect(nonceStore.save).toHaveBeenCalledWith(
       result.nonce,
       {
+        action: 'BET',
         txBytesHash: TX_HASH,
         expiresAt: NOW + PREPARE_TX_TTL_MS,
         betId: basePrepareParams.betId,
@@ -181,6 +183,16 @@ describe('SuiService', () => {
 
   it('executeBetTransaction succeeds when prepared data matches', async () => {
     (nonceStore.consume as Mock).mockResolvedValue(createPreparedRecord());
+    mockGetTransactionBlock.mockResolvedValue({
+      effects: { status: { status: 'success' } },
+      objectChanges: [
+        {
+          type: 'created',
+          objectType: '0x123::betting::Bet',
+          objectId: '0xbet',
+        },
+      ],
+    });
 
     const result = await suiService.executeBetTransaction(baseExecuteParams);
 
@@ -193,9 +205,10 @@ describe('SuiService', () => {
     );
     expect(mockGetTransactionBlock).toHaveBeenCalledWith({
       digest: '0xdigest',
-      options: { showEffects: true },
+      options: { showEffects: true, showObjectChanges: true, showEvents: true },
     });
     expect(result.digest).toBe('0xdigest');
+    expect(result.betObjectId).toBe('0xbet');
   });
 
   it('executeBetTransaction rejects when nonce is missing', async () => {

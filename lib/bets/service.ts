@@ -14,7 +14,12 @@
 
 import { BetRepository } from './repository';
 import { RoundRepository } from '@/lib/rounds/repository';
-import { createBetWithSuiPrepareSchema, getBetsQuerySchema } from './validation';
+import {
+  createBetWithSuiPrepareSchema,
+  executeClaimSchema,
+  getBetsQuerySchema,
+  prepareClaimSchema,
+} from './validation';
 import { NotFoundError, BusinessRuleError, ValidationError } from '@/lib/shared/errors';
 import { generateUUID, isValidUUID } from '@/lib/shared/uuid';
 import type {
@@ -155,10 +160,14 @@ export class BetService {
       throw new BusinessRuleError('USER_MISMATCH', 'Prepared user does not match execution userId');
     }
     if (bet.chainStatus === 'EXECUTED') {
-      return { digest: bet.suiTxHash ?? 'already-executed' };
+      // NOTE: A안 기반으로 claim을 위해 betObjectId가 필요하므로 함께 반환한다.
+      return {
+        digest: bet.suiTxHash ?? 'already-executed',
+        betObjectId: bet.suiBetObjectId ?? 'unknown',
+      };
     }
 
-    const { digest } = await this.suiService.executeBetTransaction({
+    const { digest, betObjectId } = await this.suiService.executeBetTransaction({
       txBytes: txBytesBase64,
       userSignature,
       nonce,
@@ -173,11 +182,136 @@ export class BetService {
       prediction: bet.prediction as 'GOLD' | 'BTC',
       amount: bet.amount,
       suiTxHash: digest,
+      suiBetObjectId: betObjectId,
     };
 
     await this.betRepository.finalizeExecution(finalizeInput);
 
-    return { digest };
+    return { digest, betObjectId };
+  }
+
+  async prepareClaimWithSuiPrepare(
+    rawInput: unknown,
+    userId: string,
+    userAddress: string,
+  ): Promise<PrepareSuiBetTxResult> {
+    const { betId } = prepareClaimSchema.parse(rawInput);
+
+    const bet = await this.betRepository.findById(betId);
+    if (!bet) {
+      throw new NotFoundError('Bet', betId);
+    }
+    if (bet.userId !== userId) {
+      throw new BusinessRuleError('USER_MISMATCH', 'Bet owner mismatch');
+    }
+    if (bet.chainStatus !== 'EXECUTED') {
+      throw new BusinessRuleError('BET_NOT_EXECUTED', 'Bet is not executed on chain yet', {
+        chainStatus: bet.chainStatus,
+      });
+    }
+    if (!bet.suiBetObjectId) {
+      throw new BusinessRuleError('BET_OBJECT_ID_MISSING', 'Bet object id is missing', { betId });
+    }
+    if (bet.suiPayoutTxHash) {
+      // 이미 claim 완료된 베팅
+      throw new BusinessRuleError('ALREADY_CLAIMED', 'Bet is already claimed', {
+        betId,
+        suiPayoutTxHash: bet.suiPayoutTxHash,
+      });
+    }
+
+    const round = await this.roundRepository.findById(bet.roundId);
+    if (!round) {
+      throw new NotFoundError('Round', bet.roundId);
+    }
+    if (round.status !== 'SETTLED' && round.status !== 'VOIDED') {
+      throw new BusinessRuleError('ROUND_NOT_CLAIMABLE', 'Round is not claimable', {
+        roundStatus: round.status,
+        roundId: round.id,
+      });
+    }
+    if (!round.suiPoolAddress) {
+      throw new BusinessRuleError('POOL_MISSING', 'Round poolId is missing', { roundId: round.id });
+    }
+    if (!round.suiSettlementObjectId) {
+      throw new BusinessRuleError('SETTLEMENT_MISSING', 'Round settlementId is missing', {
+        roundId: round.id,
+      });
+    }
+
+    return await this.suiService.prepareClaimTransaction({
+      userAddress,
+      poolId: round.suiPoolAddress,
+      settlementId: round.suiSettlementObjectId,
+      betObjectId: bet.suiBetObjectId,
+      betId: bet.id,
+      userId,
+    });
+  }
+
+  async executeClaimWithUpdate(
+    rawInput: unknown,
+    userId: string,
+  ): Promise<{ digest: string; payoutAmount: number }> {
+    const { betId, txBytes, userSignature, nonce } = executeClaimSchema.parse(rawInput);
+
+    const bet = await this.betRepository.findById(betId);
+    if (!bet) {
+      throw new NotFoundError('Bet', betId);
+    }
+    if (bet.userId !== userId) {
+      throw new BusinessRuleError('USER_MISMATCH', 'Bet owner mismatch');
+    }
+    if (bet.suiPayoutTxHash) {
+      // 멱등: 이미 claim 됨
+      return { digest: bet.suiPayoutTxHash, payoutAmount: bet.payoutAmount ?? 0 };
+    }
+    if (bet.chainStatus !== 'EXECUTED') {
+      throw new BusinessRuleError('BET_NOT_EXECUTED', 'Bet is not executed on chain yet', {
+        chainStatus: bet.chainStatus,
+      });
+    }
+
+    const round = await this.roundRepository.findById(bet.roundId);
+    if (!round) {
+      throw new NotFoundError('Round', bet.roundId);
+    }
+    if (round.status !== 'SETTLED' && round.status !== 'VOIDED') {
+      throw new BusinessRuleError('ROUND_NOT_CLAIMABLE', 'Round is not claimable', {
+        roundStatus: round.status,
+        roundId: round.id,
+      });
+    }
+
+    const { digest, payoutAmount, payoutTimestampMs } =
+      await this.suiService.executeClaimTransaction({
+        txBytes,
+        userSignature,
+        nonce,
+        betId,
+        userId,
+      });
+
+    // resultStatus 결정
+    const resultStatus = round.status === 'VOIDED' ? 'REFUNDED' : payoutAmount > 0 ? 'WON' : 'LOST';
+
+    // VOIDED인데 payoutAmount=0이면 비정상(환불은 원칙상 amount>0)
+    if (round.status === 'VOIDED' && payoutAmount === 0) {
+      throw new BusinessRuleError('SUI_PARSE_FAILED', 'VOIDED round claim should refund > 0', {
+        betId,
+        digest,
+      });
+    }
+
+    await this.betRepository.finalizeClaim({
+      betId,
+      suiPayoutTxHash: digest,
+      suiPayoutTimestamp: payoutTimestampMs,
+      payoutAmount,
+      resultStatus: resultStatus as 'WON' | 'LOST' | 'REFUNDED',
+    });
+
+    return { digest, payoutAmount };
   }
 
   /**

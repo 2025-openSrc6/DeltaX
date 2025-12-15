@@ -100,7 +100,7 @@ export class BetRepository {
    */
   async finalizeExecution(input: FinalizeBetExecutionInput): Promise<Bet> {
     const db = getDb();
-    const { betId, roundId, userId, prediction, amount, suiTxHash } = input;
+    const { betId, roundId, userId, prediction, amount, suiTxHash, suiBetObjectId } = input;
     const now = Date.now();
 
     const batchResults = await db.batch([
@@ -136,6 +136,7 @@ export class BetRepository {
         .set({
           chainStatus: 'EXECUTED',
           suiTxHash,
+          suiBetObjectId,
           processedAt: now,
         })
         .where(eq(bets.id, betId))
@@ -194,6 +195,40 @@ export class BetRepository {
     const result = await db.update(bets).set(updateData).where(eq(bets.id, id)).returning();
     if (!result || result.length === 0) {
       throw new NotFoundError('Bet', id);
+    }
+    return result[0];
+  }
+
+  /**
+   * Claim(배당 청구) 성공 후 DB 반영
+   *
+   * 주의: DB는 인덱스/UX용이며, 실제 DEL 이동은 체인에 있음.
+   */
+  async finalizeClaim(input: {
+    betId: string;
+    suiPayoutTxHash: string;
+    suiPayoutTimestamp?: number;
+    payoutAmount: number;
+    resultStatus: 'WON' | 'LOST' | 'REFUNDED';
+  }): Promise<Bet> {
+    const db = getDb();
+    const now = Date.now();
+    const result = await db
+      .update(bets)
+      .set({
+        suiPayoutTxHash: input.suiPayoutTxHash,
+        suiPayoutTimestamp: input.suiPayoutTimestamp,
+        payoutAmount: input.payoutAmount,
+        resultStatus: input.resultStatus,
+        settlementStatus: 'COMPLETED',
+        settledAt: now,
+        processedAt: now,
+      })
+      .where(eq(bets.id, input.betId))
+      .returning();
+
+    if (!result || result.length === 0) {
+      throw new NotFoundError('Bet', input.betId);
     }
     return result[0];
   }

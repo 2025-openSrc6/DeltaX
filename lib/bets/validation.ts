@@ -44,3 +44,18 @@ export const createBetWithSuiPrepareSchema = z.object({
   userAddress: suiIdSchema.describe('User Sui address'),
   userDelCoinId: suiIdSchema.describe('User-owned DEL Coin object id'),
 });
+
+export const prepareClaimSchema = z.object({
+  betId: z.string().uuid('betId must be a valid UUID'),
+});
+
+export const executeClaimSchema = z.object({
+  betId: z.string().uuid('betId must be a valid UUID'),
+  txBytes: z
+    .string({ message: 'txBytes is required' })
+    .regex(/^[A-Za-z0-9+/=]+$/, 'txBytes must be a base64-encoded string'),
+  userSignature: z
+    .string({ message: 'userSignature is required' })
+    .regex(/^[A-Za-z0-9+/=]+$/, 'userSignature must be a base64-encoded string'),
+  nonce: z.string({ message: 'nonce is required' }).min(8, 'nonce must be at least 8 characters'),
+});

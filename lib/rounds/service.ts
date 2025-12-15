@@ -35,16 +35,10 @@ import type {
   LockRoundResult,
   FinalizeRoundResult,
   CalculatePayoutResult,
-  DetermineWinnerResult,
   SettleRoundResult,
   RecoveryRoundsResult,
 } from './types';
-import {
-  ALERT_THRESHOLD_MS,
-  BETTING_DURATIONS_MS,
-  RETRY_START_THRESHOLD_MS,
-  ROUND_DURATIONS_MS,
-} from './constants';
+import { BETTING_DURATIONS_MS, RETRY_START_THRESHOLD_MS, ROUND_DURATIONS_MS } from './constants';
 import { transitionRoundStatus } from './fsm';
 import { cronLogger } from '@/lib/cron/logger';
 import { calculatePayout } from './calculator';

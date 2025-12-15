@@ -1,8 +1,9 @@
 import { z } from 'zod';
-import { executeSuiBetTxSchema } from './validation';
+import { executeSuiBetTxSchema, executeSuiClaimTxSchema } from './validation';
 
 export type BetPrediction = 1 | 2;
 export type ExecuteSuiBetTxInput = z.infer<typeof executeSuiBetTxSchema>;
+export type ExecuteSuiClaimTxInput = z.infer<typeof executeSuiClaimTxSchema>;
 
 export interface PrepareSuiBetTxResult {
   txBytes: string;
@@ -12,6 +13,13 @@ export interface PrepareSuiBetTxResult {
 
 export interface ExecuteSuiBetTxResult {
   digest: string;
+  betObjectId: string;
+}
+
+export interface ExecuteSuiClaimTxResult {
+  digest: string;
+  payoutAmount: number;
+  payoutTimestampMs?: number;
 }
 
 export interface ValidatedPrepareSuiBetTxInput {
@@ -24,6 +32,23 @@ export interface ValidatedPrepareSuiBetTxInput {
 }
 
 export interface ValidatedExecuteSuiBetTxInput {
+  txBytes: string;
+  userSignature: string;
+  nonce: string;
+  betId: string;
+  userId: string;
+}
+
+export interface ValidatedPrepareSuiClaimTxInput {
+  userAddress: string;
+  poolId: string;
+  settlementId: string;
+  betObjectId: string;
+  betId: string;
+  userId: string;
+}
+
+export interface ValidatedExecuteSuiClaimTxInput {
   txBytes: string;
   userSignature: string;
   nonce: string;

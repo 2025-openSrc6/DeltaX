@@ -293,7 +293,7 @@ describe('BetService', () => {
 
       expect(suiService.executeBetTransaction).not.toHaveBeenCalled();
       expect(betRepository.finalizeExecution).not.toHaveBeenCalled();
-      expect(result).toEqual({ digest: 'existing' });
+      expect(result).toEqual({ digest: 'existing', betObjectId: 'unknown' });
     });
 
     it('throws when bet not found', async () => {
