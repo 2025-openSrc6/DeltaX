@@ -4,43 +4,7 @@
  * 승자 판정 및 배당 계산
  */
 
-import type {
-  RoundWinner,
-  DetermineWinnerParams,
-  DetermineWinnerResult,
-  CalculatePayoutParams,
-  CalculatePayoutResult,
-} from './types';
-
-/**
- * 승자 판정
- *
- * 규칙:
- * - 변동률이 더 높은 자산이 승리
- * - 동률 시 금(GOLD)이 승리 (DRAW 없음)
- *
- * @param params 시작/종료 가격
- * @returns 승자 및 변동률
- */
-export function determineWinner(params: DetermineWinnerParams): DetermineWinnerResult {
-  const { goldStart, goldEnd, btcStart, btcEnd } = params;
-
-  const goldScaled = (goldEnd - goldStart) / goldStart;
-  const btcScaled = (btcEnd - btcStart) / btcStart;
-
-  // 금 변동률 >= 비트 변동률 → 금 승리 (DRAW 시 금)
-  const winner: RoundWinner = goldScaled >= btcScaled ? 'GOLD' : 'BTC';
-
-  // 변동률 계산 (%) (리턴용)
-  const goldChangePercent = ((goldEnd - goldStart) / goldStart) * 100;
-  const btcChangePercent = ((btcEnd - btcStart) / btcStart) * 100;
-
-  return {
-    winner,
-    goldChangePercent,
-    btcChangePercent,
-  };
-}
+import type { CalculatePayoutParams, CalculatePayoutResult } from './types';
 
 /**
  * 배당 계산
