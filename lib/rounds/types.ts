@@ -10,7 +10,7 @@ import { rounds } from '@/db/schema';
 /**
  * 라운드 타입 (베팅 주기)
  */
-export type RoundType = '1MIN' | '6HOUR' | '1DAY';
+export type RoundType = '1MIN' | 'DEMO_3MIN' | '6HOUR' | '1DAY';
 
 /**
  * 라운드 상태 (FSM 상태)
