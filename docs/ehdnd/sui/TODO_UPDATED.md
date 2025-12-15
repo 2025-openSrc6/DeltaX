@@ -9,8 +9,8 @@
 
 - **Goal**: "베팅/정산이 Sui 온체인에 기록되고 누구나 검증 가능"을 **실제로 보여주는 데모/프로덕트** 완성
 - **In-scope**
-  - 온체인: 베팅 풀 생성 → 베팅 → 락 → 정산(승자/배당률/수수료/가격) → 배당 전송(개별 Bet 소각 포함)
-  - 오프체인: Cron이 위 온체인 함수를 호출 + 가격 입력 파이프(시가/종가) + `avgVol`(평소 변동성) 산출 + 출석 보상 민팅
+  - 온체인: 베팅 풀 생성 → 베팅 → 락 → 정산(승자/배당률/수수료/가격/avgVol, Settlement 영수증) → **유저 Claim 기반 배당(개별 Bet 소각 포함)**
+  - 오프체인: Cron이 위 온체인 함수를 호출 + 가격 입력 파이프(시가/종가) + `avgVol`(평소 변동성) 산출 + (선택) 출석 보상 민팅
   - 프론트: 라운드별 "온체인 정산 영수증(Settlement)" 뷰/링크/값 표시
 - **Out-of-scope(이번엔 미룸)**
   - 온체인이 시계열(30일)을 직접 받아 `avgVol`을 계산하는 방식
@@ -38,21 +38,23 @@
 | 항목                                   | 상태 | 위치 / 비고                                                                        |
 | -------------------------------------- | ---- | ---------------------------------------------------------------------------------- |
 | 베팅 `place_bet` 플로우                | ✅   | `POST /api/bets` + `POST /api/bets/execute`                                        |
-| 라운드 크론 뼈대                       | ✅   | `app/api/cron/rounds/{create,open,lock,finalize,settle}/route.ts`                  |
-| **온체인 lock/finalize/payout 호출**   | ❌   | Sui wrapper 구현됨. cron/서비스 연결은 아직 미반영                                 |
-| RoundService 승자/배당 계산            | ⚠️   | 현재 오프체인 정산은 단순 % 비교. on-chain은 정규화 강도 로직 적용됨               |
+| 라운드 크론 뼈대                       | ✅   | `app/api/cron/rounds/{create,open,lock,finalize}/route.ts` (settle는 Job5 폐기)    |
+| **온체인 lock/finalize 호출**          | ✅   | `RoundService.openRound/lockRound/finalizeRound` → `lib/sui/admin.ts`              |
+| **payout(배당) 호출**                  | ❌   | Job5 폐기. 유저 Claim(prepare/execute + `claim_payout`)로 전환(다음 스코프)        |
+| RoundService 승자 판정                 | ✅   | on-chain과 동일한 정규화 강도 비교(cross-multiply)로 계산                           |
 | 가격 스냅샷 API                        | ✅   | `GET /api/price/snapshot` (Binance 기반)                                           |
 | **크론에서 가격 API 호출**             | ❌   | 현재 mock 가격 사용 중 (hardcoded)                                                 |
 | `avgVol` 계산 라이브러리               | ✅   | `lib/services/normalizedStrength.ts`                                               |
-| **정산에 avgVol 통합**                 | ❌   | 라이브러리 존재하나 정산에서 호출 안함                                             |
+| **정산에 avgVol 통합**                 | ✅   | `lib/rounds/avgVol.service.ts` + Job4에서 on-chain `finalize_round`에 주입          |
 | rounds 스키마 가격 컬럼                | ✅   | `goldStartPrice`, `goldEndPrice`, `btcStartPrice`, `btcEndPrice` 존재              |
-| **rounds 스키마 avgVol 컬럼**          | ⚠️   | `goldAvgVol`, `btcAvgVol`, `avgVolMeta` 추가(마이그레이션은 진행 필요)             |
+| **rounds 스키마 avgVol/영수증 컬럼**   | ✅   | `goldAvgVol`, `btcAvgVol`, `avgVolMeta`, `priceSnapshotMeta`, `sui*` 필드 존재     |
 | `priceSnapshot.service.ts`             | ❌   | 설계 문서에만 있고 미구현                                                          |
 | `fetchTickPrice` (경량 API)            | ❌   | 설계 문서에만 있고 미구현                                                          |
 | Sui 래퍼 (create/lock/finalize/payout) | ✅   | `lib/sui/admin.ts` 구현 완료(주의: payout은 유저 claim 모델 권장)                  |
 | `SUI_CAP_OBJECT_ID` 사용               | ✅   | `SUI_ADMIN_CAP_ID` 우선, 없으면 `SUI_CAP_OBJECT_ID` fallback 처리                  |
 | 출석 보상 API/서비스                   | ❌   | 미구현                                                                             |
-| Settlement tx digest 저장              | ⚠️   | rounds에 `suiFinalizeTxDigest`, `suiSettlementObjectId` 등 추가(마이그레이션 필요) |
+| Settlement tx digest/영수증 저장       | ✅   | Job4에서 `suiFinalizeTxDigest/suiSettlementObjectId/suiFeeCoinObjectId` 저장        |
+| Job6(Recovery)                         | ⚠️   | Claim 모델 전환 중이라 현재는 noop(다음 스코프에서 복구 설계/구현)                 |
 
 ### 1.3 차트 데이터 수집 (현준 담당)
 
@@ -73,12 +75,14 @@
 **파일**: `db/schema/rounds.ts`
 
 ```typescript
-// 추가할 컬럼
-paxgAvgVol: real('paxg_avg_vol'),
+// (완료) 이미 반영된 핵심 컬럼들
+goldAvgVol: real('gold_avg_vol'),
 btcAvgVol: real('btc_avg_vol'),
-priceSnapshotMeta: text('price_snapshot_meta'), // JSON: source, interval, timestamp
-settlementTxHash: text('settlement_tx_hash'),
-settlementObjectId: text('settlement_object_id'),
+avgVolMeta: text('avg_vol_meta'),
+priceSnapshotMeta: text('price_snapshot_meta'),
+suiFinalizeTxDigest: text('sui_finalize_tx_digest'),
+suiSettlementObjectId: text('sui_settlement_object_id'),
+suiFeeCoinObjectId: text('sui_fee_coin_object_id'),
 ```
 
 ### 2.2 가격 스냅샷 서비스 구현
@@ -113,7 +117,7 @@ export async function onRoundFinalize(roundId: string): Promise<{
 
 ### 2.3 Sui 래퍼 함수 구현
 
-**파일**: `lib/sui/repository.ts` (신규)
+**상태**: (불필요/보류) `lib/sui/admin.ts`를 Cron/Service에서 직접 사용 중.
 
 ```typescript
 // 풀 생성
@@ -149,10 +153,10 @@ export async function mintDel(toAddress: string, amount: number): Promise<{ txDi
 
 **수정 파일**:
 
-- `app/api/cron/rounds/open/route.ts` → 가격 API 호출 + DB 저장
-- `app/api/cron/rounds/lock/route.ts` → Sui `lockPool` 호출
-- `app/api/cron/rounds/finalize/route.ts` → Sui `finalizeRound` 호출 + avgVol 계산
-- `app/api/cron/rounds/settle/route.ts` → Sui `distributePayout` 호출
+- `app/api/cron/rounds/open/route.ts` → (남음) 가격 API 호출 + DB 저장 (현재 mock)
+- `app/api/cron/rounds/lock/route.ts` → ✅ Sui `lockPool` 호출
+- `app/api/cron/rounds/finalize/route.ts` → ✅ Sui `finalizeRound` 호출 + avgVol 계산 + SETTLED/VOIDED 전이
+- `app/api/cron/rounds/settle/route.ts` → ❌ Job5 폐기(410 deprecated). Claim 모델로 대체
 
 ### 2.5 RoundService 승자 계산 변경
 
@@ -165,12 +169,17 @@ const btcChange = ((btcEnd - btcStart) / btcStart) * 100;
 const winner = goldChange > btcChange ? 'GOLD' : 'BTC';
 
 // After: 정규화 강도 비교
-const paxgReturn = ((paxgEnd - paxgStart) / paxgStart) * 100;
-const btcReturn = ((btcEnd - btcStart) / btcStart) * 100;
-const paxgStrength = paxgReturn / paxgAvgVol;
-const btcStrength = btcReturn / btcAvgVol;
-const winner = paxgStrength > btcStrength ? 'GOLD' : 'BTC';
+// on-chain과 동일한 cross-multiply 비교로 winner 산출 (동점 시 GOLD)
+// abs(gReturn) * btcAvgVol >= abs(bReturn) * goldAvgVol → GOLD 승
 ```
+
+### 2.6 Claim(prepare/execute) API 구현 (다음 스코프)
+
+- 목표: `rounds.status in (SETTLED, VOIDED)` + `rounds.suiSettlementObjectId` + `bets.suiBetObjectId` 기반으로
+  유저가 `claim_payout`을 호출할 수 있는 sponsored tx 흐름 제공.
+- 구현:
+  - `POST /api/bets/claim/prepare` (txBytes + nonce)
+  - `POST /api/bets/claim/execute` (userSig + sponsor execute → txDigest 저장)
 
 ---
 
@@ -271,17 +280,15 @@ export const attendanceRewards = sqliteTable('attendance_rewards', {
 
 ### Day 1
 
-- [ ] rounds 스키마 마이그레이션 (avgVol, settlementTxHash 등)
-- [ ] `priceSnapshot.service.ts` 구현
-- [ ] Sui 래퍼 `lib/sui/repository.ts` 뼈대
-- [ ] 크론 open/finalize에서 가격 API 호출 연결
+- [x] rounds 스키마 마이그레이션 (avgVol, priceSnapshotMeta, sui 영수증 필드)
+- [x] Job 2/3 Sui-first 연결 (create_pool / lock_pool)
+- [x] Job 4 Sui-first 연결 (finalize_round + 영수증 저장 + SETTLED/VOIDED 전이)
+- [ ] 크론 open/finalize에서 실제 가격 API 호출 연결(현재 mock)
 
 ### Day 2
 
-- [ ] Sui 래퍼 완성 (lock/finalize/payout)
-- [ ] 크론에서 Sui 호출 연결
-- [ ] RoundService 승자 계산 정규화 강도로 변경
-- [ ] Settlement tx digest DB 저장
+- [ ] Claim(prepare/execute) API 구현 (유저 claim 모델)
+- [ ] Settlement 영수증 UI(조회/링크) 연결
 - [ ] (선택) 출석 보상 API
 
 ---
@@ -290,10 +297,10 @@ export const attendanceRewards = sqliteTable('attendance_rewards', {
 
 ### 서버 레벨
 
-- [ ] 가격 스냅샷 캡처 정상 동작
-- [ ] avgVol 계산 정확성 (기존 라이브러리와 일치)
-- [ ] 크론 멱등성 (2번 호출해도 안전)
-- [ ] Sui 트랜잭션 실패 시 재시도
+- [ ] 크론 가격 소스 실연동(현준 API) 정상 동작
+- [ ] avgVol 계산(1h, 30d, returns stddev) 정상 동작 + 데이터 부족 시 VOID 처리
+- [ ] 크론 멱등성 (open/lock/finalize를 2번 호출해도 안전)
+- [ ] Claim prepare/execute 멱등성/만료/nonce 단일소비
 
 ### 온체인 레벨
 
@@ -303,7 +310,7 @@ export const attendanceRewards = sqliteTable('attendance_rewards', {
 
 ### 통합
 
-- [ ] 라운드 1개 end-to-end (생성 → 오픈 → 락 → 정산 → 배당)
+- [ ] 라운드 1개 end-to-end (생성 → 오픈 → 락 → 정산(Settlement) → 유저 Claim)
 - [ ] Settlement 영수증 UI에서 조회
 
 ---

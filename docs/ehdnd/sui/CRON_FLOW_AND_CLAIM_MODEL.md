@@ -35,6 +35,21 @@
     - 가격 데이터 invalid/결측 → end price를 start price로 fallback + `avgVol=0`으로 VOID Settlement 생성
     - winning_pool == 0 → on-chain에서 VOID 처리(시장 승자는 기록하되 payout은 refund)
 
+- **결정 D) Claim은 “A안”으로 구현한다 — betObjectId는 베팅 execute 단계에서 서버가 파싱/저장**
+  - 목표: Claim(배당 청구) 흐름에서 **유저 입력을 최소화**하고, 서버가 신뢰할 수 있는 레퍼런스(`bets.suiBetObjectId`)로 sponsored tx를 빌드한다.
+  - 구현 원칙:
+    - 베팅 `place_bet` 실행(tx execute) 성공 시 `objectChanges`에서 생성된 `Bet` object id를 파싱해 `bets.suiBetObjectId`에 저장한다.
+    - 이후 Claim prepare는 `betId`만 받아도(또는 betId + userAddress) 서버가 `betObjectId`를 DB에서 조회해 tx를 빌드할 수 있다.
+  - 왜 A안인가(의사결정 이유):
+    - **보안/무결성**: 유저가 `betObjectId`를 직접 제출하게 되면(대안) “다른 Bet object로 시도/재사용/오입력”을 서버가 매번 방어해야 한다.
+      A안은 “서버가 알고 있는 bet ↔ betObjectId” 매핑으로 tx를 만든다.
+    - **UX/지원 비용**: 유저가 object id를 직접 다루는 것은 지갑/SDK/Explorer 지식이 필요해 장애/CS가 급증한다.
+    - **멱등성/재시도 설계가 단순**: bet execute가 성공했다면 betObjectId는 **불변**이며, claim은 “해당 Bet을 소비”하므로 2회 청구가 자연스럽게 방지된다.
+    - **Sui-first & Recovery와 정합**: “체인 성공, DB 실패”가 있을 수 있으므로 execute 시점의 txDigest와 objectChanges를 기반으로
+      DB에 최소한의 audit 키(`suiTxHash`, `suiBetObjectId`)를 남겨 두는 것이 복구/추적에 유리하다.
+  - 트레이드오프/주의:
+    - execute 응답에서 `objectChanges` 파싱이 실패하면 Claim이 막힐 수 있으므로, 파싱 실패 시 **즉시 에러 + 복구 경로(recover)** 를 준비하는 것을 권장한다(아래 TODO 참고).
+
 ---
 
 ## 1) 구성요소(레이어)
@@ -156,6 +171,13 @@
 
 ---
 
+## 4.1) Claim API 설계 메모 (A안)
+
+- **Prepare 입력 최소화**: `betId`만으로도 tx 빌드 가능해야 한다.
+  - 서버는 `betId → bets.suiBetObjectId + rounds.suiPoolAddress + rounds.suiSettlementObjectId`를 조회해 `claim_payout` PTB를 만든다.
+- **DB 상태는 “표시/인덱스”**: Claim 성공 여부는 체인(=Bet 소각)으로 결정된다.
+  - 오프체인은 `bets.suiPayoutTxHash`, `payoutAmount`, `settlementStatus` 등을 “조회/UX” 용도로만 저장한다.
+
 ## 5) VOID(무효/환불) 정책 — 반드시 결정 필요
 
 대표 VOID 조건:
@@ -190,3 +212,32 @@
 - **claim 상태 동기화(선택)**
   - claim을 서버 경유로 강제하면 거의 불필요
   - direct claim 허용 시: 이벤트/tx 기반으로 DB 반영 job 필요
+
+---
+
+## 7) 다음으로 할 일 (TODO / 운영 리스크 최소화)
+
+### 7.1) 보안/인증 일괄화 (Prepare/Execute 전 구간)
+
+- **원칙**: `userId`는 request body에서 받지 않고, 서버 인증 컨텍스트(예: cookie의 `suiAddress`)로부터 결정한다.
+  - 이유: body 기반 `userId`는 위변조 가능성이 있어, nonce 바인딩/Bet 소유권 검증이 복잡해지고 실수 여지가 커진다.
+- **적용 범위**
+  - `POST /api/bets` (prepare)
+  - `POST /api/bets/execute`
+  - `POST /api/bets/claim/prepare`
+  - `POST /api/bets/claim/execute`
+- **검증 규칙**
+  - `bet.userId === authenticatedUserId`가 아니면 거부
+  - nonce record에도 `userId`를 바인딩하고 execute 시 동일성 확인
+
+### 7.2) Claim/Bet Recovery (체인 성공, DB 실패)
+
+- **문제**: sponsored tx execute가 성공했는데 DB 업데이트가 실패하면,
+  - 베팅: `bets.suiBetObjectId`가 비어 Claim이 막힘
+  - Claim: `bets.suiPayoutTxHash`가 비어 UI에서 미청구처럼 보일 수 있음
+- **권장 해결**
+  - (A) **Recover API**: `POST /api/bets/recover` / `POST /api/bets/claim/recover`
+    - 입력: `betId` (+ optional `txDigest`)
+    - 동작: chain 조회(`getTransactionBlock`)로 objectChanges/events를 재파싱하여 DB를 보정
+  - (B) **Backfill Job(선택)**: 최근 N시간 내 “EXECUTED인데 suiBetObjectId null” 같은 레코드를 주기적으로 보정
+  - (C) **로그/알림**: 파싱 실패/DB 업데이트 실패 시 digest와 betId를 반드시 남겨 운영자가 즉시 복구할 수 있게 한다.
