@@ -32,6 +32,7 @@ const CLOCK_OBJECT_ID = '0x6';
 // 스케일링
 const PRICE_SCALE = 100;
 const AVG_VOL_SCALE = 10_000;
+const MIST_SCALE = 1_000_000_000;
 
 const U64_MAX = BigInt('18446744073709551615');
 const MAX_SAFE_BIGINT = BigInt(Number.MAX_SAFE_INTEGER);
@@ -372,12 +373,15 @@ export async function mintDel(toAddress: string, amount: number): Promise<MintDe
   const packageId = getPackageId();
   const treasuryCapId = getTreasuryCapId();
 
+  // Scale amount to MIST (DEL decimals = 9)
+  const scaledAmount = Math.round(validated.amount * MIST_SCALE);
+
   const tx = new Transaction();
   tx.moveCall({
     target: `${packageId}::del::mint`,
     arguments: [
       tx.object(treasuryCapId),
-      tx.pure.u64(toU64FromSafeInt(validated.amount, 'amount')),
+      tx.pure.u64(toU64FromSafeInt(scaledAmount, 'amount')),
       tx.pure.address(validated.toAddress),
     ],
   });
