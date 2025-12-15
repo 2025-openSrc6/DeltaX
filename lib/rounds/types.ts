@@ -113,6 +113,7 @@ export interface OpenRoundMetadata {
  */
 export interface LockRoundMetadata {
   bettingLockedAt: number; // Epoch milliseconds, 필수
+  suiLockPoolTxDigest?: string; // Sui lock_pool tx digest
 }
 
 /**
