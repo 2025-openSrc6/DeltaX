@@ -5,6 +5,7 @@ import type { RoundRepository } from '@/lib/rounds/repository';
 import type { BetService } from '@/lib/bets/service';
 import * as fsmModule from '@/lib/rounds/fsm';
 import { createPool } from '@/lib/sui/admin';
+import { lockPool } from '@/lib/sui/admin';
 
 // fsm 모듈의 transitionRoundStatus를 spyOn으로 모킹
 vi.mock('@/lib/rounds/fsm', async (importOriginal) => {
@@ -17,6 +18,7 @@ vi.mock('@/lib/rounds/fsm', async (importOriginal) => {
 
 vi.mock('@/lib/sui/admin', () => ({
   createPool: vi.fn(),
+  lockPool: vi.fn(),
 }));
 
 describe('RoundService', () => {
@@ -325,6 +327,7 @@ describe('RoundService', () => {
 
   describe('lockRound', () => {
     const mockTransition = fsmModule.transitionRoundStatus as Mock;
+    const mockLockPool = lockPool as Mock;
 
     const NOW = new Date('2025-01-15T09:00:00Z').getTime();
 
@@ -357,8 +360,16 @@ describe('RoundService', () => {
         endPriceIsFallback: false,
         startPriceFallbackReason: null,
         endPriceFallbackReason: null,
-        suiPoolAddress: null,
+        suiPoolAddress: '0xpool',
         suiSettlementObjectId: null,
+        suiCreatePoolTxDigest: null,
+        suiLockPoolTxDigest: null,
+        suiFinalizeTxDigest: null,
+        suiFeeCoinObjectId: null,
+        goldAvgVol: null,
+        btcAvgVol: null,
+        priceSnapshotMeta: null,
+        avgVolMeta: null,
         platformFeeRate: '0.05',
         platformFeeCollected: 0,
         bettingOpenedAt: NOW - 60_000,
@@ -372,6 +383,7 @@ describe('RoundService', () => {
 
     let mockRepository: {
       findLatestByStatus: Mock;
+      updateById: Mock;
     };
     let mockBetService: BetService;
     let roundService: RoundService;
@@ -382,11 +394,14 @@ describe('RoundService', () => {
 
       mockRepository = {
         findLatestByStatus: vi.fn(),
+        updateById: vi.fn(),
       };
       mockBetService = createMockBetService();
       roundService = new RoundService(mockRepository as unknown as RoundRepository, mockBetService);
 
       mockTransition.mockReset();
+      mockLockPool.mockReset();
+      mockLockPool.mockResolvedValue({ txDigest: '0xlockdigest' });
     });
 
     afterEach(() => {
@@ -429,11 +444,16 @@ describe('RoundService', () => {
 
       expect(result.status).toBe('locked');
       expect(result.round?.status).toBe('BETTING_LOCKED');
+      expect(mockLockPool).toHaveBeenCalledWith('0xpool');
+      expect(mockRepository.updateById).toHaveBeenCalledWith(openRound.id, {
+        suiLockPoolTxDigest: '0xlockdigest',
+      });
       expect(mockTransition).toHaveBeenCalledWith(
         openRound.id,
         'BETTING_LOCKED',
         expect.objectContaining({
           bettingLockedAt: expect.any(Number),
+          suiLockPoolTxDigest: '0xlockdigest',
         }),
       );
     });
@@ -452,6 +472,22 @@ describe('RoundService', () => {
       const metadata = callArgs[2];
       expect(metadata.bettingLockedAt).toBeTypeOf('number');
       expect(metadata.bettingLockedAt).toBe(NOW);
+      expect(metadata.suiLockPoolTxDigest).toBe('0xlockdigest');
+    });
+
+    it('멱등성: suiLockPoolTxDigest가 이미 있으면 on-chain lock을 다시 호출하지 않는다', async () => {
+      const openRound = createMockRound({
+        suiLockPoolTxDigest: '0xexisting',
+      });
+      mockRepository.findLatestByStatus.mockResolvedValue(openRound);
+      mockTransition.mockResolvedValue({ ...openRound, status: 'BETTING_LOCKED' });
+
+      await roundService.lockRound();
+
+      expect(mockLockPool).not.toHaveBeenCalled();
+      expect(mockRepository.updateById).not.toHaveBeenCalled();
+      const metadata = (mockTransition.mock.calls[0] as unknown[])[2] as Record<string, unknown>;
+      expect(metadata.suiLockPoolTxDigest).toBe('0xexisting');
     });
 
     it('락 시각 경계에서 정확하게 동작한다 (lockTime == now)', async () => {

@@ -50,6 +50,7 @@ import { cronLogger } from '@/lib/cron/logger';
 import { calculatePayout, determineWinner } from './calculator';
 import { createPool } from '@/lib/sui/admin';
 import { toJSON } from '@/lib/sui/utils';
+import { lockPool } from '@/lib/sui/admin';
 
 export class RoundService {
   private repository: RoundRepository;
@@ -528,11 +529,32 @@ export class RoundService {
       return { status: 'not_ready', round, message: 'Round not ready to lock yet' };
     }
 
+    // ------------------------------
+    // Sui-first: lock_pool (idempotent)
+    // ------------------------------
+    const poolId = round.suiPoolAddress;
+    if (!poolId) {
+      throw new BusinessRuleError('ROUND_DATA_MISSING', 'Missing suiPoolAddress for lockRound', {
+        roundId: round.id,
+      });
+    }
+
+    let lockPoolTxDigest = round.suiLockPoolTxDigest ?? undefined;
+    if (!lockPoolTxDigest) {
+      const res = await lockPool(poolId);
+      lockPoolTxDigest = res.txDigest;
+
+      await this.repository.updateById(round.id, {
+        suiLockPoolTxDigest: lockPoolTxDigest,
+      });
+    }
+
     cronLogger.info('[Job 3] Transitioning to BETTING_LOCKED', {
       roundId: round.id,
     });
     const lockedRound = await transitionRoundStatus(round.id, 'BETTING_LOCKED', {
       bettingLockedAt: Date.now(),
+      suiLockPoolTxDigest: lockPoolTxDigest,
     });
 
     cronLogger.info('[Job 3] Success', {
