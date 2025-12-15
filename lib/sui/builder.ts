@@ -28,3 +28,32 @@ export function buildPlaceBetTx({ userAddress, poolId, prediction, userDelCoinId
   tx.setSender(userAddress); // 서명자 지정
   return tx;
 }
+
+interface ClaimParams {
+  userAddress: string;
+  poolId: string;
+  settlementId: string;
+  betObjectId: string;
+}
+
+export function buildClaimPayoutTx({
+  userAddress,
+  poolId,
+  settlementId,
+  betObjectId,
+}: ClaimParams) {
+  const tx = new Transaction();
+
+  tx.moveCall({
+    target: `${PACKAGE_ID}::betting::claim_payout`,
+    arguments: [
+      tx.object(poolId), // Shared &mut BettingPool
+      tx.object(settlementId), // Shared &Settlement
+      tx.object(betObjectId), // Owned Bet (consumed)
+      tx.object(CLOCK_OBJECT_ID), // Clock
+    ],
+  });
+
+  tx.setSender(userAddress);
+  return tx;
+}

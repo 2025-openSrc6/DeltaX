@@ -22,7 +22,7 @@ import { NextRequest } from 'next/server';
  * Response:
  * {
  *   success: true,
- *   data: { digest: "<tx_digest>" }
+ *   data: { digest: "<tx_digest>", betObjectId: "0x..." }
  * }
  */
 export async function POST(request: NextRequest) {

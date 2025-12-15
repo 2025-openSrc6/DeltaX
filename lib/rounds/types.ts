@@ -150,15 +150,6 @@ export interface DetermineWinnerParams {
 }
 
 /**
- * 승자 판정 결과
- */
-export interface DetermineWinnerResult {
-  winner: RoundWinner;
-  goldChangePercent: number;
-  btcChangePercent: number;
-}
-
-/**
  * 배당 계산 입력 파라미터
  */
 export interface CalculatePayoutParams {

@@ -46,6 +46,7 @@ export interface FinalizeBetExecutionInput {
   prediction: 'GOLD' | 'BTC';
   amount: number;
   suiTxHash: string;
+  suiBetObjectId: string;
 }
 
 /**

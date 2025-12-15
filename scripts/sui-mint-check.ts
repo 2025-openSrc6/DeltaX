@@ -13,7 +13,6 @@ loadEnv({ path: '.env.local', override: false });
 loadEnv({ path: '.env', override: false });
 
 const DECIMALS = 1_000_000_000;
-const DECIMALS_BIG = BigInt(DECIMALS);
 
 function normalizeSponsorKey() {
   const key = process.env.SUI_SPONSOR_PRIVATE_KEY;
