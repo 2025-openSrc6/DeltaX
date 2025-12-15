@@ -35,39 +35,39 @@
 
 ### 1.2 오프체인 (Next.js / D1)
 
-| 항목                                   | 상태 | 위치 / 비고                                                                      |
-| -------------------------------------- | ---- | -------------------------------------------------------------------------------- |
-| 베팅 `place_bet` 플로우                | ✅   | `POST /api/bets` + `POST /api/bets/execute`                                      |
-| 베팅 조회(홈 공개 피드)                | ✅   | `GET /api/bets/public` (주소 마스킹 + on-chain 검증 키 노출)                     |
-| 베팅 조회(내 베팅)                     | ✅   | `GET /api/me/bets` (인증 필수, userId는 세션에서 결정)                           |
-| 라운드 크론 뼈대                       | ✅   | `app/api/cron/rounds/{create,open,lock,finalize}/route.ts` (settle는 Job5 폐기)  |
-| **온체인 lock/finalize 호출**          | ✅   | `RoundService.openRound/lockRound/finalizeRound` → `lib/sui/admin.ts`            |
-| **payout(배당) 호출**                  | ✅   | Job5 폐기. 유저 Claim(prepare/execute + `claim_payout`)로 전환 완료(서버 경유)   |
-| RoundService 승자 판정                 | ✅   | on-chain과 동일한 정규화 강도 비교(cross-multiply)로 계산                        |
-| 가격 스냅샷 API                        | ✅   | `GET /api/price/snapshot` (Binance 기반)                                         |
-| **크론에서 가격 API 호출**             | ❌   | `app/api/cron/rounds/open`, `finalize`가 아직 mock 가격 사용 (머지 후 교체 필요) |
-| `avgVol` 계산 라이브러리               | ✅   | `lib/services/normalizedStrength.ts`                                             |
-| **정산에 avgVol 통합**                 | ✅   | `lib/rounds/avgVol.service.ts` + Job4에서 on-chain `finalize_round`에 주입       |
-| rounds 스키마 가격 컬럼                | ✅   | `goldStartPrice`, `goldEndPrice`, `btcStartPrice`, `btcEndPrice` 존재            |
-| **rounds 스키마 avgVol/영수증 컬럼**   | ✅   | `goldAvgVol`, `btcAvgVol`, `avgVolMeta`, `priceSnapshotMeta`, `sui*` 필드 존재   |
-| `priceSnapshot.service.ts`             | ❌   | 설계 문서에만 있고 미구현                                                        |
-| `fetchTickPrice` (경량 API)            | ❌   | 설계 문서에만 있고 미구현                                                        |
-| Sui 래퍼 (create/lock/finalize/payout) | ✅   | `lib/sui/admin.ts` 구현 완료(주의: payout은 유저 claim 모델 권장)                |
-| `SUI_CAP_OBJECT_ID` 사용               | ✅   | `SUI_ADMIN_CAP_ID` 우선, 없으면 `SUI_CAP_OBJECT_ID` fallback 처리                |
-| 출석 보상 API/서비스                   | ❌   | 미구현                                                                           |
-| Settlement tx digest/영수증 저장       | ✅   | Job4에서 `suiFinalizeTxDigest/suiSettlementObjectId/suiFeeCoinObjectId` 저장     |
-| bet/claim recovery API                 | ✅   | `POST /api/bets/recover`, `POST /api/bets/claim/recover` (cron/auth 전용)        |
-| Job6(Recovery)                         | ⚠️   | 라운드 recovery 골격 보완 필요(라운드 stuck 케이스/알림/백필 범위 확정)          |
+| 항목                                   | 상태 | 위치 / 비고                                                                     |
+| -------------------------------------- | ---- | ------------------------------------------------------------------------------- |
+| 베팅 `place_bet` 플로우                | ✅   | `POST /api/bets` + `POST /api/bets/execute`                                     |
+| 베팅 조회(홈 공개 피드)                | ✅   | `GET /api/bets/public` (주소 마스킹 + on-chain 검증 키 노출)                    |
+| 베팅 조회(내 베팅)                     | ✅   | `GET /api/me/bets` (인증 필수, userId는 세션에서 결정)                          |
+| 라운드 크론 뼈대                       | ✅   | `app/api/cron/rounds/{create,open,lock,finalize}/route.ts` (settle는 Job5 폐기) |
+| **온체인 lock/finalize 호출**          | ✅   | `RoundService.openRound/lockRound/finalizeRound` → `lib/sui/admin.ts`           |
+| **payout(배당) 호출**                  | ✅   | Job5 폐기. 유저 Claim(prepare/execute + `claim_payout`)로 전환 완료(서버 경유)  |
+| RoundService 승자 판정                 | ✅   | on-chain과 동일한 정규화 강도 비교(cross-multiply)로 계산                       |
+| 가격 스냅샷 API                        | ✅   | `GET /api/price/snapshot` (Binance 기반)                                        |
+| **크론에서 가격 API 호출**             | ✅   | Job2/Job4에서 가격 스냅샷 서비스로 Binance 1m close + 메타 주입                 |
+| `avgVol` 계산 라이브러리               | ✅   | `lib/services/normalizedStrength.ts`                                            |
+| **정산에 avgVol 통합**                 | ✅   | `lib/rounds/avgVol.service.ts` + Job4에서 on-chain `finalize_round`에 주입      |
+| rounds 스키마 가격 컬럼                | ✅   | `goldStartPrice`, `goldEndPrice`, `btcStartPrice`, `btcEndPrice` 존재           |
+| **rounds 스키마 avgVol/영수증 컬럼**   | ✅   | `goldAvgVol`, `btcAvgVol`, `avgVolMeta`, `priceSnapshotMeta`, `sui*` 필드 존재  |
+| `priceSnapshot.service.ts`             | ✅   | `fetchStartPriceSnapshot`/`fetchEndPriceSnapshot`로 1m close + 메타 제공        |
+| `fetchTickPrice` (경량 API)            | ✅   | `lib/services/binance.ts` ticker/price 구현                                     |
+| Sui 래퍼 (create/lock/finalize/payout) | ✅   | `lib/sui/admin.ts` 구현 완료(주의: payout은 유저 claim 모델 권장)               |
+| `SUI_CAP_OBJECT_ID` 사용               | ✅   | `SUI_ADMIN_CAP_ID` 우선, 없으면 `SUI_CAP_OBJECT_ID` fallback 처리               |
+| 출석 보상 API/서비스                   | ❌   | 미구현                                                                          |
+| Settlement tx digest/영수증 저장       | ✅   | Job4에서 `suiFinalizeTxDigest/suiSettlementObjectId/suiFeeCoinObjectId` 저장    |
+| bet/claim recovery API                 | ✅   | `POST /api/bets/recover`, `POST /api/bets/claim/recover` (cron/auth 전용)       |
+| Job6(Recovery)                         | ⚠️   | 라운드 recovery 골격 보완 필요(라운드 stuck 케이스/알림/백필 범위 확정)         |
 
 ### 1.3 차트 데이터 수집 (현준 담당)
 
-| 항목                          | 상태 | 비고                                              |
-| ----------------------------- | ---- | ------------------------------------------------- |
-| 차트 수집 API                 | ✅   | `POST /api/chart/collect`                         |
-| 차트 API 경량화               | ❌   | 현재 `ticker/24hr` (무거움) → `ticker/price` 권장 |
-| 파생지표 12개 계산            | ⚠️   | 전부 계산하지만 UI에서 사용 안함. 제거 권장       |
-| `volatility_snapshots` 테이블 | ⚠️   | 저장만 하고 조회 없음. deprecated 권장            |
-| OHLC fake candle              | ⚠️   | open=직전close로 만든 가짜. UI에서 close만 사용   |
+| 항목                          | 상태 | 비고                                   |
+| ----------------------------- | ---- | -------------------------------------- |
+| 차트 수집 API                 | ✅   | `POST /api/chart/collect`              |
+| 차트 API 경량화               | ✅   | 현준에게 요청 후 PR에서 제거 머지      |
+| 파생지표 12개 계산            | ✅   | 현준 PR에서 제거 머지                  |
+| `volatility_snapshots` 테이블 | ⚠️   | 저장만 하고 조회 없음. deprecated 권장 |
+| OHLC fake candle              | ✅   | close 만 저장하고 계산 로직 삭제       |
 
 ---
 
@@ -134,9 +134,9 @@ export async function mintDel(toAddress: string, amount: number): Promise<{ txDi
 
 **수정 파일**:
 
-- `app/api/cron/rounds/open/route.ts` → (남음) 가격 API 호출 + DB 저장 (현재 mock)
+- `app/api/cron/rounds/open/route.ts` → ✅ priceSnapshot 서비스 호출로 Binance 1m close + 메타 주입
 - `app/api/cron/rounds/lock/route.ts` → ✅ Sui `lockPool` 호출
-- `app/api/cron/rounds/finalize/route.ts` → ✅ Sui `finalizeRound` 호출 + avgVol 계산 + SETTLED/VOIDED 전이
+- `app/api/cron/rounds/finalize/route.ts` → ✅ priceSnapshot 서비스 호출 + Sui `finalizeRound` + avgVol 계산 + SETTLED/VOIDED 전이
 - `app/api/cron/rounds/settle/route.ts` → ❌ Job5 폐기(410 deprecated). Claim 모델로 대체
 
 ### 2.5 RoundService 승자 계산 변경
@@ -274,13 +274,13 @@ export const attendanceRewards = sqliteTable('attendance_rewards', {
 - [x] rounds 스키마 마이그레이션 (avgVol, priceSnapshotMeta, sui 영수증 필드)
 - [x] Job 2/3 Sui-first 연결 (create_pool / lock_pool)
 - [x] Job 4 Sui-first 연결 (finalize_round + 영수증 저장 + SETTLED/VOIDED 전이)
-- [ ] 크론 open/finalize에서 실제 가격 API 호출 연결(현재 mock)
+- [x] 크론 open/finalize에서 실제 가격 API 호출 연결(현재 mock)
 
 ### Day 2
 
-- [ ] Claim(prepare/execute) API 구현 (유저 claim 모델)
+- [x] Claim(prepare/execute) API 구현 (유저 claim 모델)
 - [ ] Settlement 영수증 UI(조회/링크) 연결
-- [ ] (선택) 출석 보상 API
+- [ ] 출석 보상 API
 
 ---
 
@@ -288,7 +288,7 @@ export const attendanceRewards = sqliteTable('attendance_rewards', {
 
 ### 서버 레벨
 
-- [ ] 크론 가격 소스 실연동(현준 API) 정상 동작
+- [x] 크론 가격 소스 실연동(현준 API) 정상 동작
 - [ ] avgVol 계산(1h, 30d, returns stddev) 정상 동작 + 데이터 부족 시 VOID 처리
 - [ ] 크론 멱등성 (open/lock/finalize를 2번 호출해도 안전)
 - [ ] Claim prepare/execute 멱등성/만료/nonce 단일소비
@@ -312,9 +312,9 @@ export const attendanceRewards = sqliteTable('attendance_rewards', {
 
 요약:
 
-1. `fetchTickPrice` 함수 추가 (경량 API)
-2. `collect/route.ts` 간소화 (파생지표 제거)
-3. `volatility_snapshots` deprecated 처리
+- [x] `fetchTickPrice` 함수 추가 (경량 API)
+- [ ] `collect/route.ts` 간소화 (파생지표 제거)
+- [ ] `volatility_snapshots` deprecated 처리
 
 ---
 
