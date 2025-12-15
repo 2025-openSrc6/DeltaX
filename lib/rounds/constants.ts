@@ -10,7 +10,7 @@ import type { RoundType, RoundStatus, RoundSortField } from './types';
 /**
  * 지원하는 라운드 타입 목록
  */
-export const ROUND_TYPES: readonly RoundType[] = ['1MIN', '6HOUR', '1DAY'] as const;
+export const ROUND_TYPES: readonly RoundType[] = ['1MIN', 'DEMO_3MIN', '6HOUR', '1DAY'] as const;
 
 export const DEFAULT_ROUND_TYPE: RoundType = '6HOUR';
 
@@ -57,6 +57,7 @@ export const DEFAULT_SORT_ORDER = 'desc' as const;
  */
 export const ROUND_DURATIONS_MS: Record<RoundType, number> = {
   '1MIN': 60 * 1000, // 1분
+  DEMO_3MIN: 3 * 60 * 1000, // 3분 (데모용)
   '6HOUR': 6 * 60 * 60 * 1000, // 6시간
   '1DAY': 24 * 60 * 60 * 1000, // 24시간
 } as const;
@@ -68,6 +69,7 @@ export const ROUND_DURATIONS_MS: Record<RoundType, number> = {
  */
 export const BETTING_DURATIONS_MS: Record<RoundType, number> = {
   '1MIN': 10 * 1000, // 10초
+  DEMO_3MIN: 60 * 1000, // 1분 (데모용)
   '6HOUR': 60 * 1000, // 1분
   '1DAY': 10 * 60 * 1000, // 10분
 } as const;
