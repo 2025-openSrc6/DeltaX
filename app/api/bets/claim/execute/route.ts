@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import { registry } from '@/lib/registry';
 import { createSuccessResponse, handleApiError } from '@/lib/shared/response';
-import { UnauthorizedError } from '@/lib/shared/errors';
+import { requireAuth } from '@/lib/auth/middleware';
 
 /**
  * POST /api/bets/claim/execute
@@ -16,19 +16,10 @@ import { UnauthorizedError } from '@/lib/shared/errors';
  */
 export async function POST(request: NextRequest) {
   try {
+    const session = await requireAuth(request);
     const body = await request.json();
 
-    const suiAddress = request.cookies.get('suiAddress')?.value;
-    if (!suiAddress) {
-      throw new UnauthorizedError('Login required');
-    }
-
-    const user = await registry.userRepository.findBySuiAddress(suiAddress);
-    if (!user) {
-      throw new UnauthorizedError('User not found');
-    }
-
-    const result = await registry.betService.executeClaimWithUpdate(body, user.id);
+    const result = await registry.betService.executeClaimWithUpdate(body, session.userId);
     return createSuccessResponse(result);
   } catch (error) {
     return handleApiError(error);

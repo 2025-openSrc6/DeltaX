@@ -5,7 +5,8 @@ import {
   createSuccessResponseWithMeta,
   handleApiError,
 } from '@/lib/shared/response';
-import { UnauthorizedError } from '@/lib/shared/errors';
+import { UnauthorizedError, ValidationError } from '@/lib/shared/errors';
+import { requireAuth } from '@/lib/auth/middleware';
 
 /**
  * POST /api/bets
@@ -50,31 +51,28 @@ import { UnauthorizedError } from '@/lib/shared/errors';
  */
 export async function POST(request: NextRequest) {
   try {
+    const session = await requireAuth(request);
     // 1. Request Body 파싱
     const body = await request.json();
 
-    // 2. 유저 인증 및 검증
-    const suiAddress = request.cookies.get('suiAddress')?.value;
-    if (!suiAddress) {
-      throw new UnauthorizedError('Login required');
+    // userId는 request body에서 받지 않는다. (조작 방지)
+    // 또한 tx sender로 들어갈 userAddress는 세션의 suiAddress와 반드시 일치해야 한다.
+    if (body?.userAddress && body.userAddress !== session.suiAddress) {
+      throw new ValidationError('userAddress does not match authenticated suiAddress', {
+        authenticated: session.suiAddress,
+        provided: body.userAddress,
+      });
     }
-
-    // TODO(ehdnd): 유저 auth 로직 추가
-
-    // TODO(ehdnd): 서비스 레이어 제작 요청
-    const user = await registry.userRepository.findBySuiAddress(suiAddress);
-    if (!user) {
-      throw new UnauthorizedError('User not found');
-    }
-
-    const userId = user.id;
 
     // 3. Service 호출
     // - 라운드 상태 검증 (OPEN)
     // - 시간 검증 (Lock Time 이전)
     // - 잔액 검증
     // - 베팅 생성 및 풀 업데이트 (Atomic Batch)
-    const result = await registry.betService.createBetWithSuiPrepare(body, userId);
+    const result = await registry.betService.createBetWithSuiPrepare(
+      { ...body, userAddress: session.suiAddress },
+      session.userId,
+    );
 
     // 4. 성공 응답 반환 (betId 포함)
     return createSuccessResponse(result);
@@ -111,6 +109,14 @@ export async function GET(request: NextRequest) {
   try {
     // 1. Query 파라미터 파싱
     const params = parseQueryParams(request);
+
+    // 보안 가드: userId 필터는 세션 기반으로만 허용한다. (내 베팅 이력 스크래핑 방지)
+    if (params.userId) {
+      const session = await requireAuth(request);
+      if (params.userId !== session.userId) {
+        throw new UnauthorizedError('Forbidden');
+      }
+    }
 
     // 2. Service 호출 (registry에서 조립된 인스턴스 사용)
     const result = await registry.betService.getBets(params);

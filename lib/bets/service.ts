@@ -17,6 +17,7 @@ import { RoundRepository } from '@/lib/rounds/repository';
 import {
   createBetWithSuiPrepareSchema,
   executeClaimSchema,
+  getPublicBetsQuerySchema,
   getBetsQuerySchema,
   prepareClaimSchema,
 } from './validation';
@@ -26,6 +27,8 @@ import type {
   GetBetsResult,
   BetQueryParams,
   BetWithRound,
+  GetPublicBetsResult,
+  PublicBetFeedItem,
   ValidatedCreateBetOffchainInput,
   FinalizeBetExecutionInput,
 } from './types';
@@ -148,21 +151,23 @@ export class BetService {
     return { ...prepareSuiBetTxResult, betId: bet.id };
   }
 
-  async executeBetWithUpdate(rawInput: unknown): Promise<ExecuteSuiBetTxResult> {
+  async executeBetWithUpdate(
+    rawInput: unknown,
+    authenticatedUserId: string,
+  ): Promise<ExecuteSuiBetTxResult> {
     const {
       txBytes: txBytesBase64,
       userSignature,
       nonce,
       betId,
-      userId,
     } = executeSuiBetTxSchema.parse(rawInput);
 
     const bet = await this.betRepository.findById(betId);
     if (!bet) {
       throw new NotFoundError('Bet', betId);
     }
-    if (bet.userId !== userId) {
-      throw new BusinessRuleError('USER_MISMATCH', 'Prepared user does not match execution userId');
+    if (bet.userId !== authenticatedUserId) {
+      throw new BusinessRuleError('USER_MISMATCH', 'Bet owner mismatch');
     }
     if (bet.chainStatus === 'EXECUTED') {
       // NOTE: A안 기반으로 claim을 위해 betObjectId가 필요하므로 함께 반환한다.
@@ -177,7 +182,7 @@ export class BetService {
       userSignature,
       nonce,
       betId,
-      userId,
+      userId: authenticatedUserId,
     });
 
     const finalizeInput: FinalizeBetExecutionInput = {
@@ -496,6 +501,90 @@ export class BetService {
   }
 
   /**
+   * 공개 피드 조회
+   * - userId 필터 없음
+   * - 주소는 마스킹해서 반환
+   */
+  async getPublicBets(rawParams: unknown): Promise<GetPublicBetsResult> {
+    const validated = getPublicBetsQuerySchema.parse(rawParams);
+
+    const queryParams: BetQueryParams = {
+      filters: {
+        roundId: validated.roundId,
+        prediction: validated.prediction,
+        resultStatus: validated.resultStatus,
+        settlementStatus: validated.settlementStatus,
+      },
+      sort: validated.sort,
+      order: validated.order,
+      limit: validated.pageSize,
+      offset: (validated.page - 1) * validated.pageSize,
+    };
+
+    const [betsWithUser, total] = await Promise.all([
+      this.betRepository.findManyWithUser(queryParams),
+      this.betRepository.count(queryParams),
+    ]);
+
+    const items: PublicBetFeedItem[] = betsWithUser.map((row) => ({
+      id: row.id,
+      roundId: row.roundId,
+      prediction: row.prediction,
+      amount: row.amount,
+      createdAt: row.createdAt,
+      chainStatus: row.chainStatus,
+      resultStatus: row.resultStatus,
+      settlementStatus: row.settlementStatus,
+      payoutAmount: row.payoutAmount,
+      suiTxHash: row.suiTxHash,
+      suiBetObjectId: row.suiBetObjectId,
+      suiPayoutTxHash: row.suiPayoutTxHash,
+      bettor: {
+        suiAddressMasked: maskSuiAddress(row.bettorSuiAddress),
+        nickname: row.bettorNickname,
+      },
+    }));
+
+    const totalPages = total > 0 ? Math.ceil(total / validated.pageSize) : 0;
+
+    return {
+      bets: items,
+      meta: { page: validated.page, pageSize: validated.pageSize, total, totalPages },
+    };
+  }
+
+  /**
+   * 내 베팅 조회 (userId는 세션에서 주입)
+   */
+  async getMyBets(rawParams: unknown, userId: string): Promise<GetBetsResult> {
+    const validated = getBetsQuerySchema.parse(rawParams);
+
+    const queryParams: BetQueryParams = {
+      filters: {
+        roundId: validated.roundId,
+        userId,
+        prediction: validated.prediction,
+        resultStatus: validated.resultStatus,
+        settlementStatus: validated.settlementStatus,
+      },
+      sort: validated.sort,
+      order: validated.order,
+      limit: validated.pageSize,
+      offset: (validated.page - 1) * validated.pageSize,
+    };
+
+    const [bets, total] = await Promise.all([
+      this.betRepository.findMany(queryParams),
+      this.betRepository.count(queryParams),
+    ]);
+    const totalPages = total > 0 ? Math.ceil(total / validated.pageSize) : 0;
+    return {
+      bets,
+      meta: { page: validated.page, pageSize: validated.pageSize, total, totalPages },
+    };
+  }
+
+  /**
    * 특정 베팅 조회 (라운드 정보 포함)
    *
    * @param id - 베팅 UUID
@@ -578,4 +667,10 @@ export class BetService {
   async findBetsByRoundId(roundId: string): Promise<Bet[]> {
     return this.betRepository.findByRoundId(roundId);
   }
+}
+
+function maskSuiAddress(address: string, head = 6, tail = 4): string {
+  if (!address) return '';
+  if (address.length <= head + tail) return address;
+  return `${address.slice(0, head)}…${address.slice(-tail)}`;
 }

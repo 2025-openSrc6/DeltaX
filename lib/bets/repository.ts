@@ -40,6 +40,59 @@ export class BetRepository {
   }
 
   /**
+   * 공개 피드/표시용: bets + users를 조인해 주소/닉네임을 함께 조회한다.
+   * - 권한 필터(userId)는 상위 레이어에서 결정한다.
+   */
+  async findManyWithUser(params: BetQueryParams): Promise<
+    Array<{
+      id: string;
+      roundId: string;
+      prediction: string;
+      amount: number;
+      createdAt: number;
+      chainStatus: string;
+      resultStatus: string;
+      settlementStatus: string;
+      payoutAmount: number;
+      suiTxHash: string | null;
+      suiBetObjectId: string | null;
+      suiPayoutTxHash: string | null;
+      bettorSuiAddress: string;
+      bettorNickname: string | null;
+    }>
+  > {
+    const db = getDb();
+    const { filters, sort, order, limit, offset } = params;
+
+    const whereConditions = this.buildFilters(filters);
+    const orderColumn = sort === 'amount' ? bets.amount : bets.createdAt;
+    const orderByExpression = order === 'asc' ? asc(orderColumn) : desc(orderColumn);
+
+    const baseQuery = db
+      .select({
+        id: bets.id,
+        roundId: bets.roundId,
+        prediction: bets.prediction,
+        amount: bets.amount,
+        createdAt: bets.createdAt,
+        chainStatus: bets.chainStatus,
+        resultStatus: bets.resultStatus,
+        settlementStatus: bets.settlementStatus,
+        payoutAmount: bets.payoutAmount,
+        suiTxHash: bets.suiTxHash,
+        suiBetObjectId: bets.suiBetObjectId,
+        suiPayoutTxHash: bets.suiPayoutTxHash,
+        bettorSuiAddress: users.suiAddress,
+        bettorNickname: users.nickname,
+      })
+      .from(bets)
+      .innerJoin(users, eq(bets.userId, users.id));
+
+    const queryWithConditions = whereConditions ? baseQuery.where(whereConditions) : baseQuery;
+    return queryWithConditions.orderBy(orderByExpression).limit(limit).offset(offset);
+  }
+
+  /**
    * 베팅 개수 조회 (페이지네이션용)
    */
   async count(params: BetQueryParams): Promise<number> {

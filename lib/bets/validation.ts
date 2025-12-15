@@ -31,6 +31,21 @@ export const getBetsQuerySchema = z.object({
   order: z.enum(['asc', 'desc']).default('desc'),
 });
 
+/**
+ * GET /api/bets/public Query Parameters 검증
+ * - 공개 피드에서는 userId 필터를 받지 않는다.
+ */
+export const getPublicBetsQuerySchema = z.object({
+  roundId: z.string().uuid().optional(),
+  prediction: z.enum(['GOLD', 'BTC']).optional(),
+  resultStatus: z.string().optional(),
+  settlementStatus: z.string().optional(),
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(20),
+  sort: z.enum(['created_at', 'amount']).default('created_at'),
+  order: z.enum(['asc', 'desc']).default('desc'),
+});
+
 export const createBetWithSuiPrepareSchema = z.object({
   roundId: z.string().uuid('Invalid UUID format'),
   prediction: z.enum(['GOLD', 'BTC'], {

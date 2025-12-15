@@ -1,6 +1,7 @@
 import { createSuccessResponse, handleApiError } from '@/lib/shared/response';
 import { registry } from '@/lib/registry';
 import { NextRequest } from 'next/server';
+import { requireAuth } from '@/lib/auth/middleware';
 
 /**
  * POST /api/bets/execute
@@ -16,7 +17,6 @@ import { NextRequest } from 'next/server';
  *   userSignature: "<base64>",  // wallet signTransactionBlock 결과
  *   nonce: "<uuid>",            // prepare 응답의 nonce
  *   betId: "<uuid>",            // 업데이트할 bets.id
- *   userId: "<uuid>"            // authenticated user id (for nonce binding)
  * }
  *
  * Response:
@@ -27,9 +27,11 @@ import { NextRequest } from 'next/server';
  */
 export async function POST(request: NextRequest) {
   try {
+    const session = await requireAuth(request);
     const body = await request.json();
 
-    const result = await registry.betService.executeBetWithUpdate(body);
+    // userId는 request body에서 받지 않고, 인증 컨텍스트(세션)에서 결정한다.
+    const result = await registry.betService.executeBetWithUpdate(body, session.userId);
 
     return createSuccessResponse(result);
   } catch (error) {
