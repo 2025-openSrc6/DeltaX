@@ -106,17 +106,6 @@ export interface FinalizeRoundResult {
   txDigest: string;
 }
 
-export interface DistributePayoutInput {
-  poolId: string;
-  settlementId: string;
-  betObjectId: string;
-}
-
-export interface DistributePayoutResult {
-  payoutCoinId: string;
-  txDigest: string;
-}
-
 export interface MintDelInput {
   toAddress: string;
   /**

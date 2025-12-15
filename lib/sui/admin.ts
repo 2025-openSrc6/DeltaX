@@ -13,7 +13,7 @@
  * - 라운드 FSM/멱등성 판단(서비스 레이어 책임)
  */
 
-import { Transaction } from '@mysten/sui/transactions';
+import { Transaction, TransactionObjectArgument } from '@mysten/sui/transactions';
 import type { SuiObjectChange } from '@mysten/sui/client';
 import { getSponsorKeypair, suiClient } from './client';
 import { getGasPayment } from './gas';
@@ -21,18 +21,11 @@ import { sleep } from './utils';
 import { BusinessRuleError } from '@/lib/shared/errors';
 import {
   createPoolInputSchema,
-  distributePayoutInputSchema,
   finalizeRoundInputSchema,
   lockPoolInputSchema,
   mintDelInputSchema,
 } from './validation';
-import type {
-  CreatePoolResult,
-  DistributePayoutResult,
-  FinalizeRoundResult,
-  LockPoolResult,
-  MintDelResult,
-} from './types';
+import type { CreatePoolResult, FinalizeRoundResult, LockPoolResult, MintDelResult } from './types';
 
 const CLOCK_OBJECT_ID = '0x6';
 
@@ -289,6 +282,8 @@ export async function finalizeRound(
   const validated = finalizeRoundInputSchema.parse({ poolId, prices, avgVols, volMeta });
   const packageId = getPackageId();
   const adminCapId = getAdminCapId();
+  const feeCollectorAddress =
+    process.env.SUI_FEE_COLLECTOR_ADDRESS ?? getSponsorKeypair().toSuiAddress();
 
   // 스케일링 (Move u64)
   const goldStart = scaleToU64(validated.prices.goldStart, PRICE_SCALE, 'prices.goldStart');
@@ -327,7 +322,7 @@ export async function finalizeRound(
   }
 
   const tx = new Transaction();
-  tx.moveCall({
+  const finalizeResults = tx.moveCall({
     target: `${packageId}::betting::finalize_round`,
     arguments: [
       tx.object(adminCapId),
@@ -341,6 +336,14 @@ export async function finalizeRound(
       tx.object(CLOCK_OBJECT_ID),
     ],
   });
+
+  const finalizeReturn = finalizeResults as unknown as TransactionObjectArgument[];
+  const feeCoinArg = finalizeReturn[1];
+  if (!feeCoinArg) {
+    throw new BusinessRuleError('SUI_BUILDER_ERROR', 'finalize_round did not return fee coin arg');
+  }
+
+  tx.transferObjects([feeCoinArg], tx.pure.address(feeCollectorAddress));
 
   const { digest, objectChanges } = await executeAsSponsor(tx);
 
@@ -363,48 +366,6 @@ export async function finalizeRound(
 }
 
 // 배당 지급
-export async function distributePayout(
-  poolId: string,
-  settlementId: string,
-  betObjectId: string,
-): Promise<DistributePayoutResult> {
-  const validated = distributePayoutInputSchema.parse({ poolId, settlementId, betObjectId });
-  const packageId = getPackageId();
-  const adminCapId = getAdminCapId();
-
-  /**
-   * 주의:
-   * - Move 시그니처가 `bet: Bet`(owned object 소비)라서, tx에는 bet object가 입력으로 들어가야 함.
-   * - 현재 `place_bet`는 Bet을 유저에게 transfer하므로, Cron(서버) 단독 실행은 실패할 수 있음.
-   * - 해결책(권장): 유저+서버 멀티시그(sponsored tx)로 "claim" 형태로 실행하거나,
-   *   Move 설계를 "유저 claim" 또는 "server-owned Bet" 형태로 바꿔야 함.
-   */
-
-  const tx = new Transaction();
-  tx.moveCall({
-    target: `${packageId}::betting::distribute_payout`,
-    arguments: [
-      tx.object(adminCapId),
-      tx.object(validated.poolId),
-      tx.object(validated.settlementId),
-      tx.object(validated.betObjectId),
-      tx.object(CLOCK_OBJECT_ID),
-    ],
-  });
-
-  const { digest, objectChanges } = await executeAsSponsor(tx);
-
-  const delCoinTypeContains = `::coin::Coin<${packageId}::del::DEL>`;
-  const payoutCoinId = findCreatedObjectIdByType(objectChanges, delCoinTypeContains);
-  if (!payoutCoinId) {
-    throw new BusinessRuleError('SUI_PARSE_FAILED', 'Failed to parse created payout Coin id', {
-      digest,
-    });
-  }
-
-  return { payoutCoinId, txDigest: digest };
-}
-
 // DEL 민팅 (출석 보상)
 export async function mintDel(toAddress: string, amount: number): Promise<MintDelResult> {
   const validated = mintDelInputSchema.parse({ toAddress, amount });

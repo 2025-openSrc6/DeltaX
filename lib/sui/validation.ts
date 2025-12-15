@@ -67,12 +67,6 @@ export const finalizeRoundInputSchema = z.object({
   volMeta: z.unknown().optional(),
 });
 
-export const distributePayoutInputSchema = z.object({
-  poolId: suiIdSchema,
-  settlementId: suiIdSchema,
-  betObjectId: suiIdSchema,
-});
-
 export const mintDelInputSchema = z.object({
   toAddress: suiAddressSchema,
   amount: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
