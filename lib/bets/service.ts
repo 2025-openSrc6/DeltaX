@@ -34,6 +34,11 @@ import type { Round } from '@/db/schema/rounds';
 import type { PrepareSuiBetTxResult, ExecuteSuiBetTxResult } from '@/lib/sui/types';
 import { SuiService } from '@/lib/sui/service';
 import { executeSuiBetTxSchema } from '../sui/validation';
+import {
+  fetchTransactionBlockForRecovery,
+  parseClaimPayoutAmountFromTx,
+  parseCreatedBetObjectIdFromTx,
+} from '@/lib/sui/recovery';
 
 export class BetService {
   private betRepository: BetRepository;
@@ -312,6 +317,141 @@ export class BetService {
     });
 
     return { digest, payoutAmount };
+  }
+
+  // ============================================
+  // Recovery (Safe Backfill)
+  // ============================================
+
+  /**
+   * 체인 성공(txDigest 존재)인데 DB에 betObjectId가 누락된 케이스를 보정한다.
+   * - 체인 재실행 없음. 조회 + DB 업데이트만 수행.
+   */
+  async backfillMissingBetObjectIds(limit = 50): Promise<{ scanned: number; updated: number }> {
+    const candidates = await this.betRepository.findExecutedBetsMissingBetObjectId(limit);
+    let updated = 0;
+
+    for (const bet of candidates) {
+      const digest = bet.suiTxHash;
+      if (!digest) continue;
+      const tx = await fetchTransactionBlockForRecovery(digest);
+      const betObjectId = parseCreatedBetObjectIdFromTx(tx);
+      if (!betObjectId) continue;
+      const ok = await this.betRepository.backfillBetObjectIdIfMissing(bet.id, betObjectId);
+      if (ok) updated++;
+    }
+
+    return { scanned: candidates.length, updated };
+  }
+
+  /**
+   * claim txDigest는 있는데 bets 테이블에 반영이 덜 된 케이스를 보정한다.
+   * - 체인 재실행 없음. 조회 + DB 업데이트만 수행.
+   */
+  async backfillMissingClaimFinalizes(limit = 50): Promise<{ scanned: number; updated: number }> {
+    const candidates = await this.betRepository.findClaimedBetsMissingDbFinalize(limit);
+    let updated = 0;
+
+    for (const bet of candidates) {
+      const digest = bet.suiPayoutTxHash;
+      if (!digest) continue;
+      const tx = await fetchTransactionBlockForRecovery(digest);
+      const payoutAmount = parseClaimPayoutAmountFromTx(tx);
+
+      const round = await this.roundRepository.findById(bet.roundId);
+      if (!round) continue;
+
+      const resultStatus =
+        round.status === 'VOIDED' ? 'REFUNDED' : payoutAmount > 0 ? 'WON' : 'LOST';
+
+      const payoutTimestampMs =
+        typeof tx.timestampMs === 'string' ? Number(tx.timestampMs) : undefined;
+
+      await this.betRepository.finalizeClaim({
+        betId: bet.id,
+        suiPayoutTxHash: digest,
+        suiPayoutTimestamp: payoutTimestampMs,
+        payoutAmount,
+        resultStatus,
+      });
+      updated++;
+    }
+
+    return { scanned: candidates.length, updated };
+  }
+
+  /**
+   * 수동 Recover: betId + (optional) txDigest로 betObjectId를 DB에 보정한다.
+   * - 체인 재실행 없음. tx 조회 + DB 업데이트만 수행.
+   */
+  async recoverBetFromTxDigest(input: {
+    betId: string;
+    txDigest?: string;
+  }): Promise<{ betId: string; txDigest: string; betObjectId: string; updated: boolean }> {
+    const bet = await this.betRepository.findById(input.betId);
+    if (!bet) throw new NotFoundError('Bet', input.betId);
+
+    const digest = input.txDigest ?? bet.suiTxHash;
+    if (!digest) {
+      throw new BusinessRuleError('TX_DIGEST_MISSING', 'txDigest is required for bet recovery', {
+        betId: bet.id,
+      });
+    }
+
+    const tx = await fetchTransactionBlockForRecovery(digest);
+    const betObjectId = parseCreatedBetObjectIdFromTx(tx);
+    if (!betObjectId) {
+      throw new BusinessRuleError('SUI_PARSE_FAILED', 'Failed to parse created Bet object id', {
+        betId: bet.id,
+        digest,
+      });
+    }
+
+    // txDigest는 DB에 없을 수도 있으므로 같이 보정
+    await this.betRepository.updateById(bet.id, { suiTxHash: digest });
+    const updated = await this.betRepository.backfillBetObjectIdIfMissing(bet.id, betObjectId);
+    return { betId: bet.id, txDigest: digest, betObjectId, updated };
+  }
+
+  /**
+   * 수동 Recover: claim txDigest 기반으로 payoutAmount/status를 DB에 보정한다.
+   * - 체인 재실행 없음. tx 조회 + DB 업데이트만 수행.
+   */
+  async recoverClaimFromTxDigest(input: {
+    betId: string;
+    txDigest?: string;
+  }): Promise<{ betId: string; txDigest: string; payoutAmount: number; updated: boolean }> {
+    const bet = await this.betRepository.findById(input.betId);
+    if (!bet) throw new NotFoundError('Bet', input.betId);
+
+    const digest = input.txDigest ?? bet.suiPayoutTxHash;
+    if (!digest) {
+      throw new BusinessRuleError('TX_DIGEST_MISSING', 'txDigest is required for claim recovery', {
+        betId: bet.id,
+      });
+    }
+
+    const round = await this.roundRepository.findById(bet.roundId);
+    if (!round) throw new NotFoundError('Round', bet.roundId);
+
+    const tx = await fetchTransactionBlockForRecovery(digest);
+    const payoutAmount = parseClaimPayoutAmountFromTx(tx);
+    const payoutTimestampMs =
+      typeof tx.timestampMs === 'string' ? Number(tx.timestampMs) : undefined;
+
+    const resultStatus = round.status === 'VOIDED' ? 'REFUNDED' : payoutAmount > 0 ? 'WON' : 'LOST';
+
+    // txDigest는 DB에 없을 수도 있으므로 같이 보정하며, finalizeClaim은 settlementStatus=COMPLETED로 만든다.
+    await this.betRepository.updateById(bet.id, { suiPayoutTxHash: digest });
+    await this.betRepository.finalizeClaim({
+      betId: bet.id,
+      suiPayoutTxHash: digest,
+      suiPayoutTimestamp: payoutTimestampMs,
+      payoutAmount,
+      resultStatus,
+    });
+
+    return { betId: bet.id, txDigest: digest, payoutAmount, updated: true };
   }
 
   /**

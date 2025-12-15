@@ -45,6 +45,12 @@ import { calculatePayout } from './calculator';
 import { createPool, finalizeRound as finalizeRoundOnChain, lockPool } from '@/lib/sui/admin';
 import { toJSON } from '@/lib/sui/utils';
 import { calculateSettlementAvgVol } from './avgVol.service';
+import {
+  fetchTransactionBlockForRecovery,
+  parseCreatedFeeCoinIdFromTx,
+  parseCreatedPoolIdFromTx,
+  parseCreatedSettlementIdFromTx,
+} from '@/lib/sui/recovery';
 
 export class RoundService {
   private repository: RoundRepository;
@@ -863,10 +869,106 @@ export class RoundService {
    * @returns RecoveryRoundsResult - stuckCount, retriedCount, alertedCount
    */
   async recoveryRounds(): Promise<RecoveryRoundsResult> {
-    // 결정 B(2025-12-15): Job 5/6 범위는 다음 스코프로 미룸 (claim 모델 전환 후 복구 설계)
-    // - scheduled handler가 매분 호출하므로, 당장은 "noop + 200"로 유지한다.
-    cronLogger.info('[Job 6] Recovery deferred (claim model migration). Returning noop result.');
-    return { stuckCount: 0, retriedCount: 0, alertedCount: 0 };
+    const startedAt = Date.now();
+
+    /**
+     * Safe Backfill only:
+     * - 체인 재실행(=retry) 금지
+     * - txDigest가 있는 레코드에 한해 체인 조회 후 DB 누락 필드만 보정
+     */
+    const base: RecoveryRoundsResult & {
+      roundBackfill?: {
+        poolScanned: number;
+        poolUpdated: number;
+        finalizeScanned: number;
+        finalizeUpdated: number;
+      };
+      betBackfill?: {
+        betObjectIdScanned: number;
+        betObjectIdUpdated: number;
+        claimScanned: number;
+        claimUpdated: number;
+      };
+      durationMs?: number;
+    } = {
+      stuckCount: 0,
+      retriedCount: 0,
+      alertedCount: 0,
+    };
+
+    // [A] Round: create_pool digest exists, poolId missing
+    const poolCandidates = await this.repository.findRoundsMissingPoolAddressWithCreateDigest(30);
+    let poolUpdated = 0;
+    for (const round of poolCandidates) {
+      const digest = round.suiCreatePoolTxDigest;
+      if (!digest) continue;
+      try {
+        const tx = await fetchTransactionBlockForRecovery(digest);
+        const poolId = parseCreatedPoolIdFromTx(tx);
+        if (!poolId) continue;
+        const ok = await this.repository.backfillPoolAddressIfMissing(round.id, poolId);
+        if (ok) poolUpdated++;
+      } catch (error) {
+        cronLogger.warn('[Job 6] Pool backfill failed', {
+          roundId: round.id,
+          digest,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+
+    // [B] Round: finalize digest exists, settlementId/feeCoinId missing
+    const finalizeCandidates =
+      await this.repository.findRoundsMissingFinalizeArtifactsWithFinalizeDigest(30);
+    let finalizeUpdated = 0;
+    for (const round of finalizeCandidates) {
+      const digest = round.suiFinalizeTxDigest;
+      if (!digest) continue;
+      try {
+        const tx = await fetchTransactionBlockForRecovery(digest);
+        const settlementId = round.suiSettlementObjectId ?? parseCreatedSettlementIdFromTx(tx);
+        const feeCoinId = round.suiFeeCoinObjectId ?? parseCreatedFeeCoinIdFromTx(tx);
+        if (!settlementId && !feeCoinId) continue;
+        const ok = await this.repository.backfillFinalizeArtifactsIfMissing(round.id, {
+          txDigest: digest,
+          settlementId: settlementId ?? undefined,
+          feeCoinId: feeCoinId ?? undefined,
+        });
+        if (ok) finalizeUpdated++;
+      } catch (error) {
+        cronLogger.warn('[Job 6] Finalize backfill failed', {
+          roundId: round.id,
+          digest,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+
+    // [C] Bet: betObjectId backfill (A안 핵심)
+    const betObjectBackfill = await this.betService.backfillMissingBetObjectIds(50);
+
+    // [D] Claim: claim DB finalize backfill
+    const claimBackfill = await this.betService.backfillMissingClaimFinalizes(50);
+
+    base.roundBackfill = {
+      poolScanned: poolCandidates.length,
+      poolUpdated,
+      finalizeScanned: finalizeCandidates.length,
+      finalizeUpdated,
+    };
+    base.betBackfill = {
+      betObjectIdScanned: betObjectBackfill.scanned,
+      betObjectIdUpdated: betObjectBackfill.updated,
+      claimScanned: claimBackfill.scanned,
+      claimUpdated: claimBackfill.updated,
+    };
+    base.durationMs = Date.now() - startedAt;
+
+    cronLogger.info(
+      '[Job 6] Recovery safe backfill completed',
+      toJSON(base) as unknown as Record<string, unknown>,
+    );
+    return base;
   }
 
   /**
