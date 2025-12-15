@@ -34,5 +34,3 @@ function parseQueryParams(request: NextRequest) {
     order: searchParams.get('order') ?? undefined,
   };
 }
-
-
