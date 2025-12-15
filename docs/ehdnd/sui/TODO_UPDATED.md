@@ -88,35 +88,13 @@ suiSettlementObjectId: text('sui_settlement_object_id'),
 suiFeeCoinObjectId: text('sui_fee_coin_object_id'),
 ```
 
-### 2.2 가격 스냅샷 서비스 구현
+### 2.2 가격 스냅샷 서비스 구현 (완료)
 
-**파일**: `lib/rounds/priceSnapshot.service.ts` (신규)
-
-```typescript
-// 라운드 시작/종료 시 가격 스냅샷 캡처
-export async function captureRoundPrice(asset: 'PAXG' | 'BTC'): Promise<{
-  price: number;
-  source: string;
-  timestamp: Date;
-}>;
-
-// 정산용 avgVol 계산 (1h 캔들 30일 = 720개)
-export async function calculateSettlementAvgVol(): Promise<{
-  paxgAvgVol: number;
-  btcAvgVol: number;
-  meta: { interval: string; lookback: number; source: string; calculatedAt: string };
-}>;
-
-// 라운드 오픈 시 호출
-export async function onRoundOpen(roundId: string): Promise<void>;
-
-// 라운드 정산(finalize) 시 호출
-export async function onRoundFinalize(roundId: string): Promise<{
-  winner: 'PAXG' | 'BTC';
-  paxgStrength: number;
-  btcStrength: number;
-}>;
-```
+- **파일**: `lib/rounds/priceSnapshot.service.ts`
+- **기능**: `fetchStartPriceSnapshot` / `fetchEndPriceSnapshot` → Binance 1m kline close(PAXG/BTC) 두 개를 조회해 `PriceData` 구성.
+  - `source: 'binance_klines_1m'`
+  - `meta: { kind: 'start' | 'end', paxg: onchainMeta, btc: onchainMeta }` (캔들 범위/심볼/인터벌 포함)
+- **사용처**: Job2/Job4 route에서 호출 → RoundService로 전달(FSM/Sui-first는 동일).
 
 ### 2.3 Sui 래퍼 함수 구현
 
@@ -191,8 +169,8 @@ const winner = goldChange > btcChange ? 'GOLD' : 'BTC';
 - [x] `/api/bets/execute`에서 `userId`를 body로 받지 않도록 인증 흐름 일괄화(쿠키 `suiAddress` → userId)
 - [x] bet/claim recovery API 추가 (체인 성공, DB 실패 보정) — `POST /api/bets/recover`, `POST /api/bets/claim/recover`
 - [ ] Settlement 영수증 UI/조회 연결 (round별 settlementId 링크/표시)
-- [ ] (현준 PR 머지 후) Job2/Job4 가격 스냅샷 교체: `CHART_TEAM_REQUEST.md`의 1m kline close 기반으로 start/end 가격 + 메타 저장
-- [ ] (현준 PR 머지 후) avgVol 입력 메타 강화: 1h 720 klines fetch meta를 `avgVolMeta`에 포함(룰 고정/검증 가능성)
+- [x] (현준 PR 머지 후) Job2/Job4 가격 스냅샷 교체: `CHART_TEAM_REQUEST.md`의 1m kline close 기반으로 start/end 가격 + 메타 저장
+- [x] (현준 PR 머지 후) avgVol 입력 메타 강화: 1h 720 klines fetch meta를 `avgVolMeta`에 포함(룰 고정/검증 가능성)
 
 ---
 
