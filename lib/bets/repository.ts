@@ -339,7 +339,11 @@ export class BetRepository {
   }
 
   private handleError(error: unknown) {
-    if (error instanceof Error && error.message?.includes('UNIQUE constraint failed')) {
+    const msg = error instanceof Error ? error.message : '';
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const causeMsg = (error instanceof Error && (error.cause as any)?.message) || '';
+
+    if (msg.includes('UNIQUE constraint failed') || causeMsg.includes('UNIQUE constraint failed')) {
       const e = new Error('Duplicate bet');
       Object.assign(e, { code: 'ALREADY_EXISTS' });
       throw e;
