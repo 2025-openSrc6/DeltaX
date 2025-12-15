@@ -264,7 +264,13 @@ export class BetRepository {
     return db
       .select()
       .from(bets)
-      .where(and(eq(bets.chainStatus, 'EXECUTED'), isNotNull(bets.suiTxHash), isNull(bets.suiBetObjectId)))
+      .where(
+        and(
+          eq(bets.chainStatus, 'EXECUTED'),
+          isNotNull(bets.suiTxHash),
+          isNull(bets.suiBetObjectId),
+        ),
+      )
       .orderBy(desc(bets.createdAt))
       .limit(limit);
   }

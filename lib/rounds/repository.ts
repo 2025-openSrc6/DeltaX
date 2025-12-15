@@ -340,11 +340,7 @@ export class RoundRepository {
     // txDigest는 이미 존재하는 케이스가 대상이지만, 혹시 비어있는 경우에만 보정
     updateData.suiFinalizeTxDigest = input.txDigest;
 
-    const res = await db
-      .update(rounds)
-      .set(updateData)
-      .where(eq(rounds.id, roundId))
-      .returning();
+    const res = await db.update(rounds).set(updateData).where(eq(rounds.id, roundId)).returning();
     return res.length > 0;
   }
 

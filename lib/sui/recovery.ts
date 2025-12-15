@@ -16,7 +16,11 @@ function requireEnv(name: string): string {
   return val;
 }
 
-export async function fetchTransactionBlockForRecovery(digest: string, retries = 3, delayMs = 1000) {
+export async function fetchTransactionBlockForRecovery(
+  digest: string,
+  retries = 3,
+  delayMs = 1000,
+) {
   for (let i = 0; i < retries; i++) {
     try {
       const res = await suiClient.getTransactionBlock({
@@ -40,7 +44,9 @@ export async function fetchTransactionBlockForRecovery(digest: string, retries =
   throw new BusinessRuleError('SUI_TX_NOT_FOUND', 'Transaction not found for recovery', { digest });
 }
 
-export function parseCreatedPoolIdFromTx(tx: Pick<RecoveryTxBlock, 'objectChanges'>): string | null {
+export function parseCreatedPoolIdFromTx(
+  tx: Pick<RecoveryTxBlock, 'objectChanges'>,
+): string | null {
   return findCreatedObjectIdByTypeContains(tx.objectChanges as unknown as never, {
     contains: '::betting::BettingPool',
   });
@@ -78,5 +84,3 @@ export function parseClaimPayoutAmountFromTx(tx: Pick<RecoveryTxBlock, 'events'>
     eventTypeContains: '::betting::PayoutDistributed',
   });
 }
-
-
