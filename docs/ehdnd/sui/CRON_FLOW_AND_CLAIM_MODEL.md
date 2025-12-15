@@ -177,6 +177,12 @@
   - 서버는 `betId → bets.suiBetObjectId + rounds.suiPoolAddress + rounds.suiSettlementObjectId`를 조회해 `claim_payout` PTB를 만든다.
 - **DB 상태는 “표시/인덱스”**: Claim 성공 여부는 체인(=Bet 소각)으로 결정된다.
   - 오프체인은 `bets.suiPayoutTxHash`, `payoutAmount`, `settlementStatus` 등을 “조회/UX” 용도로만 저장한다.
+- **서버 경유 Claim만 허용(현 스코프)**:
+  - API:
+    - `POST /api/bets/claim/prepare`
+    - `POST /api/bets/claim/execute`
+  - (참고) direct claim(유저가 서버 없이 체인 직접 호출)을 완전히 막을 수는 없으므로,
+    이 스코프에서는 “서버를 통한 claim만 UX로 제공”하고 DB 동기화/복구는 다음 작업으로 둔다.
 
 ## 5) VOID(무효/환불) 정책 — 반드시 결정 필요
 
