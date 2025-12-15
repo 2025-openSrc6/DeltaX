@@ -84,17 +84,25 @@ function toU64FromSafeInt(value: number, label: string): bigint {
   return asBigInt;
 }
 
-function scaleToU64(value: number, scale: number, label: string): bigint {
-  if (!Number.isFinite(value) || value <= 0) {
-    throw new BusinessRuleError('INVALID_INPUT', `${label} must be a finite positive number`, {
-      value,
-    });
-  }
-  const scaledInt = Math.round(value * scale);
-  if (!Number.isSafeInteger(scaledInt) || scaledInt <= 0) {
+function scaleToU64(
+  value: number,
+  scale: number,
+  label: string,
+  options?: { allowZero?: boolean },
+): bigint {
+  const allowZero = options?.allowZero ?? false;
+  if (!Number.isFinite(value) || (allowZero ? value < 0 : value <= 0)) {
     throw new BusinessRuleError(
       'INVALID_INPUT',
-      `${label} scaled result must be a positive safe integer`,
+      `${label} must be a finite ${allowZero ? 'non-negative' : 'positive'} number`,
+      { value },
+    );
+  }
+  const scaledInt = Math.round(value * scale);
+  if (!Number.isSafeInteger(scaledInt) || (allowZero ? scaledInt < 0 : scaledInt <= 0)) {
+    throw new BusinessRuleError(
+      'INVALID_INPUT',
+      `${label} scaled result must be a ${allowZero ? 'non-negative' : 'positive'} safe integer`,
       {
         value,
         scale,
@@ -288,8 +296,12 @@ export async function finalizeRound(
   const btcStart = scaleToU64(validated.prices.btcStart, PRICE_SCALE, 'prices.btcStart');
   const btcEnd = scaleToU64(validated.prices.btcEnd, PRICE_SCALE, 'prices.btcEnd');
 
-  const goldAvgVol = scaleToU64(validated.avgVols.goldAvgVol, AVG_VOL_SCALE, 'avgVols.goldAvgVol');
-  const btcAvgVol = scaleToU64(validated.avgVols.btcAvgVol, AVG_VOL_SCALE, 'avgVols.btcAvgVol');
+  const goldAvgVol = scaleToU64(validated.avgVols.goldAvgVol, AVG_VOL_SCALE, 'avgVols.goldAvgVol', {
+    allowZero: true,
+  });
+  const btcAvgVol = scaleToU64(validated.avgVols.btcAvgVol, AVG_VOL_SCALE, 'avgVols.btcAvgVol', {
+    allowZero: true,
+  });
 
   // 정밀도 안전장치: scale 결과는 MAX_SAFE_INTEGER 범위 내여야 함 (number->BigInt 변환 오차 방지)
   if (
