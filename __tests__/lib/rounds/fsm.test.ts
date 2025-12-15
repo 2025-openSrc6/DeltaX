@@ -496,6 +496,7 @@ describe('FSM Unit Tests', () => {
         // 5. CALCULATING → SETTLED
         await transitionRoundStatus(mockRound.id, 'SETTLED', {
           platformFeeCollected: 100,
+          suiFinalizeTxDigest: '0xfinalize',
           suiSettlementObjectId: '0x456',
           settlementCompletedAt: Date.now(),
         });

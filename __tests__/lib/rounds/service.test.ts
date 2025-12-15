@@ -6,6 +6,8 @@ import type { BetService } from '@/lib/bets/service';
 import * as fsmModule from '@/lib/rounds/fsm';
 import { createPool } from '@/lib/sui/admin';
 import { lockPool } from '@/lib/sui/admin';
+import { finalizeRound } from '@/lib/sui/admin';
+import { calculateSettlementAvgVol } from '@/lib/rounds/avgVol.service';
 
 // fsm 모듈의 transitionRoundStatus를 spyOn으로 모킹
 vi.mock('@/lib/rounds/fsm', async (importOriginal) => {
@@ -19,6 +21,11 @@ vi.mock('@/lib/rounds/fsm', async (importOriginal) => {
 vi.mock('@/lib/sui/admin', () => ({
   createPool: vi.fn(),
   lockPool: vi.fn(),
+  finalizeRound: vi.fn(),
+}));
+
+vi.mock('@/lib/rounds/avgVol.service', () => ({
+  calculateSettlementAvgVol: vi.fn(),
 }));
 
 describe('RoundService', () => {
@@ -518,6 +525,8 @@ describe('RoundService', () => {
 
   describe('finalizeRound', () => {
     const mockTransition = fsmModule.transitionRoundStatus as Mock;
+    const mockFinalizeRoundOnChain = finalizeRound as Mock;
+    const mockCalculateAvgVol = calculateSettlementAvgVol as Mock;
     const NOW = Date.now();
 
     const createLockedRound = (overrides: Partial<Round> = {}): Round =>
@@ -549,8 +558,16 @@ describe('RoundService', () => {
         endPriceIsFallback: false,
         startPriceFallbackReason: null,
         endPriceFallbackReason: null,
-        suiPoolAddress: null,
+        suiPoolAddress: '0xpool',
         suiSettlementObjectId: null,
+        suiCreatePoolTxDigest: null,
+        suiLockPoolTxDigest: null,
+        suiFinalizeTxDigest: null,
+        suiFeeCoinObjectId: null,
+        goldAvgVol: null,
+        btcAvgVol: null,
+        priceSnapshotMeta: null,
+        avgVolMeta: null,
         platformFeeRate: '0.05',
         platformFeeCollected: 0,
         bettingOpenedAt: NOW - 6 * 60 * 60 * 1000,
@@ -571,6 +588,7 @@ describe('RoundService', () => {
 
     let mockRepository: {
       findLatestByStatus: Mock;
+      updateById: Mock;
     };
     let mockBetService: BetService;
     let roundService: RoundService;
@@ -580,10 +598,31 @@ describe('RoundService', () => {
       vi.setSystemTime(NOW);
       mockRepository = {
         findLatestByStatus: vi.fn(),
+        updateById: vi.fn(),
       };
       mockBetService = createMockBetService();
       roundService = new RoundService(mockRepository as unknown as RoundRepository, mockBetService);
       mockTransition.mockReset();
+
+      mockFinalizeRoundOnChain.mockReset();
+      mockFinalizeRoundOnChain.mockResolvedValue({
+        settlementId: '0xsettlement',
+        feeCoinId: '0xfeecoin',
+        txDigest: '0xfinalizedigest',
+      });
+
+      mockCalculateAvgVol.mockReset();
+      mockCalculateAvgVol.mockResolvedValue({
+        goldAvgVol: 0.3,
+        btcAvgVol: 3.5,
+        meta: {
+          source: 'mock',
+          interval: '1h',
+          lookback: 720,
+          method: 'returns_stddev',
+          minDataPoints: 360,
+        },
+      });
     });
 
     afterEach(() => {
@@ -620,22 +659,45 @@ describe('RoundService', () => {
       expect(mockTransition).not.toHaveBeenCalled();
     });
 
-    it('성공 시 CALCULATING 전이 후 settleRound를 호출한다', async () => {
+    it('성공 시 on-chain finalize_round 실행 후 SETTLED/VOIDED로 전이한다 (Job5 미호출)', async () => {
       const round = createLockedRound();
       mockRepository.findLatestByStatus.mockResolvedValue(round);
 
       const calculatingRound = { ...round, status: 'CALCULATING' as const };
-      mockTransition.mockResolvedValue(calculatingRound);
-      const settleSpy = vi
-        .spyOn(roundService, 'settleRound')
-        .mockResolvedValue({ status: 'no_bets', roundId: calculatingRound.id, settledCount: 0 });
+      const settledRound = {
+        ...round,
+        status: 'SETTLED' as const,
+        suiSettlementObjectId: '0xsettlement',
+      };
+      mockTransition.mockResolvedValueOnce(calculatingRound).mockResolvedValueOnce(settledRound);
+      const settleSpy = vi.spyOn(roundService, 'settleRound');
 
       const result = await roundService.finalizeRound(endPriceData);
 
       expect(result.status).toBe('finalized');
-      expect(mockTransition).toHaveBeenCalledTimes(1);
-      expect(mockTransition).toHaveBeenCalledWith(round.id, 'CALCULATING', expect.any(Object));
-      expect(settleSpy).toHaveBeenCalledWith(calculatingRound.id);
+      expect(mockFinalizeRoundOnChain).toHaveBeenCalledTimes(1);
+      expect(mockRepository.updateById).toHaveBeenCalledWith(
+        round.id,
+        expect.objectContaining({
+          suiFinalizeTxDigest: '0xfinalizedigest',
+          suiSettlementObjectId: '0xsettlement',
+          suiFeeCoinObjectId: '0xfeecoin',
+        }),
+      );
+      expect(mockTransition).toHaveBeenCalledTimes(2);
+      expect(mockTransition).toHaveBeenNthCalledWith(
+        1,
+        round.id,
+        'CALCULATING',
+        expect.any(Object),
+      );
+      expect(mockTransition).toHaveBeenNthCalledWith(
+        2,
+        round.id,
+        expect.any(String),
+        expect.any(Object),
+      );
+      expect(settleSpy).not.toHaveBeenCalled();
     });
   });
 });

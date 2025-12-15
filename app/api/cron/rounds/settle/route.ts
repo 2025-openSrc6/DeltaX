@@ -1,6 +1,5 @@
 import { verifyCronAuth } from '@/lib/cron/auth';
 import { cronLogger } from '@/lib/cron/logger';
-import { registry } from '@/lib/registry';
 import { createErrorResponse, createSuccessResponse, handleApiError } from '@/lib/shared/response';
 import { ValidationError } from '@/lib/shared/errors';
 import { NextRequest } from 'next/server';
@@ -10,11 +9,9 @@ import { NextRequest } from 'next/server';
  *
  * Job 5: Settlement Processor
  *
- * 얇은 래퍼 - 실제 로직은 RoundService.settleRound()에서 처리
- *
- * 호출 방식:
- * - 주로 Job 4에서 내부 서비스 호출로 실행됨 (HTTP 아님)
- * - 이 Route는 Recovery나 수동 재시도용
+ * 결정 B(2025-12-15): Job 5(서버 배당/정산) 폐기.
+ * - 배당은 유저 Claim(prepare/execute + claim_payout) 모델로 수행한다.
+ * - 따라서 이 엔드포인트는 더 이상 사용하지 않는다.
  *
  * @example
  * // Recovery에서
@@ -41,62 +38,14 @@ export async function POST(request: NextRequest) {
       throw new ValidationError('roundId is required', { roundId });
     }
 
-    cronLogger.info('[Job 5] Starting settlement', { roundId });
-
-    // 3. Service 호출 (모든 로직은 여기서)
-    const result = await registry.roundService.settleRound(roundId);
-
-    // 4. 결과 반환
     const jobDuration = Date.now() - jobStartTime;
-    cronLogger.info('[Job 5] Completed', {
-      roundId,
-      status: result.status,
-      durationMs: jobDuration,
-    });
-
-    switch (result.status) {
-      case 'settled':
-      case 'already_settled':
-      case 'no_bets':
-        return createSuccessResponse({
-          roundId: result.roundId,
-          status: result.status,
-          settledCount: result.settledCount,
-          failedCount: result.failedCount,
-          totalPayout: result.totalPayout,
-          message: result.message,
-        });
-      case 'partial':
-        return createErrorResponse(
-          500,
-          'PARTIAL_SETTLEMENT',
-          result.message ?? 'Settlement partially completed',
-          {
-            roundId: result.roundId,
-            settledCount: result.settledCount,
-            failedCount: result.failedCount,
-            totalPayout: result.totalPayout,
-            status: result.status,
-          },
-        );
-      case 'failed':
-        return createErrorResponse(
-          500,
-          'SETTLEMENT_FAILED',
-          result.message ?? 'Settlement failed',
-          {
-            roundId: result.roundId,
-            status: result.status,
-            settledCount: result.settledCount,
-            failedCount: result.failedCount,
-          },
-        );
-      default:
-        return createErrorResponse(500, 'UNKNOWN_STATUS', 'Unknown settleRound status', {
-          roundId: result.roundId,
-          status: result.status,
-        });
-    }
+    cronLogger.warn('[Job 5] Deprecated endpoint called', { roundId, durationMs: jobDuration });
+    return createErrorResponse(
+      410,
+      'DEPRECATED_JOB',
+      'Job 5 is deprecated. Use user claim model (prepare/execute + claim_payout).',
+      { roundId },
+    );
   } catch (error) {
     const jobDuration = Date.now() - jobStartTime;
     cronLogger.error('[Job 5] Failed', {

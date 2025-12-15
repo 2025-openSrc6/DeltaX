@@ -14,10 +14,8 @@ import { NextRequest } from 'next/server';
  *
  * 책임:
  * 1. 가격 데이터 가져오기 (현준님 API 또는 Mock)
- * 2. Service 호출 (승자 판정, 배당 계산, 정산 모두 처리됨)
+ * 2. Service 호출 (on-chain finalize_round + 영수증 저장 + claim-ready 상태 전이)
  * 3. 결과 반환
- *
- * Note: Job 5 (정산)는 finalizeRound 내부에서 자동 호출됨
  */
 export async function POST(request: NextRequest) {
   const jobStartTime = Date.now();
