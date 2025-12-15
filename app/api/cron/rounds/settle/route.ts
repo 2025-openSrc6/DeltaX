@@ -1,6 +1,6 @@
 import { verifyCronAuth } from '@/lib/cron/auth';
 import { cronLogger } from '@/lib/cron/logger';
-import { createErrorResponse, createSuccessResponse, handleApiError } from '@/lib/shared/response';
+import { createErrorResponse, handleApiError } from '@/lib/shared/response';
 import { ValidationError } from '@/lib/shared/errors';
 import { NextRequest } from 'next/server';
 

@@ -11,6 +11,7 @@ import { Transaction } from '@mysten/sui/transactions';
 import { ConnectButton } from '@mysten/dapp-kit';
 import { useSession } from '@/app/hooks/useSession';
 import { toBase64 } from '@mysten/sui/utils';
+import type { CoinStruct } from '@mysten/sui/client';
 
 // 1 DEL = 10^9 MIST
 const MIST_PER_DEL = 1_000_000_000;
@@ -102,8 +103,8 @@ export default function DevDemoPage() {
     logRound(`Starting ${action}...`);
     try {
       let url = '/api/cron/rounds/' + action;
-      let method = 'POST';
-      let body: any = undefined;
+      const method = 'POST';
+      let body: unknown = undefined;
 
       // Special case for Create: Use Admin API for DEMO_3MIN
       if (action === 'create') {
@@ -173,11 +174,11 @@ export default function DevDemoPage() {
     try {
       let hasNextPage = true;
       let cursor: string | null | undefined = null;
-      let allCoins: any[] = [];
+      let allCoins: CoinStruct[] = [];
 
       // Fetch all pages
       while (hasNextPage) {
-        const res: any = await suiClient.getCoins({
+        const res = await suiClient.getCoins({
           owner: currentWallet.accounts[0].address,
           cursor,
           limit: 50,
@@ -283,6 +284,7 @@ export default function DevDemoPage() {
   };
 
   // ----- Actions: Claim Flow -----
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [myBets, setMyBets] = useState<any[]>([]);
 
   const fetchMyBets = async () => {
@@ -566,7 +568,9 @@ export default function DevDemoPage() {
                   <label className="text-xs text-zinc-500 uppercase block mb-1">Prediction</label>
                   <select
                     value={prediction}
-                    onChange={(e: any) => setPrediction(e.target.value)}
+                    onChange={(e: React.ChangeEvent<HTMLSelectElement>) =>
+                      setPrediction(e.target.value as 'GOLD' | 'BTC')
+                    }
                     className="w-full bg-zinc-950 border border-zinc-700 rounded px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
                   >
                     <option value="GOLD">GOLD</option>
