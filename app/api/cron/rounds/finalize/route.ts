@@ -4,6 +4,7 @@ import { registry } from '@/lib/registry';
 import { PriceData } from '@/lib/rounds/types';
 import { createErrorResponse, createSuccessResponse, handleApiError } from '@/lib/shared/response';
 import { NextRequest } from 'next/server';
+import { fetchEndPriceSnapshot } from '@/lib/rounds/priceSnapshot.service';
 
 /**
  * POST /api/cron/rounds/finalize
@@ -29,14 +30,8 @@ export async function POST(request: NextRequest) {
       return authResult.response;
     }
 
-    // 2. End Price 스냅샷 가져오기
-    // TODO: 현준님 API 연동 (getPrices() 호출)
-    const endPriceData: PriceData = {
-      gold: 2680.5, // Mock data - 실제로는 getPrices()
-      btc: 99234.0,
-      timestamp: Date.now(),
-      source: 'mock',
-    };
+    // 2. End Price 스냅샷 가져오기 (Binance 1m kline close)
+    const endPriceData: PriceData = await fetchEndPriceSnapshot();
 
     cronLogger.info('[Job 4] End price data fetched', {
       gold: endPriceData.gold,
