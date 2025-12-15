@@ -35,26 +35,29 @@
 
 ### 1.2 오프체인 (Next.js / D1)
 
-| 항목                                   | 상태 | 위치 / 비고                                                                        |
-| -------------------------------------- | ---- | ---------------------------------------------------------------------------------- |
-| 베팅 `place_bet` 플로우                | ✅   | `POST /api/bets` + `POST /api/bets/execute`                                        |
-| 라운드 크론 뼈대                       | ✅   | `app/api/cron/rounds/{create,open,lock,finalize}/route.ts` (settle는 Job5 폐기)    |
-| **온체인 lock/finalize 호출**          | ✅   | `RoundService.openRound/lockRound/finalizeRound` → `lib/sui/admin.ts`              |
-| **payout(배당) 호출**                  | ✅   | Job5 폐기. 유저 Claim(prepare/execute + `claim_payout`)로 전환 완료(서버 경유)     |
-| RoundService 승자 판정                 | ✅   | on-chain과 동일한 정규화 강도 비교(cross-multiply)로 계산                           |
-| 가격 스냅샷 API                        | ✅   | `GET /api/price/snapshot` (Binance 기반)                                           |
-| **크론에서 가격 API 호출**             | ❌   | 현재 mock 가격 사용 중 (hardcoded)                                                 |
-| `avgVol` 계산 라이브러리               | ✅   | `lib/services/normalizedStrength.ts`                                               |
-| **정산에 avgVol 통합**                 | ✅   | `lib/rounds/avgVol.service.ts` + Job4에서 on-chain `finalize_round`에 주입          |
-| rounds 스키마 가격 컬럼                | ✅   | `goldStartPrice`, `goldEndPrice`, `btcStartPrice`, `btcEndPrice` 존재              |
-| **rounds 스키마 avgVol/영수증 컬럼**   | ✅   | `goldAvgVol`, `btcAvgVol`, `avgVolMeta`, `priceSnapshotMeta`, `sui*` 필드 존재     |
-| `priceSnapshot.service.ts`             | ❌   | 설계 문서에만 있고 미구현                                                          |
-| `fetchTickPrice` (경량 API)            | ❌   | 설계 문서에만 있고 미구현                                                          |
-| Sui 래퍼 (create/lock/finalize/payout) | ✅   | `lib/sui/admin.ts` 구현 완료(주의: payout은 유저 claim 모델 권장)                  |
-| `SUI_CAP_OBJECT_ID` 사용               | ✅   | `SUI_ADMIN_CAP_ID` 우선, 없으면 `SUI_CAP_OBJECT_ID` fallback 처리                  |
-| 출석 보상 API/서비스                   | ❌   | 미구현                                                                             |
-| Settlement tx digest/영수증 저장       | ✅   | Job4에서 `suiFinalizeTxDigest/suiSettlementObjectId/suiFeeCoinObjectId` 저장        |
-| Job6(Recovery)                         | ⚠️   | 라운드 recovery 골격은 있으나, bet/claim 복구 API는 아직 없음(다음 작업)           |
+| 항목                                   | 상태 | 위치 / 비고                                                                      |
+| -------------------------------------- | ---- | -------------------------------------------------------------------------------- |
+| 베팅 `place_bet` 플로우                | ✅   | `POST /api/bets` + `POST /api/bets/execute`                                      |
+| 베팅 조회(홈 공개 피드)                | ✅   | `GET /api/bets/public` (주소 마스킹 + on-chain 검증 키 노출)                     |
+| 베팅 조회(내 베팅)                     | ✅   | `GET /api/me/bets` (인증 필수, userId는 세션에서 결정)                           |
+| 라운드 크론 뼈대                       | ✅   | `app/api/cron/rounds/{create,open,lock,finalize}/route.ts` (settle는 Job5 폐기)  |
+| **온체인 lock/finalize 호출**          | ✅   | `RoundService.openRound/lockRound/finalizeRound` → `lib/sui/admin.ts`            |
+| **payout(배당) 호출**                  | ✅   | Job5 폐기. 유저 Claim(prepare/execute + `claim_payout`)로 전환 완료(서버 경유)   |
+| RoundService 승자 판정                 | ✅   | on-chain과 동일한 정규화 강도 비교(cross-multiply)로 계산                        |
+| 가격 스냅샷 API                        | ✅   | `GET /api/price/snapshot` (Binance 기반)                                         |
+| **크론에서 가격 API 호출**             | ❌   | `app/api/cron/rounds/open`, `finalize`가 아직 mock 가격 사용 (머지 후 교체 필요) |
+| `avgVol` 계산 라이브러리               | ✅   | `lib/services/normalizedStrength.ts`                                             |
+| **정산에 avgVol 통합**                 | ✅   | `lib/rounds/avgVol.service.ts` + Job4에서 on-chain `finalize_round`에 주입       |
+| rounds 스키마 가격 컬럼                | ✅   | `goldStartPrice`, `goldEndPrice`, `btcStartPrice`, `btcEndPrice` 존재            |
+| **rounds 스키마 avgVol/영수증 컬럼**   | ✅   | `goldAvgVol`, `btcAvgVol`, `avgVolMeta`, `priceSnapshotMeta`, `sui*` 필드 존재   |
+| `priceSnapshot.service.ts`             | ❌   | 설계 문서에만 있고 미구현                                                        |
+| `fetchTickPrice` (경량 API)            | ❌   | 설계 문서에만 있고 미구현                                                        |
+| Sui 래퍼 (create/lock/finalize/payout) | ✅   | `lib/sui/admin.ts` 구현 완료(주의: payout은 유저 claim 모델 권장)                |
+| `SUI_CAP_OBJECT_ID` 사용               | ✅   | `SUI_ADMIN_CAP_ID` 우선, 없으면 `SUI_CAP_OBJECT_ID` fallback 처리                |
+| 출석 보상 API/서비스                   | ❌   | 미구현                                                                           |
+| Settlement tx digest/영수증 저장       | ✅   | Job4에서 `suiFinalizeTxDigest/suiSettlementObjectId/suiFeeCoinObjectId` 저장     |
+| bet/claim recovery API                 | ✅   | `POST /api/bets/recover`, `POST /api/bets/claim/recover` (cron/auth 전용)        |
+| Job6(Recovery)                         | ⚠️   | 라운드 recovery 골격 보완 필요(라운드 stuck 케이스/알림/백필 범위 확정)          |
 
 ### 1.3 차트 데이터 수집 (현준 담당)
 
@@ -185,9 +188,11 @@ const winner = goldChange > btcChange ? 'GOLD' : 'BTC';
 
 ### 2.7 다음 작업 (보안/운영)
 
-- [ ] `/api/bets/execute`에서 `userId`를 body로 받지 않도록 인증 흐름 일괄화(쿠키 `suiAddress` → userId)
-- [ ] bet/claim recovery API 추가 (체인 성공, DB 실패 보정)
+- [x] `/api/bets/execute`에서 `userId`를 body로 받지 않도록 인증 흐름 일괄화(쿠키 `suiAddress` → userId)
+- [x] bet/claim recovery API 추가 (체인 성공, DB 실패 보정) — `POST /api/bets/recover`, `POST /api/bets/claim/recover`
 - [ ] Settlement 영수증 UI/조회 연결 (round별 settlementId 링크/표시)
+- [ ] (현준 PR 머지 후) Job2/Job4 가격 스냅샷 교체: `CHART_TEAM_REQUEST.md`의 1m kline close 기반으로 start/end 가격 + 메타 저장
+- [ ] (현준 PR 머지 후) avgVol 입력 메타 강화: 1h 720 klines fetch meta를 `avgVolMeta`에 포함(룰 고정/검증 가능성)
 
 ---
 

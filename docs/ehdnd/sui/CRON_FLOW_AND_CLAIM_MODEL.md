@@ -104,6 +104,11 @@
   - `priceSnapshotMeta`(start 메타 포함)
   - `suiPoolAddress`(+ create tx digest)
 
+#### (TODO) 가격 스냅샷 연동 가이드 (현준 PR 머지 후)
+
+- 목표: “정산 입력 가격은 재현 가능해야 한다” → **tick이 아니라 1m kline close** 사용
+- 구현 가이드/결정 기록: `docs/ehdnd/sui/PRICE_DATA_INTEGRATION_DECISION.md`
+
 ### Job 3) Betting Locker — `/api/cron/rounds/lock`
 
 - **목표**: lockTime 이후 `BETTING_LOCKED` 전이 + (권장) on-chain lock 수행
@@ -137,6 +142,10 @@
   - `rounds.status`:
     - `SETTLED`: Settlement 생성 완료(Claim 가능)
     - `VOIDED`: Settlement는 생성되었지만 outcome=VOID(Claim 시 원금 환불)
+
+#### (TODO) end price 스냅샷 연동 가이드 (현준 PR 머지 후)
+
+- 구현 가이드/결정 기록: `docs/ehdnd/sui/PRICE_DATA_INTEGRATION_DECISION.md`
 
 #### 구현 메모 (현재 코드 기준)
 
@@ -219,6 +228,8 @@
   - claim을 서버 경유로 강제하면 거의 불필요
   - direct claim 허용 시: 이벤트/tx 기반으로 DB 반영 job 필요
 
+> 상세 설계안: `docs/ehdnd/sui/RECOVERY_DESIGN.md`
+
 ---
 
 ## 7) 다음으로 할 일 (TODO / 운영 리스크 최소화)
@@ -235,6 +246,32 @@
 - **검증 규칙**
   - `bet.userId === authenticatedUserId`가 아니면 거부
   - nonce record에도 `userId`를 바인딩하고 execute 시 동일성 확인
+
+#### ✅ 구현 상태 (2025-12-15 반영)
+
+- `POST /api/bets`
+  - 세션 기반(`cookie.suiAddress`)으로 `{ userId, suiAddress }`를 확정하고,
+  - request body의 `userAddress`는 **세션 주소와 일치 검증 + 서버가 세션 주소로 덮어쓰기**로 처리한다.
+- `POST /api/bets/execute`
+  - **`userId`를 request body에서 받지 않는다.**
+  - 서버가 세션의 `userId`를 사용해 bet owner/nonce 바인딩을 검증한다.
+- `POST /api/bets/claim/prepare`, `POST /api/bets/claim/execute`
+  - `requireAuth()` 기반으로 세션에서 userId를 확보하고,
+  - `bet.userId === session.userId` 검증을 통해 소유권을 보장한다.
+
+---
+
+### 7.1.1) Bet 조회/공개 피드 분리 (2025-12-15 의사결정 반영)
+
+홈 공개 피드와 “내 베팅”은 권한/노출 필드가 다르므로 분리한다.
+
+- `GET /api/bets/public`: 홈 공개 피드 (인증 불필요)
+  - 서버 경유로 생성/체결된 bets(D1 인덱스)만 노출
+  - 지갑 주소는 기본 마스킹(`0x12ab…89ef`) + on-chain 검증 링크용 키(txDigest/objectId) 포함
+- `GET /api/me/bets`: 내 베팅 목록 (인증 필요)
+  - userId는 세션에서 결정
+- (Legacy) `GET /api/bets`
+  - 호환을 위해 유지하되, `userId` query는 **반드시 본인(userId==session.userId)**만 허용한다.
 
 ### 7.2) Claim/Bet Recovery (체인 성공, DB 실패)
 
