@@ -14,7 +14,7 @@
 
 import { getDb } from '@/lib/db';
 import { rounds } from '@/db/schema';
-import { and, asc, desc, eq, inArray, isNull, lt, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNotNull, isNull, lt, or, sql } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
 import type {
   Round,
@@ -278,6 +278,74 @@ export class RoundRepository {
         ),
       )
       .orderBy(asc(rounds.roundEndedAt));
+  }
+
+  // ============================================
+  // Recovery (Safe Backfill) Queries
+  // ============================================
+
+  /**
+   * create_pool txDigest는 존재하지만 poolId가 누락된 라운드 조회
+   * - Safe Backfill: tx 조회로 BettingPool object id를 재파싱하여 채움
+   */
+  async findRoundsMissingPoolAddressWithCreateDigest(limit = 50): Promise<Round[]> {
+    const db = getDb();
+    return db
+      .select()
+      .from(rounds)
+      .where(and(isNotNull(rounds.suiCreatePoolTxDigest), isNull(rounds.suiPoolAddress)))
+      .orderBy(desc(rounds.startTime))
+      .limit(limit);
+  }
+
+  /**
+   * finalize txDigest는 존재하지만 settlementId/feeCoinId가 누락된 라운드 조회
+   * - Safe Backfill: tx 조회로 Settlement object id / fee coin id를 재파싱하여 채움
+   */
+  async findRoundsMissingFinalizeArtifactsWithFinalizeDigest(limit = 50): Promise<Round[]> {
+    const db = getDb();
+    return db
+      .select()
+      .from(rounds)
+      .where(
+        and(
+          isNotNull(rounds.suiFinalizeTxDigest),
+          or(isNull(rounds.suiSettlementObjectId), isNull(rounds.suiFeeCoinObjectId)),
+        ),
+      )
+      .orderBy(desc(rounds.startTime))
+      .limit(limit);
+  }
+
+  async backfillPoolAddressIfMissing(roundId: string, poolId: string): Promise<boolean> {
+    const db = getDb();
+    const res = await db
+      .update(rounds)
+      .set({ suiPoolAddress: poolId, updatedAt: Date.now() })
+      .where(and(eq(rounds.id, roundId), isNull(rounds.suiPoolAddress)))
+      .returning();
+    return res.length > 0;
+  }
+
+  async backfillFinalizeArtifactsIfMissing(
+    roundId: string,
+    input: { settlementId?: string; feeCoinId?: string; txDigest: string },
+  ): Promise<boolean> {
+    const db = getDb();
+    const now = Date.now();
+    const updateData: Partial<Round> = { updatedAt: now };
+    if (input.settlementId) updateData.suiSettlementObjectId = input.settlementId;
+    if (input.feeCoinId) updateData.suiFeeCoinObjectId = input.feeCoinId;
+
+    // txDigest는 이미 존재하는 케이스가 대상이지만, 혹시 비어있는 경우에만 보정
+    updateData.suiFinalizeTxDigest = input.txDigest;
+
+    const res = await db
+      .update(rounds)
+      .set(updateData)
+      .where(eq(rounds.id, roundId))
+      .returning();
+    return res.length > 0;
   }
 
   /**

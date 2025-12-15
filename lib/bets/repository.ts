@@ -14,7 +14,7 @@
 
 import { getDb } from '@/lib/db';
 import { bets, rounds, users } from '@/db/schema';
-import { and, asc, desc, eq, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, isNotNull, isNull, ne, sql } from 'drizzle-orm';
 import type { SQL } from 'drizzle-orm';
 import type { Bet } from '@/db/schema/bets';
 import type { Round } from '@/db/schema/rounds';
@@ -197,6 +197,46 @@ export class BetRepository {
       throw new NotFoundError('Bet', id);
     }
     return result[0];
+  }
+
+  // ============================================
+  // Recovery (Safe Backfill) Queries
+  // ============================================
+
+  /**
+   * 체인 execute는 성공했고(txDigest 존재), betObjectId만 누락된 베팅 목록
+   */
+  async findExecutedBetsMissingBetObjectId(limit = 50): Promise<Bet[]> {
+    const db = getDb();
+    return db
+      .select()
+      .from(bets)
+      .where(and(eq(bets.chainStatus, 'EXECUTED'), isNotNull(bets.suiTxHash), isNull(bets.suiBetObjectId)))
+      .orderBy(desc(bets.createdAt))
+      .limit(limit);
+  }
+
+  async backfillBetObjectIdIfMissing(betId: string, betObjectId: string): Promise<boolean> {
+    const db = getDb();
+    const res = await db
+      .update(bets)
+      .set({ suiBetObjectId: betObjectId, processedAt: Date.now() })
+      .where(and(eq(bets.id, betId), isNull(bets.suiBetObjectId)))
+      .returning();
+    return res.length > 0;
+  }
+
+  /**
+   * claim txDigest는 있는데 DB 반영이 덜 된(=COMPLETED가 아닌) 베팅 목록
+   */
+  async findClaimedBetsMissingDbFinalize(limit = 50): Promise<Bet[]> {
+    const db = getDb();
+    return db
+      .select()
+      .from(bets)
+      .where(and(isNotNull(bets.suiPayoutTxHash), ne(bets.settlementStatus, 'COMPLETED')))
+      .orderBy(desc(bets.createdAt))
+      .limit(limit);
   }
 
   /**
