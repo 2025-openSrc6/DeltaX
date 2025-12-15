@@ -250,15 +250,21 @@ describe('BetService', () => {
   describe('executeBetWithUpdate', () => {
     it('executes bet on chain then finalizes', async () => {
       betRepository.findById.mockResolvedValue(createBet());
-      suiService.executeBetTransaction.mockResolvedValue({ digest: 'tx-digest' });
-
-      const result = await service.executeBetWithUpdate({
-        txBytes: 'dGVzdA==',
-        userSignature: 'sig',
-        nonce: 'nonce-1234',
-        betId: BET_ID,
-        userId: USER_ID,
+      suiService.executeBetTransaction.mockResolvedValue({
+        digest: 'tx-digest',
+        betObjectId: '0xbet-object',
       });
+
+      const result = await service.executeBetWithUpdate(
+        {
+          txBytes: 'dGVzdA==',
+          userSignature: 'sig',
+          nonce: 'nonce-1234',
+          betId: BET_ID,
+          userId: USER_ID,
+        },
+        USER_ID,
+      );
 
       expect(suiService.executeBetTransaction).toHaveBeenCalledWith({
         txBytes: 'dGVzdA==',
@@ -274,8 +280,9 @@ describe('BetService', () => {
         prediction: 'GOLD',
         amount: 1_000,
         suiTxHash: 'tx-digest',
+        suiBetObjectId: '0xbet-object',
       });
-      expect(result).toEqual({ digest: 'tx-digest' });
+      expect(result).toEqual({ digest: 'tx-digest', betObjectId: '0xbet-object' });
     });
 
     it('returns early when bet already executed', async () => {
@@ -283,13 +290,16 @@ describe('BetService', () => {
         createBet({ chainStatus: 'EXECUTED', suiTxHash: 'existing' }),
       );
 
-      const result = await service.executeBetWithUpdate({
-        txBytes: 'dGVzdA==',
-        userSignature: 'sig',
-        nonce: 'nonce-1234',
-        betId: BET_ID,
-        userId: USER_ID,
-      });
+      const result = await service.executeBetWithUpdate(
+        {
+          txBytes: 'dGVzdA==',
+          userSignature: 'sig',
+          nonce: 'nonce-1234',
+          betId: BET_ID,
+          userId: USER_ID,
+        },
+        USER_ID,
+      );
 
       expect(suiService.executeBetTransaction).not.toHaveBeenCalled();
       expect(betRepository.finalizeExecution).not.toHaveBeenCalled();
@@ -300,13 +310,16 @@ describe('BetService', () => {
       betRepository.findById.mockResolvedValue(undefined);
 
       await expect(
-        service.executeBetWithUpdate({
-          txBytes: 'dGVzdA==',
-          userSignature: 'sig',
-          nonce: 'nonce-1234',
-          betId: BET_ID,
-          userId: USER_ID,
-        }),
+        service.executeBetWithUpdate(
+          {
+            txBytes: 'dGVzdA==',
+            userSignature: 'sig',
+            nonce: 'nonce-1234',
+            betId: BET_ID,
+            userId: USER_ID,
+          },
+          USER_ID,
+        ),
       ).rejects.toBeInstanceOf(NotFoundError);
     });
 
@@ -314,13 +327,16 @@ describe('BetService', () => {
       betRepository.findById.mockResolvedValue(createBet({ userId: USER_ID }));
 
       await expect(
-        service.executeBetWithUpdate({
-          txBytes: 'dGVzdA==',
-          userSignature: 'sig',
-          nonce: 'nonce-1234',
-          betId: BET_ID,
-          userId: '44444444-4444-4444-8444-444444444444',
-        }),
+        service.executeBetWithUpdate(
+          {
+            txBytes: 'dGVzdA==',
+            userSignature: 'sig',
+            nonce: 'nonce-1234',
+            betId: BET_ID,
+            userId: '44444444-4444-4444-8444-444444444444',
+          },
+          '44444444-4444-4444-8444-444444444444',
+        ),
       ).rejects.toBeInstanceOf(BusinessRuleError);
     });
   });
