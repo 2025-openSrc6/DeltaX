@@ -8,6 +8,11 @@ import { createPool } from '@/lib/sui/admin';
 import { lockPool } from '@/lib/sui/admin';
 import { finalizeRound } from '@/lib/sui/admin';
 import { calculateSettlementAvgVol } from '@/lib/rounds/avgVol.service';
+import {
+  fetchTransactionBlockForRecovery,
+  parseCreatedFeeCoinIdFromTx,
+  parseCreatedSettlementIdFromTx,
+} from '@/lib/sui/recovery';
 
 // fsm 모듈의 transitionRoundStatus를 spyOn으로 모킹
 vi.mock('@/lib/rounds/fsm', async (importOriginal) => {
@@ -26,6 +31,13 @@ vi.mock('@/lib/sui/admin', () => ({
 
 vi.mock('@/lib/rounds/avgVol.service', () => ({
   calculateSettlementAvgVol: vi.fn(),
+}));
+
+vi.mock('@/lib/sui/recovery', () => ({
+  fetchTransactionBlockForRecovery: vi.fn(),
+  parseCreatedFeeCoinIdFromTx: vi.fn(),
+  parseCreatedPoolIdFromTx: vi.fn(),
+  parseCreatedSettlementIdFromTx: vi.fn(),
 }));
 
 describe('RoundService', () => {
@@ -230,6 +242,19 @@ describe('RoundService', () => {
       expect(result.status).toBe('not_ready');
       expect(result.round).toEqual(futureRound);
       expect(result.message).toContain('not ready');
+      expect(mockTransition).not.toHaveBeenCalled();
+    });
+
+    it('시작가가 0/NaN이면 open을 건너뛰고 not_ready를 반환한다', async () => {
+      const round = createMockRound();
+      mockRepository.findLatestByStatus.mockResolvedValue(round);
+
+      const badPrices: PriceData = { ...mockPrices, gold: 0 };
+
+      const result = await roundService.openRound(badPrices);
+
+      expect(result.status).toBe('not_ready');
+      expect(mockCreatePool).not.toHaveBeenCalled();
       expect(mockTransition).not.toHaveBeenCalled();
     });
 
@@ -527,6 +552,9 @@ describe('RoundService', () => {
     const mockTransition = fsmModule.transitionRoundStatus as Mock;
     const mockFinalizeRoundOnChain = finalizeRound as Mock;
     const mockCalculateAvgVol = calculateSettlementAvgVol as Mock;
+    const mockFetchTx = fetchTransactionBlockForRecovery as Mock;
+    const mockParseSettlementId = parseCreatedSettlementIdFromTx as Mock;
+    const mockParseFeeCoinId = parseCreatedFeeCoinIdFromTx as Mock;
     const NOW = Date.now();
 
     const createLockedRound = (overrides: Partial<Round> = {}): Round =>
@@ -623,6 +651,10 @@ describe('RoundService', () => {
           minDataPoints: 360,
         },
       });
+
+      mockFetchTx.mockReset();
+      mockParseSettlementId.mockReset();
+      mockParseFeeCoinId.mockReset();
     });
 
     afterEach(() => {
@@ -698,6 +730,56 @@ describe('RoundService', () => {
         expect.any(Object),
       );
       expect(settleSpy).not.toHaveBeenCalled();
+    });
+
+    it('기존 finalize digest가 있으면 체인 조회로 settlement/fee ID를 보강한다', async () => {
+      const round = createLockedRound({
+        suiFinalizeTxDigest: '0xexisting',
+        suiSettlementObjectId: null,
+        suiFeeCoinObjectId: null,
+      });
+      mockRepository.findLatestByStatus.mockResolvedValue(round);
+
+      mockFetchTx.mockResolvedValue({} as never);
+      mockParseSettlementId.mockReturnValue('0xsettlement');
+      mockParseFeeCoinId.mockReturnValue('0xfeecoin');
+
+      const calculatingRound = { ...round, status: 'CALCULATING' as const };
+      const settledRound = { ...round, status: 'SETTLED' as const };
+      mockTransition.mockResolvedValueOnce(calculatingRound).mockResolvedValueOnce(settledRound);
+
+      const result = await roundService.finalizeRound(endPriceData);
+
+      expect(result.status).toBe('finalized');
+      expect(mockFinalizeRoundOnChain).not.toHaveBeenCalled();
+      expect(mockFetchTx).toHaveBeenCalledWith('0xexisting');
+      expect(mockRepository.updateById).toHaveBeenCalledWith(round.id, {
+        suiSettlementObjectId: '0xsettlement',
+        suiFeeCoinObjectId: '0xfeecoin',
+      });
+    });
+
+    it('VOID 처리 시 payoutPool/fee가 0으로 저장된다', async () => {
+      const round = createLockedRound();
+      mockRepository.findLatestByStatus.mockResolvedValue(round);
+
+      mockCalculateAvgVol.mockResolvedValue({
+        goldAvgVol: 0,
+        btcAvgVol: 0,
+        meta: { source: 'mock' },
+      });
+
+      const calculatingRound = { ...round, status: 'CALCULATING' as const };
+      const voidedRound = { ...round, status: 'VOIDED' as const };
+      mockTransition.mockResolvedValueOnce(calculatingRound).mockResolvedValueOnce(voidedRound);
+
+      const result = await roundService.finalizeRound(endPriceData);
+
+      expect(result.status).toBe('finalized');
+      const transitionPayload = mockTransition.mock.calls[0]?.[2];
+      expect(transitionPayload?.payoutPool).toBe(0);
+      const secondPayload = mockTransition.mock.calls[1]?.[2];
+      expect(secondPayload?.platformFeeCollected).toBe(0);
     });
   });
 });
