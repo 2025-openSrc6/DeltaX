@@ -21,6 +21,7 @@ export const executeSuiBetTxSchema = z.object({
 // ============ Admin (Cron) Wrapper Schemas ============
 
 const finitePositiveNumber = z.number().finite().positive();
+const finiteNonNegativeNumber = z.number().finite().nonnegative();
 
 /**
  * 가격은 *100 (소수점 2자리)로 스케일링되어 on-chain `u64`로 들어감.
@@ -32,7 +33,8 @@ export const priceNumberSchema = finitePositiveNumber.max(1e13);
  * avgVol(%)는 *10_000 스케일링되어 on-chain `u64`로 들어감.
  * - 스펙상 매우 작아야 하므로 넉넉히 1000% 상한.
  */
-export const avgVolNumberSchema = finitePositiveNumber.max(1000);
+// avgVol이 0이면 VOID로 처리할 수 있으므로 0 허용
+export const avgVolNumberSchema = finiteNonNegativeNumber.max(1000);
 
 export const createPoolInputSchema = z.object({
   roundNumber: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),

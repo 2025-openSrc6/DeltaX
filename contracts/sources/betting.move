@@ -20,6 +20,15 @@ const PREDICTION_BTC: u8 = 2;
 const WINNER_GOLD: u8 = 1;
 const WINNER_BTC: u8 = 2;
 
+// 정산 결과(outcome)
+const OUTCOME_SETTLED: u8 = 1;
+const OUTCOME_VOID: u8 = 2;
+
+// VOID 사유
+const VOID_NONE: u8 = 0;
+const VOID_INVALID_AVGVOL: u8 = 1;
+const VOID_WINNING_POOL_ZERO: u8 = 2;
+
 // 설정
 const MIN_BET_AMOUNT: u64 = 100_000_000_000; // 100 DEL
 const PLATFORM_FEE_RATE: u64 = 5; // 5%
@@ -47,6 +56,7 @@ const E_NOT_WINNER: u64 = 13;
 const E_ROUND_MISMATCH: u64 = 14;
 const E_BET_POOL_MISMATCH: u64 = 15;
 const E_INVALID_AVGVOL: u64 = 16;
+const E_SETTLEMENT_VOID: u64 = 17;
 const E_OVERFLOW: u64 = 100;
 
 // ============ Structs ============
@@ -108,6 +118,10 @@ public struct Settlement has key {
     btc_avg_vol: u64,
     // 결과
     winner: u8, // 1=GOLD, 2=BTC (동점 시 GOLD 승리)
+    // 정산 결과: 1=SETTLED, 2=VOID
+    outcome: u8,
+    // VOID 사유 (outcome=VOID일 때만 의미 있음)
+    void_reason: u8,
     // avgVol 계산 메타 (검증용 고정값)
     vol_window_days: u8, // 30
     vol_sampling: vector<u8>, // "1h"
@@ -140,6 +154,8 @@ public struct SettlementCreated has copy, drop {
     pool_id: ID,
     round_id: u64,
     winner: u8,
+    outcome: u8,
+    void_reason: u8,
     // 가격 데이터
     gold_start: u64,
     gold_end: u64,
@@ -412,10 +428,19 @@ public fun finalize_round(
     // 1. 검증
     assert!(pool.status == STATUS_LOCKED, E_NOT_LOCKED);
     assert!(now >= pool.end_time, E_TOO_EARLY);
-    // avgVol은 0이면 정규화 강도 비교가 무의미하므로 fail-fast
-    assert!(gold_avg_vol > 0 && btc_avg_vol > 0, E_INVALID_AVGVOL);
     // start price는 0이면 수익률 기반 비교 자체가 성립하지 않음
     assert!(gold_start > 0 && btc_start > 0, E_OVERFLOW);
+
+    // ---- VOID 조건 체크 (정책) ----
+    // NOTE: VOID는 "온체인 영수증에 명시"되고, claim에서 원금 환불로 처리되는 것을 권장.
+    let mut outcome: u8 = OUTCOME_SETTLED;
+    let mut void_reason: u8 = VOID_NONE;
+
+    // avgVol 0이면 정규화 강도 비교가 무의미 → VOID
+    if (gold_avg_vol == 0 || btc_avg_vol == 0) {
+        outcome = OUTCOME_VOID;
+        void_reason = VOID_INVALID_AVGVOL;
+    };
 
     // 2. 승자 결정
     // 가격이 올랐는지 확인
@@ -448,66 +473,75 @@ public fun finalize_round(
     let gold_score: u128 = (gold_change as u128) * (btc_start as u128) * (btc_avg_vol as u128);
     let btc_score: u128 = (btc_change as u128) * (gold_start as u128) * (gold_avg_vol as u128);
 
-    let mut winner = if (gold_score >= btc_score) {
+    let winner = if (gold_score >= btc_score) {
         WINNER_GOLD // 동점 시 GOLD
     } else {
         WINNER_BTC
     };
 
-    // 승자 쪽 베팅 풀이 0이면 payout_ratio 계산/분배가 불가능해 자금이 락될 수 있음.
-    // - 운영 정책(VOID/refund/플랫폼 회수 등)이 확정되면 이 로직을 교체해야 함.
-    // - 임시 방어: "베팅이 존재하는 쪽"을 winner로 강제해 payout이 가능하도록 함.
-    if (pool.total_pool > 0) {
-        if (winner == WINNER_GOLD && pool.gold_pool == 0 && pool.btc_pool > 0) {
-            winner = WINNER_BTC;
-        };
-        if (winner == WINNER_BTC && pool.btc_pool == 0 && pool.gold_pool > 0) {
-            winner = WINNER_GOLD;
+    // winning_pool == 0이면 payout이 불가능 → VOID (시장 승자는 기록하되 배당은 환불)
+    if (outcome == OUTCOME_SETTLED && pool.total_pool > 0) {
+        let winning_pool_tmp = if (winner == WINNER_GOLD) { pool.gold_pool } else { pool.btc_pool };
+        if (winning_pool_tmp == 0) {
+            outcome = OUTCOME_VOID;
+            void_reason = VOID_WINNING_POOL_ZERO;
         };
     };
 
     // 3. 배당 계산
-    // 승자 풀 금액
-    // 승자 풀에 패자 풀 합침
-    let winning_pool = if (winner == WINNER_GOLD) {
-        let btc_all = balance::withdraw_all(&mut pool.btc_balance);
-        balance::join(&mut pool.gold_balance, btc_all);
-        pool.gold_pool
-    } else {
-        let gold_all = balance::withdraw_all(&mut pool.gold_balance);
-        balance::join(&mut pool.btc_balance, gold_all);
-        pool.btc_pool
-    };
-
-    // 플랫폼 수수료 (5%)
-    let platform_fee_u128: u128 = (pool.total_pool as u128) * (PLATFORM_FEE_RATE as u128) / 100;
-    assert!(platform_fee_u128 <= (u64::max_value!() as u128), E_OVERFLOW);
-    let platform_fee = platform_fee_u128 as u64;
-
-    // fee coin 생성 (호출자가 Admin에게 transfer)
-    let fee_coin = if (platform_fee > 0) {
-        let fee_balance = if (winner == WINNER_GOLD) {
-            balance::split(&mut pool.gold_balance, platform_fee)
+    // outcome에 따라 payout 계산이 달라짐
+    // - SETTLED: 승자 balance로 패자 balance 합치고, fee 분리 후 payout_ratio 계산
+    // - VOID: balance 변경 없음(환불용), fee=0, payout_ratio=0
+    //
+    // 중요: Coin<DEL>은 drop이 없으므로 "미리 coin::zero 생성 후 재할당" 패턴이 리소스 누수를 만들어 컴파일 에러가 난다.
+    // 따라서 단일 if 표현식으로 (winning_pool, platform_fee, payout_ratio, fee_coin)을 한 번에 생성한다.
+    let (winning_pool, platform_fee, payout_ratio, fee_coin) = if (outcome == OUTCOME_SETTLED) {
+        // 승자 풀 금액
+        // 승자 풀에 패자 풀 합침
+        let winning_pool = if (winner == WINNER_GOLD) {
+            let btc_all = balance::withdraw_all(&mut pool.btc_balance);
+            balance::join(&mut pool.gold_balance, btc_all);
+            pool.gold_pool
         } else {
-            balance::split(&mut pool.btc_balance, platform_fee)
+            let gold_all = balance::withdraw_all(&mut pool.gold_balance);
+            balance::join(&mut pool.btc_balance, gold_all);
+            pool.btc_pool
         };
-        coin::from_balance(fee_balance, ctx)
-    } else {
-        coin::zero<DEL>(ctx)
-    };
 
-    // 배당 풀 (총액 - 수수료)
-    let payout_pool = pool.total_pool - platform_fee;
+        // 플랫폼 수수료 (5%)
+        let platform_fee_u128: u128 = (pool.total_pool as u128) * (PLATFORM_FEE_RATE as u128) / 100;
+        assert!(platform_fee_u128 <= (u64::max_value!() as u128), E_OVERFLOW);
+        let platform_fee = platform_fee_u128 as u64;
 
-    // 배당률 (예: 178 = 1.78배)
-    // 승자 풀이 0이면 divide by zero 방지
-    let payout_ratio = if (winning_pool > 0) {
-        let payout_ratio_u128: u128 =
-            (payout_pool as u128) * (RATIO_SCALE as u128) / (winning_pool as u128);
-        assert!(payout_ratio_u128 <= (u64::max_value!() as u128), E_OVERFLOW);
-        payout_ratio_u128 as u64
+        // fee coin 생성 (호출자가 Admin에게 transfer)
+        let fee_coin = if (platform_fee > 0) {
+            let fee_balance = if (winner == WINNER_GOLD) {
+                balance::split(&mut pool.gold_balance, platform_fee)
+            } else {
+                balance::split(&mut pool.btc_balance, platform_fee)
+            };
+            coin::from_balance(fee_balance, ctx)
+        } else {
+            coin::zero<DEL>(ctx)
+        };
+
+        // 배당 풀 (총액 - 수수료)
+        let payout_pool = pool.total_pool - platform_fee;
+
+        // 배당률 (예: 178 = 1.78배)
+        // 승자 풀이 0이면 divide by zero 방지
+        let payout_ratio = if (winning_pool > 0) {
+            let payout_ratio_u128: u128 =
+                (payout_pool as u128) * (RATIO_SCALE as u128) / (winning_pool as u128);
+            assert!(payout_ratio_u128 <= (u64::max_value!() as u128), E_OVERFLOW);
+            payout_ratio_u128 as u64
+        } else {
+            0
+        };
+
+        (winning_pool, platform_fee, payout_ratio, fee_coin)
     } else {
-        0
+        (0, 0, 0, coin::zero<DEL>(ctx))
     };
 
     // 4. Settlement 생성
@@ -526,6 +560,8 @@ public fun finalize_round(
         vol_source: VOL_SOURCE,
         vol_method: VOL_METHOD,
         winner,
+        outcome,
+        void_reason,
         total_pool: pool.total_pool,
         winning_pool,
         platform_fee,
@@ -548,6 +584,8 @@ public fun finalize_round(
         pool_id: object::id(pool),
         round_id: pool.round_id,
         winner,
+        outcome,
+        void_reason,
         payout_ratio,
         platform_fee,
         gold_start,
@@ -609,6 +647,8 @@ public fun distribute_payout(
     assert!(pool.round_id == settlement.round_id, E_ROUND_MISMATCH);
     // Bet이 이 Pool에 속하는지 확인 (pool_id 검증)
     assert!(bet.pool_id == object::id(pool), E_BET_POOL_MISMATCH);
+    // VOID 라운드는 distribute_payout 경로를 사용하지 않음 (refund는 claim_payout에서 처리)
+    assert!(settlement.outcome == OUTCOME_SETTLED, E_SETTLEMENT_VOID);
 
     // 2. 배당금 계산 (소각 전에 필요한 값 추출)
     let now = clock::timestamp_ms(clock);
@@ -686,13 +726,22 @@ public fun claim_payout(
     let winner = settlement.winner;
     let bet_id = object::id(&bet);
     let bet_user = bet.user;
-    let payout = if (bet.prediction == winner) {
-        let payout_u128: u128 =
-            (bet.amount as u128) * (settlement.payout_ratio as u128) / (RATIO_SCALE as u128);
-        assert!(payout_u128 <= (u64::max_value!() as u128), E_OVERFLOW);
-        payout_u128 as u64
+    let bet_prediction = bet.prediction;
+    let bet_amount = bet.amount;
+
+    let payout = if (settlement.outcome == OUTCOME_VOID) {
+        // VOID면 원금 환불
+        bet_amount
     } else {
-        0
+        // SETTLED면 승자만 payout
+        if (bet_prediction == winner) {
+            let payout_u128: u128 =
+                (bet_amount as u128) * (settlement.payout_ratio as u128) / (RATIO_SCALE as u128);
+            assert!(payout_u128 <= (u64::max_value!() as u128), E_OVERFLOW);
+            payout_u128 as u64
+        } else {
+            0
+        }
     };
 
     // 3. Bet 소각
@@ -705,10 +754,20 @@ public fun claim_payout(
         return 0
     };
 
-    let payout_balance = if (winner == WINNER_GOLD) {
-        balance::split(&mut pool.gold_balance, payout)
+    let payout_balance = if (settlement.outcome == OUTCOME_VOID) {
+        // 환불은 "베팅한 쪽 balance"에서 원금 반환
+        if (bet_prediction == PREDICTION_GOLD) {
+            balance::split(&mut pool.gold_balance, payout)
+        } else {
+            balance::split(&mut pool.btc_balance, payout)
+        }
     } else {
-        balance::split(&mut pool.btc_balance, payout)
+        // payout은 승자 balance에서 지급
+        if (winner == WINNER_GOLD) {
+            balance::split(&mut pool.gold_balance, payout)
+        } else {
+            balance::split(&mut pool.btc_balance, payout)
+        }
     };
     let payout_coin = coin::from_balance(payout_balance, ctx);
     transfer::public_transfer(payout_coin, bet_user);
