@@ -48,6 +48,8 @@ import {
 import { transitionRoundStatus } from './fsm';
 import { cronLogger } from '@/lib/cron/logger';
 import { calculatePayout, determineWinner } from './calculator';
+import { createPool } from '@/lib/sui/admin';
+import { toJSON } from '@/lib/sui/utils';
 
 export class RoundService {
   private repository: RoundRepository;
@@ -444,6 +446,36 @@ export class RoundService {
       };
     }
 
+    // ------------------------------
+    // Sui-first: create_pool (idempotent)
+    // ------------------------------
+    //
+    // 목표:
+    // - on-chain BettingPool을 먼저 만든 뒤(poolId/txDigest 확보)
+    // - DB에 최소 키(suiPoolAddress, suiCreatePoolTxDigest)를 먼저 저장
+    // - 그 다음 FSM 전이 + 가격 메타 저장
+    //
+    // 이유:
+    // - "체인 성공, DB 실패" 상황에서 최소한 poolId라도 남겨 재시도/복구 가능하게
+    //
+    let poolId = round.suiPoolAddress ?? undefined;
+    let createPoolTxDigest: string | undefined;
+    if (!poolId) {
+      const created = await createPool(round.roundNumber, round.lockTime, round.endTime);
+      poolId = created.poolId;
+      createPoolTxDigest = created.txDigest;
+
+      // poolId/txDigest를 먼저 저장 (idempotency)
+      await this.repository.updateById(round.id, {
+        suiPoolAddress: poolId,
+        suiCreatePoolTxDigest: createPoolTxDigest,
+      });
+    }
+
+    // 가격 메타는 JSON text로 저장 (없으면 undefined)
+    const priceSnapshotMeta =
+      prices.meta !== undefined ? JSON.stringify(toJSON(prices.meta)) : undefined;
+
     // 상태 전이 (SCHEDULED → BETTING_OPEN)
     cronLogger.info('[Job 2] Transitioning to BETTING_OPEN', {
       roundId: round.id,
@@ -453,6 +485,9 @@ export class RoundService {
       btcStartPrice: prices.btc.toString(),
       priceSnapshotStartAt: prices.timestamp,
       startPriceSource: prices.source,
+      priceSnapshotMeta,
+      suiPoolAddress: poolId,
+      suiCreatePoolTxDigest: createPoolTxDigest,
       bettingOpenedAt: Date.now(),
     });
 
