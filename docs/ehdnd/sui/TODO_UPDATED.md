@@ -30,29 +30,29 @@
 | 베팅/풀/정산/배당 Move 로직 | ✅   | `betting.move`: `create_pool`, `place_bet`, `lock_pool`, `finalize_round`, `distribute_payout` |
 | e2e 테스트                  | ✅   | `betting_tests.move`                                                                           |
 | 시간 단위 ms                | ✅   | `clock::timestamp_ms` 사용                                                                     |
-| 승자 산식                   | ⚠️   | 현재: `abs(price_end - price_start)`. **정규화 강도로 교체 필요**                              |
+| 승자 산식                   | ✅   | `return/avgVol` 기반 정규화 강도 비교(나눗셈 없이 cross-multiply)                              |
 | 상태머신                    | ⚠️   | 온체인: OPEN → LOCKED → SETTLED (취소/무효 없음)                                               |
 
 ### 1.2 오프체인 (Next.js / D1)
 
-| 항목                                   | 상태 | 위치 / 비고                                                           |
-| -------------------------------------- | ---- | --------------------------------------------------------------------- |
-| 베팅 `place_bet` 플로우                | ✅   | `POST /api/bets` + `POST /api/bets/execute`                           |
-| 라운드 크론 뼈대                       | ✅   | `app/api/cron/rounds/{create,open,lock,finalize,settle}/route.ts`     |
-| **온체인 lock/finalize/payout 호출**   | ❌   | 현재 DB 기준만 처리, Sui 호출 없음                                    |
-| RoundService 승자/배당 계산            | ⚠️   | 단순 % 비교. 정규화 강도 미적용                                       |
-| 가격 스냅샷 API                        | ✅   | `GET /api/price/snapshot` (Binance 기반)                              |
-| **크론에서 가격 API 호출**             | ❌   | 현재 mock 가격 사용 중 (hardcoded)                                    |
-| `avgVol` 계산 라이브러리               | ✅   | `lib/services/normalizedStrength.ts`                                  |
-| **정산에 avgVol 통합**                 | ❌   | 라이브러리 존재하나 정산에서 호출 안함                                |
-| rounds 스키마 가격 컬럼                | ✅   | `goldStartPrice`, `goldEndPrice`, `btcStartPrice`, `btcEndPrice` 존재 |
-| **rounds 스키마 avgVol 컬럼**          | ❌   | `paxgAvgVol`, `btcAvgVol` 컬럼 없음                                   |
-| `priceSnapshot.service.ts`             | ❌   | 설계 문서에만 있고 미구현                                             |
-| `fetchTickPrice` (경량 API)            | ❌   | 설계 문서에만 있고 미구현                                             |
-| Sui 래퍼 (create/lock/finalize/payout) | ❌   | `place_bet`만 구현됨                                                  |
-| `SUI_CAP_OBJECT_ID` 사용               | ❌   | env 정의됨, 코드에서 사용 안함                                        |
-| 출석 보상 API/서비스                   | ❌   | 미구현                                                                |
-| Settlement tx digest 저장              | ❌   | 베팅은 `bets.suiTxHash`, 라운드는 없음                                |
+| 항목                                   | 상태 | 위치 / 비고                                                                        |
+| -------------------------------------- | ---- | ---------------------------------------------------------------------------------- |
+| 베팅 `place_bet` 플로우                | ✅   | `POST /api/bets` + `POST /api/bets/execute`                                        |
+| 라운드 크론 뼈대                       | ✅   | `app/api/cron/rounds/{create,open,lock,finalize,settle}/route.ts`                  |
+| **온체인 lock/finalize/payout 호출**   | ❌   | Sui wrapper 구현됨. cron/서비스 연결은 아직 미반영                                 |
+| RoundService 승자/배당 계산            | ⚠️   | 현재 오프체인 정산은 단순 % 비교. on-chain은 정규화 강도 로직 적용됨               |
+| 가격 스냅샷 API                        | ✅   | `GET /api/price/snapshot` (Binance 기반)                                           |
+| **크론에서 가격 API 호출**             | ❌   | 현재 mock 가격 사용 중 (hardcoded)                                                 |
+| `avgVol` 계산 라이브러리               | ✅   | `lib/services/normalizedStrength.ts`                                               |
+| **정산에 avgVol 통합**                 | ❌   | 라이브러리 존재하나 정산에서 호출 안함                                             |
+| rounds 스키마 가격 컬럼                | ✅   | `goldStartPrice`, `goldEndPrice`, `btcStartPrice`, `btcEndPrice` 존재              |
+| **rounds 스키마 avgVol 컬럼**          | ⚠️   | `goldAvgVol`, `btcAvgVol`, `avgVolMeta` 추가(마이그레이션은 진행 필요)             |
+| `priceSnapshot.service.ts`             | ❌   | 설계 문서에만 있고 미구현                                                          |
+| `fetchTickPrice` (경량 API)            | ❌   | 설계 문서에만 있고 미구현                                                          |
+| Sui 래퍼 (create/lock/finalize/payout) | ✅   | `lib/sui/admin.ts` 구현 완료(주의: payout은 유저 claim 모델 권장)                  |
+| `SUI_CAP_OBJECT_ID` 사용               | ✅   | `SUI_ADMIN_CAP_ID` 우선, 없으면 `SUI_CAP_OBJECT_ID` fallback 처리                  |
+| 출석 보상 API/서비스                   | ❌   | 미구현                                                                             |
+| Settlement tx digest 저장              | ⚠️   | rounds에 `suiFinalizeTxDigest`, `suiSettlementObjectId` 등 추가(마이그레이션 필요) |
 
 ### 1.3 차트 데이터 수집 (현준 담당)
 
