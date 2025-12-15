@@ -85,6 +85,35 @@ export interface GetBetsResult {
   };
 }
 
+export interface PublicBetFeedItem {
+  id: string;
+  roundId: string;
+  prediction: string;
+  amount: number;
+  createdAt: number;
+  chainStatus: string;
+  resultStatus: string;
+  settlementStatus: string;
+  payoutAmount: number;
+  suiTxHash: string | null;
+  suiBetObjectId: string | null;
+  suiPayoutTxHash: string | null;
+  bettor: {
+    suiAddressMasked: string;
+    nickname: string | null;
+  };
+}
+
+export interface GetPublicBetsResult {
+  bets: PublicBetFeedItem[];
+  meta: {
+    page: number;
+    pageSize: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
 /**
  * 베팅과 라운드 정보를 포함한 상세 정보
  */

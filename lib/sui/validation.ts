@@ -15,7 +15,6 @@ export const executeSuiBetTxSchema = z.object({
   userSignature: base64Schema.describe('Base64-encoded user signature from wallet'),
   nonce: z.string({ message: 'nonce is required' }).min(8, 'nonce must be at least 8 characters'),
   betId: z.string({ message: 'betId is required' }).uuid('betId must be a valid UUID'),
-  userId: z.string({ message: 'userId is required' }).uuid('userId must be a valid UUID'),
 });
 
 export const executeSuiClaimTxSchema = z.object({
@@ -23,7 +22,6 @@ export const executeSuiClaimTxSchema = z.object({
   userSignature: base64Schema.describe('Base64-encoded user signature from wallet'),
   nonce: z.string({ message: 'nonce is required' }).min(8, 'nonce must be at least 8 characters'),
   betId: z.string({ message: 'betId is required' }).uuid('betId must be a valid UUID'),
-  userId: z.string({ message: 'userId is required' }).uuid('userId must be a valid UUID'),
 });
 
 // ============ Admin (Cron) Wrapper Schemas ============
