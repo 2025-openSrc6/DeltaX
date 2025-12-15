@@ -47,10 +47,10 @@ import {
 } from './constants';
 import { transitionRoundStatus } from './fsm';
 import { cronLogger } from '@/lib/cron/logger';
-import { calculatePayout, determineWinner } from './calculator';
-import { createPool } from '@/lib/sui/admin';
+import { calculatePayout } from './calculator';
+import { createPool, finalizeRound as finalizeRoundOnChain, lockPool } from '@/lib/sui/admin';
 import { toJSON } from '@/lib/sui/utils';
-import { lockPool } from '@/lib/sui/admin';
+import { calculateSettlementAvgVol } from './avgVol.service';
 
 export class RoundService {
   private repository: RoundRepository;
@@ -618,24 +618,93 @@ export class RoundService {
         });
       }
 
-      // 승자 판정
-      const winnerResult: DetermineWinnerResult = determineWinner({
-        goldStart: parseFloat(round.goldStartPrice!),
-        goldEnd: endPriceData.gold,
-        btcStart: parseFloat(round.btcStartPrice!),
-        btcEnd: endPriceData.btc,
-      });
+      if (!round.suiPoolAddress) {
+        throw new BusinessRuleError(
+          'ROUND_DATA_MISSING',
+          'Missing suiPoolAddress for finalizeRound',
+          {
+            roundId: round.id,
+          },
+        );
+      }
 
-      cronLogger.info('[Job 4] Winner determined', {
+      const goldStart = parseFloat(round.goldStartPrice!);
+      const btcStart = parseFloat(round.btcStartPrice!);
+      if (
+        !Number.isFinite(goldStart) ||
+        goldStart <= 0 ||
+        !Number.isFinite(btcStart) ||
+        btcStart <= 0
+      ) {
+        throw new BusinessRuleError('ROUND_DATA_INVALID', 'Invalid start prices', {
+          roundId: round.id,
+          goldStartPrice: round.goldStartPrice,
+          btcStartPrice: round.btcStartPrice,
+        });
+      }
+
+      // ---------------------------------------------
+      // End price snapshot (invalid -> fallback + VOID)
+      // ---------------------------------------------
+      const isValidPrice = (v: number) => Number.isFinite(v) && v > 0;
+      let goldEnd = endPriceData.gold;
+      let btcEnd = endPriceData.btc;
+      let endPriceIsFallback = false;
+      let endPriceFallbackReason: string | undefined;
+      if (!isValidPrice(goldEnd) || !isValidPrice(btcEnd)) {
+        endPriceIsFallback = true;
+        endPriceFallbackReason = 'INVALID_OR_MISSING_END_PRICE';
+        if (!isValidPrice(goldEnd)) goldEnd = goldStart;
+        if (!isValidPrice(btcEnd)) btcEnd = btcStart;
+      }
+
+      const goldChangePercent = ((goldEnd - goldStart) / goldStart) * 100;
+      const btcChangePercent = ((btcEnd - btcStart) / btcStart) * 100;
+
+      // ---------------------------------------------
+      // avgVol (30d, 1h candles, returns stddev)
+      // ---------------------------------------------
+      const avgVolResult = await calculateSettlementAvgVol();
+      let goldAvgVol = avgVolResult.goldAvgVol;
+      let btcAvgVol = avgVolResult.btcAvgVol;
+      const avgVolMetaObj: unknown = avgVolResult.meta;
+
+      // 가격 fallback인 경우 무조건 VOID로 만들기 위해 avgVol=0 강제
+      if (endPriceIsFallback) {
+        goldAvgVol = 0;
+        btcAvgVol = 0;
+      }
+
+      // winner는 on-chain 산식과 동일하게(정규화 강도 비교) 계산
+      // abs(gReturn) * btcAvgVol >= abs(bReturn) * goldAvgVol → GOLD 승 (동점 시 GOLD)
+      const goldAbsReturn = Math.abs((goldEnd - goldStart) / goldStart);
+      const btcAbsReturn = Math.abs((btcEnd - btcStart) / btcStart);
+      const goldScore = goldAbsReturn * btcAvgVol;
+      const btcScore = btcAbsReturn * goldAvgVol;
+      const winner = goldScore >= btcScore ? 'GOLD' : 'BTC';
+
+      // VOID 조건 (Move 정책과 정합)
+      const winningPool = winner === 'GOLD' ? round.totalGoldBets! : round.totalBtcBets!;
+      const isVoid =
+        goldAvgVol === 0 || btcAvgVol === 0 || (round.totalPool! > 0 && winningPool === 0);
+
+      cronLogger.info('[Job 4] Inputs prepared', {
         roundId: round.id,
-        winner: winnerResult.winner,
-        goldChangePercent: winnerResult.goldChangePercent,
-        btcChangePercent: winnerResult.btcChangePercent,
+        goldStart,
+        goldEnd,
+        btcStart,
+        btcEnd,
+        goldAvgVol,
+        btcAvgVol,
+        winner,
+        isVoid,
+        endPriceIsFallback,
+        endPriceFallbackReason,
       });
 
       // 배당 계산
       const payoutResult: CalculatePayoutResult = calculatePayout({
-        winner: winnerResult.winner,
+        winner,
         totalPool: round.totalPool!,
         totalGoldBets: round.totalGoldBets!,
         totalBtcBets: round.totalBtcBets!,
@@ -647,34 +716,123 @@ export class RoundService {
         payoutResult,
       });
 
+      // priceSnapshotMeta 병합 (start + end)
+      const safeJsonParse = (text: string): unknown => {
+        try {
+          return JSON.parse(text);
+        } catch {
+          return text;
+        }
+      };
+      const prevMeta = round.priceSnapshotMeta ? safeJsonParse(round.priceSnapshotMeta) : undefined;
+      const mergedPriceSnapshotMeta = JSON.stringify({
+        start: prevMeta,
+        end: endPriceData.meta !== undefined ? toJSON(endPriceData.meta) : undefined,
+      });
+
+      const avgVolMetaJson = toJSON(avgVolMetaObj);
+      const avgVolMetaRecord: Record<string, unknown> =
+        avgVolMetaJson !== null &&
+        typeof avgVolMetaJson === 'object' &&
+        !Array.isArray(avgVolMetaJson)
+          ? (avgVolMetaJson as Record<string, unknown>)
+          : { value: avgVolMetaJson };
+
+      const avgVolMeta = JSON.stringify({
+        ...avgVolMetaRecord,
+        forcedVoid: endPriceIsFallback ? true : undefined,
+        forcedVoidReason: endPriceFallbackReason,
+      });
+
+      // ------------------------------
+      // Sui-first: finalize_round (idempotent)
+      // ------------------------------
+      let suiFinalizeTxDigest = round.suiFinalizeTxDigest ?? undefined;
+      let suiSettlementObjectId = round.suiSettlementObjectId ?? undefined;
+      let suiFeeCoinObjectId = round.suiFeeCoinObjectId ?? undefined;
+
+      if (!suiFinalizeTxDigest || !suiSettlementObjectId || !suiFeeCoinObjectId) {
+        const res = await finalizeRoundOnChain(
+          round.suiPoolAddress,
+          { goldStart, goldEnd, btcStart, btcEnd },
+          { goldAvgVol, btcAvgVol },
+          {
+            ...avgVolMetaRecord,
+            endPriceSource: endPriceData.source,
+            endPriceTimestamp: endPriceData.timestamp,
+            endPriceIsFallback,
+            endPriceFallbackReason,
+            endPriceMeta: endPriceData.meta !== undefined ? toJSON(endPriceData.meta) : undefined,
+          },
+        );
+
+        suiFinalizeTxDigest = res.txDigest;
+        suiSettlementObjectId = res.settlementId;
+        suiFeeCoinObjectId = res.feeCoinId;
+
+        // txDigest/objectId를 먼저 저장 (Sui-first)
+        await this.repository.updateById(round.id, {
+          suiFinalizeTxDigest,
+          suiSettlementObjectId,
+          suiFeeCoinObjectId,
+        });
+      }
+
       // 상태 전이 (BETTING_LOCKED → CALCULATING)
-      const calculatingRound = await transitionRoundStatus(round.id, 'CALCULATING', {
+      await transitionRoundStatus(round.id, 'CALCULATING', {
         roundEndedAt: Date.now(),
-        goldEndPrice: endPriceData.gold.toString(),
-        btcEndPrice: endPriceData.btc.toString(),
+        goldEndPrice: goldEnd.toString(),
+        btcEndPrice: btcEnd.toString(),
         priceSnapshotEndAt: endPriceData.timestamp,
         endPriceSource: endPriceData.source,
-        winner: winnerResult.winner,
-        goldChangePercent: winnerResult.goldChangePercent.toString(),
-        btcChangePercent: winnerResult.btcChangePercent.toString(),
+        endPriceIsFallback,
+        endPriceFallbackReason,
+        priceSnapshotMeta: mergedPriceSnapshotMeta,
+        goldAvgVol,
+        btcAvgVol,
+        avgVolMeta,
+        winner,
+        goldChangePercent: goldChangePercent.toString(),
+        btcChangePercent: btcChangePercent.toString(),
+        payoutPool: payoutResult.payoutPool,
       });
 
       cronLogger.info('[Job 4] Transitioned to CALCULATING', {
         roundId: round.id,
       });
 
-      // Job 5 트리거 (내부 호출 - 실제 정산 구현 필요)
-      await this.settleRound(calculatingRound.id);
+      // CALCULATING → SETTLED/VOIDED (claim-ready)
+      const settlementCompletedAt = Date.now();
+      const finalizedRound = isVoid
+        ? await transitionRoundStatus(round.id, 'VOIDED', {
+            settlementCompletedAt,
+            suiFinalizeTxDigest,
+            suiSettlementObjectId,
+            suiFeeCoinObjectId,
+            platformFeeCollected: 0,
+          })
+        : await transitionRoundStatus(round.id, 'SETTLED', {
+            settlementCompletedAt,
+            suiFinalizeTxDigest,
+            suiSettlementObjectId,
+            suiFeeCoinObjectId,
+            platformFeeCollected: payoutResult.platformFee,
+          });
 
       const jobDuration = Date.now() - jobStartTime;
       cronLogger.info('[Job 4] Completed', {
         roundId: round.id,
         roundNumber: round.roundNumber,
-        winner: winnerResult.winner,
+        winner,
+        isVoid,
         durationMs: jobDuration,
       });
 
-      return { status: 'finalized', round: calculatingRound };
+      return {
+        status: 'finalized',
+        round: finalizedRound,
+        message: isVoid ? 'Finalized as VOID (refund via claim)' : undefined,
+      };
     } catch (error) {
       const jobDuration = Date.now() - jobStartTime;
       cronLogger.error('[Job 4] Failed', {
@@ -693,181 +851,11 @@ export class RoundService {
   }
 
   async settleRound(roundId: string): Promise<SettleRoundResult> {
-    const jobStartTime = Date.now();
-    cronLogger.info('[Job 5] Starting settlement', { roundId });
-
-    try {
-      // 1. 라운드 조회
-      const round = await this.repository.findById(roundId);
-      if (!round) {
-        throw new NotFoundError('Round', roundId);
-      }
-
-      // 2. 멱등성: 이미 SETTLED면 성공으로 처리
-      if (round.status === 'SETTLED') {
-        cronLogger.info('[Job 5] Round already settled', { roundId });
-        return { status: 'already_settled', roundId };
-      }
-
-      // 3. 상태 검증
-      if (round.status !== 'CALCULATING') {
-        throw new BusinessRuleError(
-          'INVALID_ROUND_STATUS',
-          `Round must be in CALCULATING status, got: ${round.status}`,
-          { roundId, currentStatus: round.status },
-        );
-      }
-
-      // 4. 베팅 조회
-      const allBets = await this.betService.findBetsByRoundId(roundId);
-
-      // 5. 베팅 없으면 바로 SETTLED 전이
-      if (allBets.length === 0) {
-        cronLogger.info('[Job 5] No bets to settle', { roundId });
-
-        await transitionRoundStatus(roundId, 'SETTLED', {
-          platformFeeCollected: 0,
-          settlementCompletedAt: Date.now(),
-        });
-
-        return { status: 'no_bets', roundId, settledCount: 0 };
-      }
-
-      // 6. 수수료 및 payoutPool 계산
-      const platformFee = Math.floor(round.totalPool * parseFloat(round.platformFeeRate));
-      const payoutPool = round.totalPool - platformFee;
-
-      cronLogger.info('[Job 5] Payout calculated', {
-        roundId,
-        totalPool: round.totalPool,
-        platformFee,
-        payoutPool,
-      });
-
-      // 7. 승자/패자 분류
-      const winningBets = allBets.filter((bet) => bet.prediction === round.winner);
-      const losingBets = allBets.filter((bet) => bet.prediction !== round.winner);
-      const winningPool = round.winner === 'GOLD' ? round.totalGoldBets : round.totalBtcBets;
-
-      cronLogger.info('[Job 5] Bets classified', {
-        roundId,
-        winners: winningBets.length,
-        losers: losingBets.length,
-        winningPool,
-      });
-
-      // 8. 승자 정산
-      let settledCount = 0;
-      let failedCount = 0;
-      let totalPayout = 0;
-
-      for (const bet of winningBets) {
-        try {
-          // 멱등성: 이미 정산된 베팅 스킵
-          if (bet.settlementStatus === 'COMPLETED') {
-            settledCount++;
-            continue;
-          }
-
-          // 배당 계산
-          const userShare = bet.amount / winningPool;
-          const payout = Math.floor(userShare * payoutPool);
-
-          // DB 업데이트
-          await this.betService.updateBetSettlement(bet.id, {
-            resultStatus: 'WON',
-            settlementStatus: 'COMPLETED',
-            payoutAmount: payout,
-          });
-
-          settledCount++;
-          totalPayout += payout;
-        } catch (error) {
-          cronLogger.error('[Job 5] Failed to settle winning bet', {
-            betId: bet.id,
-            error: error instanceof Error ? error.message : String(error),
-          });
-          failedCount++;
-        }
-      }
-
-      // 9. 패자 처리
-      for (const bet of losingBets) {
-        try {
-          // 멱등성: 이미 처리된 베팅 스킵
-          if (bet.settlementStatus === 'COMPLETED') {
-            continue;
-          }
-
-          await this.betService.updateBetSettlement(bet.id, {
-            resultStatus: 'LOST',
-            settlementStatus: 'COMPLETED',
-            payoutAmount: 0,
-          });
-        } catch (error) {
-          cronLogger.error('[Job 5] Failed to update losing bet', {
-            betId: bet.id,
-            error: error instanceof Error ? error.message : String(error),
-          });
-          // 패자 처리 실패는 카운트하지 않음 (돈이 안 걸려있음)
-        }
-      }
-
-      // 10. 라운드 상태 업데이트
-      if (failedCount === 0) {
-        // 정산 완료
-        await transitionRoundStatus(roundId, 'SETTLED', {
-          platformFeeCollected: platformFee,
-          settlementCompletedAt: Date.now(),
-        });
-
-        // payoutPool도 저장
-        await this.repository.updateById(roundId, { payoutPool });
-
-        const jobDuration = Date.now() - jobStartTime;
-        cronLogger.info('[Job 5] Completed', {
-          roundId,
-          settledCount,
-          totalPayout,
-          durationMs: jobDuration,
-        });
-
-        return {
-          status: 'settled',
-          roundId,
-          settledCount: settledCount + losingBets.length,
-          totalPayout,
-        };
-      } else {
-        // 부분 실패 → Recovery에서 재시도
-        const jobDuration = Date.now() - jobStartTime;
-        cronLogger.warn('[Job 5] Partially settled', {
-          roundId,
-          settledCount,
-          failedCount,
-          durationMs: jobDuration,
-        });
-
-        return {
-          status: 'partial',
-          roundId,
-          settledCount,
-          failedCount,
-          message: 'Partially settled, will retry in Recovery',
-        };
-      }
-    } catch (error) {
-      const jobDuration = Date.now() - jobStartTime;
-      cronLogger.error('[Job 5] Failed to settle round', {
-        roundId,
-        durationMs: jobDuration,
-        error: error instanceof Error ? error.message : String(error),
-      });
-
-      // TODO: Slack 알림
-
-      throw error;
-    }
+    throw new BusinessRuleError(
+      'DEPRECATED_JOB',
+      'Job 5 (server-side payout settlement) is deprecated. Use user claim model (prepare/execute + claim_payout).',
+      { roundId },
+    );
   }
 
   /**
@@ -881,79 +869,10 @@ export class RoundService {
    * @returns RecoveryRoundsResult - stuckCount, retriedCount, alertedCount
    */
   async recoveryRounds(): Promise<RecoveryRoundsResult> {
-    // TODO: 구현 필요
-    // 1. findStuckCalculatingRounds() 호출
-    // 2. 각 라운드에 대해:
-    //    - 30분 이상 경과 → Slack CRITICAL 알림, alertedCount++
-    //    - 10분~30분 → 재시도, retriedCount++
-    // 3. 결과 반환
-
-    const stuckRounds = await this.findStuckCalculatingRounds();
-    if (stuckRounds.length === 0) {
-      cronLogger.info('[Job 6] No stuck rounds found');
-      return { stuckCount: 0, retriedCount: 0, alertedCount: 0 };
-    }
-
-    const now = Date.now();
-
-    let retriedCount = 0;
-    let alertedCount = 0;
-
-    for (const stuckRound of stuckRounds) {
-      // 이미 알림 보냈으면 스킵
-      if (stuckRound.settlementFailureAlertSentAt) {
-        cronLogger.info('[Job 6] Alert already sent, skipping', {
-          roundId: stuckRound.id,
-          alertSentAt: new Date(stuckRound.settlementFailureAlertSentAt).toISOString(),
-        });
-        continue;
-      }
-
-      // roundEndedAt가 없으면 경과 시간을 계산할 수 없으므로 스킵 (잘못된 데이터로 인한 오경보 방지)
-      if (stuckRound.roundEndedAt == null) {
-        cronLogger.warn('[Job 6] roundEndedAt missing, skipping duration check', {
-          roundId: stuckRound.id,
-          roundNumber: stuckRound.roundNumber,
-        });
-        continue;
-      }
-
-      const stuckDuration = now - stuckRound.roundEndedAt;
-      if (stuckDuration >= ALERT_THRESHOLD_MS) {
-        cronLogger.error('[Job 6] 30min threshold exceeded, sending alert', {
-          roundId: stuckRound.id,
-          roundNumber: stuckRound.roundNumber,
-          stuckMinutes: Math.floor(stuckDuration / 60000),
-        });
-
-        // TODO(ehdnd): slack alert
-
-        await this.repository.updateById(stuckRound.id, {
-          settlementFailureAlertSentAt: now,
-        });
-
-        ++alertedCount;
-        continue;
-      }
-
-      // 재시도 시작
-      cronLogger.info('[Job 6] Retrying settlement', {
-        roundId: stuckRound.id,
-        stuckMinutes: Math.floor(stuckDuration / 60000),
-      });
-
-      ++retriedCount;
-      try {
-        await this.settleRound(stuckRound.id);
-      } catch (error) {
-        cronLogger.warn('[Job 6] Failed to settle round, will retry next minute', {
-          roundId: stuckRound.id,
-          error: error instanceof Error ? error.message : String(error),
-        });
-      }
-    }
-
-    return { stuckCount: stuckRounds.length, retriedCount, alertedCount };
+    // 결정 B(2025-12-15): Job 5/6 범위는 다음 스코프로 미룸 (claim 모델 전환 후 복구 설계)
+    // - scheduled handler가 매분 호출하므로, 당장은 "noop + 200"로 유지한다.
+    cronLogger.info('[Job 6] Recovery deferred (claim model migration). Returning noop result.');
+    return { stuckCount: 0, retriedCount: 0, alertedCount: 0 };
   }
 
   /**
