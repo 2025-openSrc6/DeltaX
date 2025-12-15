@@ -156,6 +156,7 @@ export default function DevDemoPage() {
       .then((res) => res.json())
       .then((data) => {
         if (data.suiPackageId) setSuiPackageId(data.suiPackageId);
+        if (data.cronSecret) setCronSecret(data.cronSecret);
       })
       .catch(console.error);
   }, []);
