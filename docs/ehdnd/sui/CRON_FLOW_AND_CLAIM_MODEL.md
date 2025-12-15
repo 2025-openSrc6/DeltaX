@@ -16,6 +16,25 @@
   - 라운드 상태(FSM), 가격/avgVol/메타, 화면용 통계/집계
   - “진짜 DEL 잔액”을 DB에서 단일 소스로 관리하지 않음(불일치 비용이 큼)
 
+### 0.1) 구현 결정(2025-12-15)
+
+- **결정 A) `SETTLED` 의미**
+  - Off-chain `rounds.status=SETTLED`는 “모든 유저가 payout을 받았다”가 아니라,
+    **on-chain `finalize_round`가 성공해 Settlement(영수증)가 생성되어 Claim 가능한 상태**를 의미한다.
+  - 실제 payout 완료 여부는 **Bet 단위(Claim TxDigest 등)로 추적**한다. (라운드 단위로 “완료”를 강제하지 않음)
+
+- **결정 B) Job 5(서버 배당/정산) 폐기**
+  - Cron이 승자 Bet을 순회하며 `distribute_payout`을 호출하는 Job 5는 폐기한다.
+  - 배당은 유저가 Bet owned object를 제출해 `claim_payout`을 호출하는 **Claim 모델**로만 진행한다.
+  - Claim은 `prepare/execute` API(B1)로 구현하되, **Job 4 연결 완료 후 다음 스코프**로 미룬다.
+
+- **결정 C) VOID 규칙**
+  - VOID는 “온체인 Settlement에 outcome/voidReason을 명시”하고, Claim에서 “원금 환불(refund)”로 처리한다.
+  - 오프체인 정책(입력/판정):
+    - avgVol 데이터 부족(<360) 또는 0 → `goldAvgVol/btcAvgVol=0`으로 on-chain `finalize_round` 호출하여 VOID Settlement 생성
+    - 가격 데이터 invalid/결측 → end price를 start price로 fallback + `avgVol=0`으로 VOID Settlement 생성
+    - winning_pool == 0 → on-chain에서 VOID 처리(시장 승자는 기록하되 payout은 refund)
+
 ---
 
 ## 1) 구성요소(레이어)
@@ -59,12 +78,11 @@
 
 - **목표**: 라운드 시작 시각 도달 시 `BETTING_OPEN`으로 전이 + 시작가/메타 저장 + (권장) on-chain pool 생성
 - **입력**: 가격 스냅샷(start) + meta
-- **권장 Sui 호출(추가될 부분)**:
+- **Sui 호출(구현됨)**:
   - `lib/sui/admin.ts#createPool(roundNumber, lockTimeMs, endTimeMs)`
-  - 성공 시 rounds에:
-    - `suiPoolAddress`(poolId)
-    - `suiCreatePoolTxDigest`
-    - (선택) admin cap/패키지 버전 정보(감사용)
+  - 멱등성:
+    - `rounds.suiPoolAddress`가 있으면 재호출하지 않음
+    - 없으면 on-chain pool 생성 후 `suiPoolAddress`/`suiCreatePoolTxDigest`를 먼저 저장
 - **DB 저장**
   - `goldStartPrice`, `btcStartPrice`
   - `priceSnapshotStartAt`, `startPriceSource`
@@ -74,9 +92,11 @@
 ### Job 3) Betting Locker — `/api/cron/rounds/lock`
 
 - **목표**: lockTime 이후 `BETTING_LOCKED` 전이 + (권장) on-chain lock 수행
-- **권장 Sui 호출(추가될 부분)**:
+- **Sui 호출(구현됨)**:
   - `lib/sui/admin.ts#lockPool(poolId)` where poolId = rounds.suiPoolAddress
-  - 성공 시 rounds에 `suiLockPoolTxDigest` 저장
+  - 멱등성:
+    - `rounds.suiLockPoolTxDigest`가 있으면 재호출하지 않음
+    - 없으면 on-chain lock 후 `suiLockPoolTxDigest`를 먼저 저장
 - **DB 저장**
   - `bettingLockedAt`
   - `suiLockPoolTxDigest`
@@ -87,7 +107,7 @@
 - **입력**
   - 가격 스냅샷(end) + meta
   - avgVol 계산 결과 + meta
-- **권장 Sui 호출(추가될 부분)**:
+- **Sui 호출(연결 대상)**:
   - `lib/sui/admin.ts#finalizeRound(poolId, prices, avgVols, volMeta?)`
   - 성공 시 rounds에:
     - `suiFinalizeTxDigest`
@@ -99,6 +119,19 @@
   - `priceSnapshotMeta`(end 메타 포함)
   - `goldAvgVol`, `btcAvgVol`, `avgVolMeta`
   - `winner`(시장 승자; payout 승자와 분리 가능)
+  - `rounds.status`:
+    - `SETTLED`: Settlement 생성 완료(Claim 가능)
+    - `VOIDED`: Settlement는 생성되었지만 outcome=VOID(Claim 시 원금 환불)
+
+#### 구현 메모 (현재 코드 기준)
+
+- **avgVol 계산**: `lib/rounds/avgVol.service.ts#calculateSettlementAvgVol()`
+  - Binance `klines` 기반(`PAXGUSDT`, `BTCUSDT`)
+  - interval=`1h`, lookback=`720`(30일)
+  - returns(%) 표준편차(stddev) = avgVol
+  - 데이터 부족(`<360`)이면 **avgVol=0 → on-chain VOID**로 처리
+- **end price invalid/결측 처리**: end price를 start price로 fallback + **avgVol=0으로 강제(VOID)** 처리
+- **멱등성**: `rounds.suiFinalizeTxDigest/suiSettlementObjectId/suiFeeCoinObjectId`가 이미 있으면 finalize를 재호출하지 않는다.
 
 ---
 
@@ -137,15 +170,16 @@
 - VOID인 경우 Settlement에 outcome/voidReason을 명시하고,
   claim에서 “원금 환불(refund)” 규칙으로 처리하는 구조 권장
 
-현재 상태:
+현재 상태(온체인):
 
-- VOID 분기/환불 분기는 아직 확정/구현 전(정책 결정 후 Move + Service 수정 필요)
+- `contracts/sources/betting.move`에 **VOID(outcome/void_reason) + 환불(claim 시 원금 환불)** 로직이 구현됨
+- 오프체인(서비스/DB)에서 VOID를 어떻게 표시/저장할지(예: rounds.status=VOIDED 전이, voidReason 저장)는 후속 작업
 
 ---
 
 ## 6) Recovery (운영 관점)
 
-현재 서버에는 `RoundService.recoveryRounds()` 골격이 있으며(Job 6 개념),
+현재 서버에는 `RoundService.recoveryRounds()` 골격이 있으며(Job 6 개념, 라우트는 `app/api/cron/recovery/route.ts`),
 아래를 목표로 확장하는 것을 권장한다:
 
 - **체인 성공, DB 실패 복구**
