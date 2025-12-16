@@ -32,7 +32,8 @@ const SHOP_ITEMS: ShopItem[] = [
     price: 50000,
     currency: 'DEL',
     requiresNickname: false,
-    imageUrl: 'https://images.unsplash.com/photo-1511367461989-f85a21fda167?w=500&auto=format&fit=crop&q=60',
+    imageUrl:
+      'https://images.unsplash.com/photo-1511367461989-f85a21fda167?w=500&auto=format&fit=crop&q=60',
     available: true,
     tier: null,
     metadata: null,
@@ -47,7 +48,8 @@ const SHOP_ITEMS: ShopItem[] = [
     currency: 'DEL',
     requiresNickname: true,
     metadata: JSON.stringify({ color: '#FF5733' }),
-    imageUrl: 'https://images.unsplash.com/photo-1505909182942-e2f09aee3e89?w=500&auto=format&fit=crop&q=60',
+    imageUrl:
+      'https://images.unsplash.com/photo-1505909182942-e2f09aee3e89?w=500&auto=format&fit=crop&q=60',
     available: true,
     tier: null,
     createdAt: Date.now(),
@@ -61,7 +63,8 @@ const SHOP_ITEMS: ShopItem[] = [
     currency: 'DEL',
     requiresNickname: true,
     metadata: JSON.stringify({ color: 'RAINBOW' }),
-    imageUrl: 'https://images.unsplash.com/photo-1550684848-fac1c5b4e853?w=500&auto=format&fit=crop&q=60',
+    imageUrl:
+      'https://images.unsplash.com/photo-1550684848-fac1c5b4e853?w=500&auto=format&fit=crop&q=60',
     available: true,
     tier: null,
     createdAt: Date.now(),
@@ -148,7 +151,8 @@ const SHOP_ITEMS: ShopItem[] = [
     price: 2,
     currency: 'CRYSTAL',
     metadata: JSON.stringify({ durationMs: 86400000 }),
-    imageUrl: 'https://images.unsplash.com/photo-1639815188546-c43c240ff4df?w=500&auto=format&fit=crop&q=60',
+    imageUrl:
+      'https://images.unsplash.com/photo-1639815188546-c43c240ff4df?w=500&auto=format&fit=crop&q=60',
     available: true,
     tier: null,
     requiresNickname: false,
@@ -203,11 +207,11 @@ export default function ShopPage() {
 
   // Tier 순서 정의
   const tierOrder: Record<string, number> = {
-    'Obsidian': 1,
-    'Aurum': 2,
-    'Nova': 3,
-    'Aetherion': 4,
-    'Singularity': 5
+    Obsidian: 1,
+    Aurum: 2,
+    Nova: 3,
+    Aetherion: 4,
+    Singularity: 5,
   };
 
   // 페이지 로드 시 세션에서 지갑 상태 및 잔액 복원
@@ -395,7 +399,7 @@ Exp: ${expMs}`;
     await fetch('/api/auth/logout', {
       method: 'POST',
       credentials: 'include',
-    }).catch(() => { });
+    }).catch(() => {});
 
     if (currentWallet) {
       if (currentWallet.features && currentWallet.features['standard:disconnect']) {
@@ -493,7 +497,7 @@ Exp: ${expMs}`;
 
         // 버섯 구매 시 개수 증가
         if (item.category === 'ITEM' && item.id.includes('mushroom')) {
-          setGreenMushroomCount(prev => prev + 1);
+          setGreenMushroomCount((prev) => prev + 1);
         }
       } else {
         toast.error(executeData.message || '구매에 실패했습니다.');
@@ -563,7 +567,7 @@ Exp: ${expMs}`;
     try {
       const requestBody: { userId: string; itemId: string; newNickname?: string } = {
         userId,
-        itemId: item.id
+        itemId: item.id,
       };
 
       // 닉네임 변경권인 경우 newNickname 포함
@@ -598,7 +602,7 @@ Exp: ${expMs}`;
 
         // 버섯 구매 시 개수 증가
         if (item.category === 'ITEM' && item.id.includes('mushroom')) {
-          setGreenMushroomCount(prev => prev + 1);
+          setGreenMushroomCount((prev) => prev + 1);
         }
       } else {
         toast.error(data.message || '구매 실패');
@@ -619,10 +623,13 @@ Exp: ${expMs}`;
   };
 
   const filteredItems = items
-    .filter(item => activeCategory === 'ALL' || item.category === activeCategory)
+    .filter((item) => activeCategory === 'ALL' || item.category === activeCategory)
     .sort((a, b) => {
       // 1. NFT인 경우 Tier 순서로 정렬
-      if (activeCategory === 'NFT' || (activeCategory === 'ALL' && a.category === 'NFT' && b.category === 'NFT')) {
+      if (
+        activeCategory === 'NFT' ||
+        (activeCategory === 'ALL' && a.category === 'NFT' && b.category === 'NFT')
+      ) {
         const tierA = tierOrder[a.tier || ''] || 99;
         const tierB = tierOrder[b.tier || ''] || 99;
         if (tierA !== tierB) return tierA - tierB;
@@ -640,11 +647,11 @@ Exp: ${expMs}`;
   ];
 
   // 닉네임이 있으면 닉네임, 없으면 지갑 주소 축약형 표시
-  const displayName = currentNickname || (
-    walletAddress.length > 10
+  const displayName =
+    currentNickname ||
+    (walletAddress.length > 10
       ? `${walletAddress.substring(0, 6)}...${walletAddress.substring(walletAddress.length - 4)}`
-      : walletAddress
-  );
+      : walletAddress);
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-[#02040a] text-slate-50 px-2 py-3 sm:px-4 sm:py-6">
@@ -659,7 +666,10 @@ Exp: ${expMs}`;
         {/* Header */}
         <header className="mb-6 flex items-center justify-between rounded-[24px] border border-slate-800/80 bg-slate-950/80 px-4 py-3 shadow-lg shadow-black/40 backdrop-blur-md lg:px-5">
           <div className="flex items-center gap-4">
-            <Link href="/" className="flex items-center justify-center w-10 h-10 rounded-full bg-slate-900/50 hover:bg-slate-800 transition-colors border border-slate-800">
+            <Link
+              href="/"
+              className="flex items-center justify-center w-10 h-10 rounded-full bg-slate-900/50 hover:bg-slate-800 transition-colors border border-slate-800"
+            >
               <ArrowLeft className="h-5 w-5 text-slate-400" />
             </Link>
             <div className="flex items-center gap-3">
@@ -674,7 +684,9 @@ Exp: ${expMs}`;
               </div>
               <div>
                 <h1 className="text-lg font-bold text-slate-100 leading-none">NFT SHOP</h1>
-                <p className="text-[11px] text-slate-500 font-medium mt-1">Digital Assets & Upgrades</p>
+                <p className="text-[11px] text-slate-500 font-medium mt-1">
+                  Digital Assets & Upgrades
+                </p>
               </div>
             </div>
           </div>
@@ -685,20 +697,30 @@ Exp: ${expMs}`;
                 <div className="hidden sm:flex items-center gap-3 rounded-full bg-slate-900/80 border border-slate-800 px-3 py-1.5">
                   <div className="flex items-center gap-1.5">
                     <span className="text-xs text-slate-400">DEL:</span>
-                    <span className="text-sm font-bold text-cyan-400">{delBalance.toLocaleString()}</span>
+                    <span className="text-sm font-bold text-cyan-400">
+                      {delBalance.toLocaleString()}
+                    </span>
                   </div>
                   <div className="flex items-center gap-1.5">
                     <span className="text-xs text-slate-400">💎:</span>
-                    <span className="text-sm font-bold text-pink-400">{crystalBalance.toLocaleString()}</span>
+                    <span className="text-sm font-bold text-pink-400">
+                      {crystalBalance.toLocaleString()}
+                    </span>
                   </div>
                   <div className="flex items-center gap-1.5" title="부스트 상태">
                     <Rocket className="h-3.5 w-3.5 text-orange-400" />
-                    <span className={`text-xs font-bold ${boostCount > 0 ? 'text-orange-400' : 'text-slate-500'}`}>
+                    <span
+                      className={`text-xs font-bold ${boostCount > 0 ? 'text-orange-400' : 'text-slate-500'}`}
+                    >
                       {boostCount > 0 ? 'ON' : 'OFF'}
                     </span>
                   </div>
                   <div className="flex items-center gap-1.5" title="Green Mushroom">
-                    <svg className="h-3.5 w-3.5 text-green-400" viewBox="0 0 24 24" fill="currentColor">
+                    <svg
+                      className="h-3.5 w-3.5 text-green-400"
+                      viewBox="0 0 24 24"
+                      fill="currentColor"
+                    >
                       <path d="M12 2C8 2 4 5 4 9c0 3 2 5 4 6v5c0 1.1.9 2 2 2h4c1.1 0 2-.9 2-2v-5c2-1 4-3 4-6 0-4-4-7-8-7zm0 2c3 0 6 2 6 5 0 2-1.5 3.5-3 4.3V19h-6v-5.7C7.5 12.5 6 11 6 9c0-3 3-5 6-5z" />
                       <circle cx="9" cy="8" r="1.5" />
                       <circle cx="15" cy="8" r="1.5" />
@@ -754,7 +776,8 @@ Exp: ${expMs}`;
                 </span>
               </h2>
               <p className="text-slate-400 max-w-md text-sm sm:text-base leading-relaxed">
-                닉네임 변경권부터 한정판 NFT까지. DEL 토큰으로 다양한 아이템을 구매하고 혜택을 누리세요.
+                닉네임 변경권부터 한정판 NFT까지. DEL 토큰으로 다양한 아이템을 구매하고 혜택을
+                누리세요.
               </p>
             </div>
           </div>
@@ -785,7 +808,10 @@ Exp: ${expMs}`;
                 {loading ? (
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                     {[...Array(4)].map((_, i) => (
-                      <div key={i} className="h-[280px] rounded-2xl bg-slate-900/50 animate-pulse" />
+                      <div
+                        key={i}
+                        className="h-[280px] rounded-2xl bg-slate-900/50 animate-pulse"
+                      />
                     ))}
                   </div>
                 ) : filteredItems.length > 0 ? (
