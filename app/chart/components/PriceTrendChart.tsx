@@ -10,7 +10,6 @@ import {
   Legend,
   ResponsiveContainer,
 } from 'recharts';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 interface PriceDataPoint {
   timestamp: string;
@@ -27,20 +26,13 @@ export function PriceTrendChart({ data }: PriceTrendChartProps) {
   const normalizedData = normalizeToPercentage(data);
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Price Trend (Normalized to %)</CardTitle>
-        <p className="text-sm text-muted-foreground">
-          Starting from 0%, showing relative price changes
-        </p>
-      </CardHeader>
-      <CardContent>
-        <ResponsiveContainer width="100%" height={400}>
-          <LineChart data={normalizedData}>
-            <CartesianGrid strokeDasharray="3 3" />
+    <div className="w-full" style={{ minHeight: '400px' }}>
+      <ResponsiveContainer width="100%" height={400}>
+          <LineChart data={normalizedData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
             <XAxis
               dataKey="timestamp"
-              tick={{ fontSize: 12 }}
+              tick={{ fontSize: 12, fill: '#6b7280' }}
               tickFormatter={(value) => {
                 const date = new Date(value);
                 return date.toLocaleTimeString('en-US', {
@@ -49,7 +41,10 @@ export function PriceTrendChart({ data }: PriceTrendChartProps) {
                 });
               }}
             />
-            <YAxis tick={{ fontSize: 12 }} tickFormatter={(value) => `${value.toFixed(1)}%`} />
+            <YAxis 
+              tick={{ fontSize: 12, fill: '#6b7280' }} 
+              tickFormatter={(value) => `${value.toFixed(1)}%`} 
+            />
             <Tooltip
               content={({ active, payload }) => {
                 if (!active || !payload || payload.length === 0) return null;
@@ -86,8 +81,7 @@ export function PriceTrendChart({ data }: PriceTrendChartProps) {
             />
           </LineChart>
         </ResponsiveContainer>
-      </CardContent>
-    </Card>
+    </div>
   );
 }
 

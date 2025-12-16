@@ -119,7 +119,7 @@ export default function SpreadCandlestickChart({
   if (loading) {
     return (
       <div className="flex items-center justify-center" style={{ height }}>
-        <div className="text-gray-400">데이터 로딩 중...</div>
+        <div className="text-cyan-600">데이터 로딩 중...</div>
       </div>
     );
   }
@@ -127,7 +127,7 @@ export default function SpreadCandlestickChart({
   if (error) {
     return (
       <div className="flex items-center justify-center" style={{ height }}>
-        <div className="text-red-400">오류: {error}</div>
+        <div className="text-red-600">오류: {error}</div>
       </div>
     );
   }
@@ -135,7 +135,7 @@ export default function SpreadCandlestickChart({
   if (data.length === 0) {
     return (
       <div className="flex items-center justify-center" style={{ height }}>
-        <div className="text-gray-400">데이터가 없습니다</div>
+        <div className="text-cyan-600">데이터가 없습니다</div>
       </div>
     );
   }
@@ -144,14 +144,14 @@ export default function SpreadCandlestickChart({
     <div className="w-full">
       {/* 헤더 통계 */}
       <div className="mb-4 grid grid-cols-3 gap-4">
-        <div className="rounded-lg bg-gray-800/50 p-3">
-          <div className="text-sm text-gray-400">현재 우세</div>
+        <div className="rounded-lg bg-cyan-50 border border-cyan-200 p-3">
+          <div className="text-sm text-cyan-700">현재 우세</div>
           <div
-            className={`text-2xl font-bold ${stats.currentWinner === 'PAXG' ? 'text-red-400' : stats.currentWinner === 'BTC' ? 'text-blue-400' : 'text-gray-400'}`}
+            className={`text-2xl font-bold ${stats.currentWinner === 'PAXG' ? 'text-red-600' : stats.currentWinner === 'BTC' ? 'text-blue-600' : 'text-cyan-700'}`}
           >
             {stats.currentWinner === 'TIE' ? '동률' : stats.currentWinner}
           </div>
-          <div className="text-xs text-gray-500">
+          <div className="text-xs text-cyan-600">
             {stats.currentWinner === 'PAXG'
               ? '🔴 양봉'
               : stats.currentWinner === 'BTC'
@@ -160,49 +160,50 @@ export default function SpreadCandlestickChart({
           </div>
         </div>
 
-        <div className="rounded-lg bg-gray-800/50 p-3">
-          <div className="text-sm text-gray-400">격차</div>
+        <div className="rounded-lg bg-cyan-50 border border-cyan-200 p-3">
+          <div className="text-sm text-cyan-700">격차</div>
           <div
-            className={`text-2xl font-bold ${Math.abs(stats.currentSpread) >= 0.5 ? 'text-yellow-400' : 'text-gray-300'}`}
+            className={`text-2xl font-bold ${Math.abs(stats.currentSpread) >= 0.5 ? 'text-yellow-600' : 'text-cyan-800'}`}
           >
             {Math.abs(stats.currentSpread).toFixed(2)}
           </div>
-          <div className="text-xs text-gray-500">
+          <div className="text-xs text-cyan-600">
             {Math.abs(stats.currentSpread) >= 0.5 ? '큰 격차' : '작은 격차'}
           </div>
         </div>
 
-        <div className="rounded-lg bg-gray-800/50 p-3">
-          <div className="text-sm text-gray-400">PAXG 승률</div>
+        <div className="rounded-lg bg-cyan-50 border border-cyan-200 p-3">
+          <div className="text-sm text-cyan-700">PAXG 승률</div>
           <div
-            className={`text-2xl font-bold ${stats.paxgWinRate >= 50 ? 'text-red-400' : 'text-blue-400'}`}
+            className={`text-2xl font-bold ${stats.paxgWinRate >= 50 ? 'text-red-600' : 'text-blue-600'}`}
           >
             {stats.paxgWinRate.toFixed(0)}%
           </div>
-          <div className="text-xs text-gray-500">최근 {data.length}개 데이터</div>
+          <div className="text-xs text-cyan-600">최근 {data.length}개 데이터</div>
         </div>
       </div>
 
       {/* 차트 */}
       <ResponsiveContainer width="100%" height={height}>
         <ComposedChart data={data} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+          <CartesianGrid strokeDasharray="3 3" stroke="#cbd5e1" />
 
           {/* X축 숨김 */}
           <XAxis dataKey="timestamp" hide={true} />
 
           <YAxis
-            stroke="#9ca3af"
+            stroke="#64748b"
             style={{ fontSize: '12px' }}
-            label={{ value: '강도 차이', angle: -90, position: 'insideLeft', fill: '#9ca3af' }}
+            label={{ value: '강도 차이', angle: -90, position: 'insideLeft', fill: '#64748b' }}
           />
 
           <Tooltip
             contentStyle={{
-              backgroundColor: '#1f2937',
-              border: '1px solid #374151',
+              backgroundColor: '#fff',
+              border: '1px solid #cbd5e1',
               borderRadius: '8px',
-              color: '#fff',
+              color: '#1e293b',
+              boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
             }}
             formatter={(value: number, _name: string, props: { payload?: CandleData }) => {
               const payload = props.payload;
@@ -210,15 +211,15 @@ export default function SpreadCandlestickChart({
               return [
                 <div key="tooltip" className="space-y-1">
                   <div
-                    className={`font-bold ${payload.winner === 'PAXG' ? 'text-red-400' : 'text-blue-400'}`}
+                    className={`font-bold ${payload.winner === 'PAXG' ? 'text-red-600' : 'text-blue-600'}`}
                   >
                     {payload.winner} 우세
                   </div>
-                  <div>격차: {Math.abs(value).toFixed(3)}</div>
-                  <div className="text-xs text-gray-400">
+                  <div className="text-slate-700">격차: {Math.abs(value).toFixed(3)}</div>
+                  <div className="text-xs text-slate-600">
                     PAXG: {payload.paxgStrength.toFixed(2)}x
                   </div>
-                  <div className="text-xs text-gray-400">
+                  <div className="text-xs text-slate-600">
                     BTC: {payload.btcStrength.toFixed(2)}x
                   </div>
                 </div>,
@@ -230,9 +231,9 @@ export default function SpreadCandlestickChart({
           {/* 기준선 (0 = 동률) */}
           <ReferenceLine
             y={0}
-            stroke="#6b7280"
+            stroke="#94a3b8"
             strokeWidth={2}
-            label={{ value: '동률선', fill: '#9ca3af', fontSize: 12 }}
+            label={{ value: '동률선', fill: '#64748b', fontSize: 12 }}
           />
 
           {/* 양봉/음봉 바 */}
@@ -245,7 +246,7 @@ export default function SpreadCandlestickChart({
       </ResponsiveContainer>
 
       {/* 설명 */}
-      <div className="mt-4 text-xs text-gray-500">
+      <div className="mt-4 text-xs text-cyan-700">
         <p>• 🔴 빨간 양봉: PAXG가 더 강함 (위로) | 🔵 파란 음봉: BTC가 더 강함 (아래로)</p>
         <p>• 막대 길이 = 강도 격차 (클수록 압도적)</p>
       </div>

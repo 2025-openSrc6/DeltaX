@@ -115,4 +115,46 @@ export class UserRepository {
         .where(eq(users.id, userId)),
     ]);
   }
+
+  /**
+   * 최근 활성 사용자 조회 (updatedAt 기준)
+   * @param minutesAgo N분 이내에 활동한 사용자 조회
+   */
+  async findRecentActiveUsers(minutesAgo: number = 30): Promise<User[]> {
+    const db = getDb();
+    const cutoffTime = Date.now() - minutesAgo * 60 * 1000;
+    const result = await db
+      .select()
+      .from(users)
+      .where(sql`${users.updatedAt} >= ${cutoffTime}`)
+      .orderBy(sql`${users.updatedAt} DESC`);
+    return result;
+  }
+
+  /**
+   * 유저 활동 시간 업데이트 (updatedAt 갱신)
+   */
+  async updateActivityTime(userId: string): Promise<void> {
+    const db = getDb();
+    await db
+      .update(users)
+      .set({
+        updatedAt: Date.now(),
+      })
+      .where(eq(users.id, userId));
+  }
+
+  /**
+   * 유저 잔액 업데이트 (동기화용)
+   */
+  async updateBalance(userId: string, newBalance: number): Promise<void> {
+    const db = getDb();
+    await db
+      .update(users)
+      .set({
+        delBalance: newBalance,
+        updatedAt: Date.now(),
+      })
+      .where(eq(users.id, userId));
+  }
 }

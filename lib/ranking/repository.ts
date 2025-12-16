@@ -21,6 +21,9 @@ export async function fetchRankingRows(limit: number): Promise<RawRankingRow[]> 
     .select({
       userId: users.id,
       walletAddress: users.suiAddress,
+      nickname: users.nickname,
+      nicknameColor: users.nicknameColor,
+      profileColor: users.profileColor,
       delBalance: users.delBalance, // 온체인 동기화된 DEL 잔액
       achievementTotal: sql<number>`COALESCE(SUM(${achievements.purchasePrice}), 0)`.as(
         'achievement_total',
@@ -32,7 +35,14 @@ export async function fetchRankingRows(limit: number): Promise<RawRankingRow[]> 
     })
     .from(users)
     .leftJoin(achievements, eq(users.id, achievements.userId))
-    .groupBy(users.id, users.suiAddress, users.delBalance)
+    .groupBy(
+      users.id,
+      users.suiAddress,
+      users.nickname,
+      users.nicknameColor,
+      users.profileColor,
+      users.delBalance,
+    )
     .orderBy(desc(sql`total_asset`))
     .limit(limit);
 

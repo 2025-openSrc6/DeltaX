@@ -13,6 +13,9 @@ export async function getRanking(limit: number): Promise<RankingItem[]> {
   // DB에서 이미 집계/정렬된 데이터를 RankingItem 형태로 변환
   const ranking: RankingItem[] = rows.map((row) => ({
     walletAddress: row.walletAddress ?? '',
+    nickname: row.nickname ?? null,
+    nicknameColor: row.nicknameColor ?? null,
+    profileColor: row.profileColor ?? null,
     delBalance: Number(row.delBalance ?? 0),
     achievementTotal: Number(row.achievementTotal ?? 0),
     totalAsset: Number(row.totalAsset ?? 0),
