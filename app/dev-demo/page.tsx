@@ -9,7 +9,6 @@ import {
 } from '@mysten/dapp-kit';
 import { Transaction } from '@mysten/sui/transactions';
 import { ConnectButton } from '@mysten/dapp-kit';
-import { useSession } from '@/app/hooks/useSession';
 import { toBase64 } from '@mysten/sui/utils';
 import type { CoinStruct } from '@mysten/sui/client';
 
@@ -20,7 +19,93 @@ export default function DevDemoPage() {
   const { currentWallet, isConnected } = useCurrentWallet();
   const { mutateAsync: signPersonalMessage } = useSignPersonalMessage();
   const { mutateAsync: signTransaction } = useSignTransaction();
-  const { isLoggedIn, user, login, logout, refresh } = useSession();
+  const suiClient = useSuiClient();
+
+  // ----- Auth Logic (Mirrored from app/page.tsx) -----
+  const [user, setUser] = useState<{
+    id: string;
+    nickname: string | null;
+    suiAddress: string;
+  } | null>(null);
+
+  const refresh = () => {
+    fetch('/api/auth/session', { credentials: 'include' })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success && data.data?.user) {
+          setUser(data.data.user);
+        } else {
+          setUser(null);
+        }
+      })
+      .catch((e) => console.error('Session check failed', e));
+  };
+
+  // Check Session on Mount
+  useEffect(() => {
+    refresh();
+  }, []);
+
+  const buildLoginMessage = (nonce: string, expMs: number) => {
+    const domain = typeof window !== 'undefined' ? window.location.host : 'deltax.app';
+    return `DeltaX Login\nDomain: ${domain}\nNonce: ${nonce}\nExp: ${expMs}`;
+  };
+
+  const handleLogin = async () => {
+    if (!currentWallet?.accounts[0]?.address) return;
+    const address = currentWallet.accounts[0].address;
+
+    try {
+      const nonce = crypto.randomUUID();
+      const expMs = Date.now() + 5 * 60_000; // 5 min
+      const message = buildLoginMessage(nonce, expMs);
+      const encoder = new TextEncoder();
+
+      const signed = await signPersonalMessage({
+        message: encoder.encode(message),
+      });
+
+      // Handle simplified signature/bytes logic
+      const signature = signed.signature;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const rawBytes = (signed as any).bytes || signed.signature; // DappKit variation
+      let signedMessageBytes: string;
+
+      if (typeof rawBytes === 'string') {
+        signedMessageBytes = rawBytes;
+      } else {
+        // Uint8Array → base64
+        signedMessageBytes = btoa(
+          String.fromCharCode.apply(null, Array.from(rawBytes as Uint8Array)),
+        );
+      }
+
+      const res = await fetch('/api/auth/session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ suiAddress: address, signature, message, signedMessageBytes }),
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error?.message || 'Login failed');
+      }
+
+      setUser(data.data.user);
+      refresh(); // Refresh page data
+    } catch (e) {
+      alert('Login Failed: ' + (e as Error).message);
+    }
+  };
+
+  const handleLogout = async () => {
+    await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' }).catch(() => {});
+    setUser(null);
+  };
+
+  // Use user state for isLoggedIn check
+  const isLoggedIn = !!user;
 
   // ----- State -----
   const [cronSecret, setCronSecret] = useState('');
@@ -43,11 +128,6 @@ export default function DevDemoPage() {
   const [claimBetId, setClaimBetId] = useState('');
   const [claimLog, setClaimLog] = useState<string[]>([]);
 
-  // Init
-  useEffect(() => {
-    refresh();
-  }, []);
-
   // ----- Helpers -----
   const logRound = (msg: string) =>
     setRoundStatusLog((prev) => [new Date().toISOString().split('T')[1] + ' ' + msg, ...prev]);
@@ -55,24 +135,6 @@ export default function DevDemoPage() {
     setBetLog((prev) => [new Date().toISOString().split('T')[1] + ' ' + msg, ...prev]);
   const logClaim = (msg: string) =>
     setClaimLog((prev) => [new Date().toISOString().split('T')[1] + ' ' + msg, ...prev]);
-
-  // ----- Actions: Auth -----
-  const handleLogin = async () => {
-    if (!currentWallet) return;
-    try {
-      const message = `DeltaX Login\nNonce: ${Math.random().toString(36).substring(7)}\nExp: ${Date.now() + 300000}`;
-      const msgBytes = new TextEncoder().encode(message);
-      const signature = await signPersonalMessage({ message: msgBytes });
-
-      await login({
-        suiAddress: currentWallet.accounts[0].address,
-        signature: signature.signature, // dapp-kit returns { signature, bytes } usually? check type
-        message,
-      });
-    } catch (e) {
-      alert('Login Failed: ' + (e as Error).message);
-    }
-  };
 
   // ----- Actions: Mint -----
   const handleMint = async () => {
@@ -149,7 +211,6 @@ export default function DevDemoPage() {
   const [availableCoins, setAvailableCoins] = useState<{ id: string; balance: number }[]>([]);
   const [isFetchingCoins, setIsFetchingCoins] = useState(false);
   const [suiPackageId, setSuiPackageId] = useState<string>('');
-  const suiClient = useSuiClient();
 
   useEffect(() => {
     fetch('/api/public-config')
@@ -403,7 +464,7 @@ export default function DevDemoPage() {
             <div>
               {isLoggedIn ? (
                 <button
-                  onClick={() => logout()}
+                  onClick={handleLogout}
                   className="px-4 py-2 border border-zinc-600 hover:bg-zinc-800 rounded text-sm transition-colors"
                 >
                   Logout
