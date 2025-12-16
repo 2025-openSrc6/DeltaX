@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { config as loadEnv } from 'dotenv';
 import { decodeSuiPrivateKey } from '@mysten/sui/cryptography';
 
