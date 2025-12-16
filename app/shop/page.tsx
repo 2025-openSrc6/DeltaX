@@ -180,7 +180,6 @@ export default function ShopPage() {
   const [items, setItems] = useState<ShopItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeCategory, setActiveCategory] = useState('ALL');
-  const [sessionChecked, setSessionChecked] = useState(false); // 세션 확인 완료 여부
 
   // 닉네임 모달 상태
   const [isNicknameModalOpen, setIsNicknameModalOpen] = useState(false);
@@ -210,7 +209,25 @@ export default function ShopPage() {
     'Singularity': 5
   };
 
-  // 페이지 로드 시 세션에서 지갑 상태 및 잔액 복원
+  // 온체인 DEL 잔액 조회 함수 (DB 값보다 클 때만 업데이트)
+  const fetchOnChainBalance = useCallback(async (address: string) => {
+    try {
+      const res = await fetch(`/api/shop/balance?address=${address}`);
+      const data = await res.json();
+      if (data.success && data.data?.balanceNumber) {
+        const onChainBalance = data.data.balanceNumber;
+        // 온체인 잔액이 현재 잔액보다 크거나 같을 때만 업데이트 (0으로 덮어쓰지 않음)
+        setDelBalance((prev) => {
+          return onChainBalance > prev ? onChainBalance : prev;
+        });
+      }
+    } catch (error) {
+      console.error('Failed to fetch on-chain DEL balance:', error);
+      // 에러 발생 시 DB 값 유지 (아무것도 하지 않음)
+    }
+  }, []);
+
+  // 페이지 로드 시 쿠키에서 주소 읽어서 상태 복원 (메인 페이지와 동일한 방식)
   useEffect(() => {
     fetch('/api/auth/session', { credentials: 'include' })
       .then((res) => res.json())
@@ -219,7 +236,9 @@ export default function ShopPage() {
           const address = data.data.user.suiAddress;
           setIsConnected(true);
           setWalletAddress(address);
-          // DEL은 온체인에서 조회 (DB 값 사용 안함)
+          // DEL 잔액: DB 값 사용 (메인 페이지와 동일)
+          setDelBalance(data.data.user.delBalance || 0);
+          // 추가로 온체인에서도 조회 (실시간 업데이트용)
           fetchOnChainBalance(address);
           setCrystalBalance(data.data.user.crystalBalance || 0);
           // 부스트 활성 여부 계산 (boostUntil이 현재 시간 이후면 활성)
@@ -230,48 +249,26 @@ export default function ShopPage() {
           if (data.data.user.nickname) {
             setCurrentNickname(data.data.user.nickname);
           }
-          setSessionChecked(true);
-        } else {
-          // 세션이 없거나 만료됨 - 지갑이 autoConnect 되어도 UI는 로그아웃 상태로 표시
-          setIsConnected(false);
-          setWalletAddress('');
-          setSessionChecked(true);
-          console.log('⚠️ No valid session, showing as logged out');
         }
       })
       .catch(() => {
-        // 세션 확인 실패 시에도 로그아웃 상태로
-        setIsConnected(false);
-        setWalletAddress('');
-        setSessionChecked(true);
+        // 에러 무시 (로그인 안 된 상태일 수 있음)
       });
-  }, []);
+  }, [fetchOnChainBalance]);
 
-  // currentWallet 상태 동기화 및 온체인 잔액 조회
-  // 세션 확인이 완료된 후에만 autoConnect로 인한 연결 처리
+  // currentWallet 상태 동기화 (메인 페이지와 동일한 방식)
   useEffect(() => {
-    // 세션 확인이 안 끝났으면 무시 (세션 확인 결과가 우선)
-    if (!sessionChecked) return;
-
-    // 이미 로그인 상태면 무시 (세션에서 이미 처리됨)
-    if (isConnected) return;
-
-    // autoConnect로 지갑만 연결된 상태 - 세션이 없으면 연결 UI 안 보여줌
-    // (사용자가 "지갑 연결" 버튼을 눌러서 세션 생성해야 함)
-  }, [currentWallet, sessionChecked, isConnected]);
-
-  // 온체인 DEL 잔액 조회 함수
-  const fetchOnChainBalance = useCallback(async (address: string) => {
-    try {
-      const res = await fetch(`/api/shop/balance?address=${address}`);
-      const data = await res.json();
-      if (data.success && data.data) {
-        setDelBalance(data.data.balanceNumber || 0);
-      }
-    } catch (error) {
-      console.error('Failed to fetch on-chain DEL balance:', error);
+    if (currentWallet?.accounts[0]?.address) {
+      const address = currentWallet.accounts[0].address;
+      setIsConnected(true);
+      setWalletAddress(address);
+      // 지갑이 연결되면 온체인 잔액 조회
+      fetchOnChainBalance(address);
+    } else if (!currentWallet) {
+      setIsConnected(false);
+      setWalletAddress('');
     }
-  }, []);
+  }, [currentWallet, fetchOnChainBalance]);
 
   // DB에서 아이템 불러오기
   useEffect(() => {
@@ -359,6 +356,21 @@ Exp: ${expMs}`;
 
     setIsConnected(true);
     setWalletAddress(address);
+
+    // 로그인 성공 시 잔액 및 정보 업데이트
+    if (parsed.data?.user) {
+      // DEL 잔액: DB 값 사용 (메인 페이지와 동일)
+      setDelBalance(parsed.data.user.delBalance || 0);
+      // 추가로 온체인에서도 조회 (실시간 업데이트용)
+      fetchOnChainBalance(address);
+      setCrystalBalance(parsed.data.user.crystalBalance || 0);
+      const boostUntil = parsed.data.user.boostUntil || 0;
+      setBoostCount(boostUntil > Date.now() ? 1 : 0);
+      setGreenMushroomCount(parsed.data.user.greenMushrooms || 0);
+      if (parsed.data.user.nickname) {
+        setCurrentNickname(parsed.data.user.nickname);
+      }
+    }
   };
 
   const handleConnect = async () => {
