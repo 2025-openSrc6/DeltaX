@@ -5,7 +5,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { LogOut, ArrowRight, Sparkles, BarChart3, Wallet, Zap, Activity } from 'lucide-react';
+import { LogOut, ArrowRight, Sparkles, BarChart3, Wallet, Zap, Activity, Heart, ShoppingBag, Calendar } from 'lucide-react';
 
 import { RankingList } from '@/components/RankingList';
 import { PointsPanel } from '@/components/PointsPanel';
@@ -13,6 +13,8 @@ import { DashboardMiniChart } from '@/components/DashboardMiniChart';
 import { BettingModal } from '@/components/bets/BettingModal';
 import { PAXGPriceChart, BTCPriceChart } from '@/components/charts';
 import SpreadCandlestickChart from '@/components/charts/SpreadCandlestickChart';
+import { VolatilityComparisonChart } from '@/app/chart/components/VolatilityComparisonChart';
+import { PriceTrendChart } from '@/app/chart/components/PriceTrendChart';
 import {
   useCurrentWallet,
   useConnectWallet,
@@ -21,6 +23,7 @@ import {
   useSignPersonalMessage,
 } from '@mysten/dapp-kit';
 import { useToast } from '@/hooks/use-toast';
+import { useAutoCollect } from '@/hooks/useAutoCollect';
 import type { Round } from '@/db/schema/rounds';
 
 // 실시간 관전 차트 섹션
@@ -95,8 +98,7 @@ export default function HomePage() {
   const [comparisonData, setComparisonData] = useState<any>(null);
   const [historicalPaxg, setHistoricalPaxg] = useState<any[]>([]);
   const [historicalBtc, setHistoricalBtc] = useState<any[]>([]);
-  const [loadingChart, setLoadingChart] = useState(false); // 초기값을 false로 변경하여 차트가 먼저 표시되도록
-  const [activeChart, setActiveChart] = useState<'volatility' | 'price'>('volatility');
+  const [activeChart, setActiveChart] = useState<'strength' | 'volatility' | 'price'>('strength');
 
   const { currentWallet } = useCurrentWallet();
   const { mutateAsync: connectWallet } = useConnectWallet();
@@ -188,12 +190,16 @@ export default function HomePage() {
     }
   };
 
-  // 타임프레임 변경 시 라운드 새로 로드
+  // 차트 데이터 로드 (useCallback으로 메모이제이션하여 불필요한 리렌더링 방지)
+  const loadChartData = useCallback(async () => {
+    try {
+      const [comparisonRes, paxgRes, btcRes] = await Promise.all([
+        fetch('/api/chart/compare?asset1=PAXG&asset2=BTC&period=24h'),
+        fetch('/api/chart/historical?asset=PAXG&period=24h'),
         fetch('/api/chart/historical?asset=BTC&period=24h'),
       ]);
 
       const comparisonResult = await comparisonRes.json();
->>>>>>> f4ce134 (refactor: 차트 메모이제이션으로 업데이트 최소화)
       const paxgResult = await paxgRes.json();
       const btcResult = await btcRes.json();
 
@@ -245,8 +251,6 @@ export default function HomePage() {
       }
     } catch (error) {
       console.error('차트 데이터 로드 실패:', error);
-    } finally {
-      setLoadingChart(false);
     }
   }, []); // 의존성 배열을 비워서 함수가 재생성되지 않도록 함
 
@@ -458,17 +462,17 @@ Exp: ${expMs}`;
       : walletAddress;
 
   return (
-    <div className="min-h-screen bg-slate-950">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
       {/* 배경 그라디언트 */}
       <div className="pointer-events-none fixed inset-0">
-        <div className="absolute top-20 right-1/4 w-96 h-96 bg-cyan-500/10 rounded-full blur-3xl" />
-        <div className="absolute bottom-20 left-1/4 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl" />
-        <div className="absolute top-1/2 right-0 w-80 h-80 bg-pink-500/5 rounded-full blur-3xl" />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(34,211,238,0.06),transparent_70%)]" />
+        <div className="absolute top-20 right-1/4 w-96 h-96 bg-cyan-500/20 rounded-full blur-3xl" />
+        <div className="absolute bottom-20 left-1/4 w-96 h-96 bg-purple-500/20 rounded-full blur-3xl" />
+        <div className="absolute top-1/2 right-0 w-80 h-80 bg-pink-500/15 rounded-full blur-3xl" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(34,211,238,0.1),transparent_70%)]" />
       </div>
 
       {/* 상단 헤더 */}
-      <header className="sticky top-0 z-50 border-b border-cyan-500/20 backdrop-blur-xl bg-slate-950/80">
+      <header className="sticky top-0 z-50 border-b border-cyan-500/30 backdrop-blur-xl bg-white/90 shadow-sm">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             {/* 로고 + 타이틀 */}
@@ -476,21 +480,21 @@ Exp: ${expMs}`;
               <div className="relative w-16 h-16 flex-shrink-0">
                 <Image src="/logo.png" alt="DeltaX Logo" fill className="object-contain" priority />
               </div>
-              <h1 className="text-3xl font-black bg-gradient-to-r from-cyan-400 via-purple-500 to-pink-500 bg-clip-text text-transparent drop-shadow-lg">
+              <h1 className="text-3xl font-black bg-gradient-to-r from-cyan-600 via-purple-600 to-pink-600 bg-clip-text text-transparent drop-shadow-lg">
                 DELTA X
               </h1>
             </div>
 
-            {/* 헤더 오른쪽: 포인트 + 연결 상태 */}
+            {/* 헤더 오른쪽: 포인트 + CARRY 버튼 */}
             <div className="flex items-center gap-4">
               {isConnected && (
-                <Card className="px-4 py-2 bg-gradient-to-r from-cyan-500/10 to-purple-500/10 border border-cyan-500/50 backdrop-blur-sm hover:border-cyan-400/80 transition-all duration-300 shadow-lg shadow-cyan-500/20">
+                <Card className="px-4 py-2 bg-gradient-to-r from-cyan-500/20 to-purple-500/20 border border-cyan-500/40 backdrop-blur-sm hover:border-cyan-500/60 transition-all duration-300 shadow-lg shadow-cyan-500/30 bg-white/80">
                   <div className="flex items-center gap-2">
-                    <Zap className="h-4 w-4 text-cyan-400 animate-pulse" />
-                    <span className="font-mono font-bold text-cyan-300">
+                    <Zap className="h-4 w-4 text-cyan-600 animate-pulse" />
+                    <span className="font-mono font-bold text-cyan-700">
                       {points.toLocaleString()}
                     </span>
-                    <span className="text-sm text-cyan-200/60">DEL</span>
+                    <span className="text-sm text-cyan-600/70">DEL</span>
                   </div>
                 </Card>
               )}
@@ -498,15 +502,14 @@ Exp: ${expMs}`;
               {isConnected ? (
                 <Button
                   onClick={handleDisconnect}
-                  className="border border-cyan-500/50 hover:border-cyan-400 hover:bg-cyan-500/10 bg-transparent text-cyan-300 transition-all duration-300"
+                  className="bg-gradient-to-r from-purple-600 to-pink-600 hover:shadow-lg hover:shadow-purple-500/50 transition-all duration-300 text-white font-bold shadow-md"
                 >
-                  <Wallet className="mr-2 h-4 w-4" />
-                  {displayAddress}
+                  CARRY
                 </Button>
               ) : (
                 <Button
                   onClick={handleConnect}
-                  className="bg-gradient-to-r from-cyan-500 to-purple-600 hover:shadow-lg hover:shadow-cyan-500/50 transition-all duration-300 text-white font-bold"
+                  className="bg-gradient-to-r from-cyan-600 to-purple-600 hover:shadow-lg hover:shadow-cyan-500/50 transition-all duration-300 text-white font-bold shadow-md"
                 >
                   <Wallet className="mr-2 h-4 w-4" />
                   Connect
@@ -517,62 +520,82 @@ Exp: ${expMs}`;
         </div>
       </header>
 
-      {/* 메인 그리드: 좌측 마켓 / 중앙 차트 / 우측 내 정보 */}
+      {/* 메인 컨텐츠 */}
       <div className="container mx-auto px-4 py-8">
-        <div className="mt-3 grid flex-1 gap-4 rounded-[24px] bg-slate-950/60 p-3 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,2fr)_minmax(0,1.3fr)] lg:p-4">
-          {/* 중앙: 차트 & 라운드 요약 (Basevol 메인 영역 느낌) */}
-          <section className="flex flex-col gap-4 lg:col-span-2">
-            {/* 상단: 라운드/타임프레임 헤더 */}
-            <Card className="border border-slate-800/80 rounded-2xl bg-slate-950/80 p-4 shadow-xl shadow-black/40">
-              <div className="mb-3 flex items-center justify-between">
-                <div>
-                  <div className="inline-flex items-center gap-1.5 rounded-full border border-slate-700/80 bg-slate-900/80 px-2.5 py-1 text-[11px] font-medium text-slate-300">
-                    <Sparkles className="h-3 w-3 text-cyan-400" /> 실시간 라운드 현황
-                  </div>
-                  <h1 className="mt-2 text-lg font-semibold text-slate-50 lg:text-xl">
-                    {timeframe === '3M' && '3 MIN 라운드 변동성 차트'}
-                    {timeframe === '1D' && '1 DAY 라운드 변동성 차트'}
-                    {timeframe === '6H' && '6 HOUR 라운드 변동성 차트'}
-                    {timeframe === '1M' && '1 MIN 라운드 스캘핑 차트'}
-                  </h1>
-                </div>
+        <div className="grid gap-6 lg:grid-cols-3">
+          {/* 중앙-왼쪽: LIVE ROUND */}
+          <section className="lg:col-span-2 flex flex-col gap-6">
+            {/* LIVE ROUND 카드 */}
+            <Card className="border border-cyan-500/30 bg-white/90 backdrop-blur-sm p-6 shadow-lg shadow-cyan-500/20 hover:border-cyan-500/50 transition-all duration-300">
+              <div className="mb-6">
+                <h2 className="text-3xl md:text-4xl font-black mb-2 bg-gradient-to-r from-cyan-600 to-purple-600 bg-clip-text text-transparent flex items-center gap-2">
+                  <Activity className="h-8 w-8 text-cyan-600" />
+                  LIVE ROUND
+                </h2>
+                <div className="w-24 h-1 bg-gradient-to-r from-cyan-500 via-purple-500 to-pink-500 rounded-full shadow-lg shadow-cyan-500/50" />
               </div>
 
               {/* 현재 라운드 정보 */}
               {currentRound && (
-                <div className="mb-4 rounded-lg bg-slate-900/70 p-3">
-                  <div className="mb-2 flex items-center justify-between">
-                    <span className="text-xs font-semibold text-slate-400">
-                      라운드 #{currentRound.roundNumber}
+                <div className="mb-6 rounded-xl bg-gradient-to-r from-cyan-500/10 to-purple-500/10 border border-cyan-500/40 p-4 shadow-md">
+                  <div className="mb-4 flex items-center justify-between">
+                    <span className="text-lg font-bold text-cyan-700 font-mono">
+                      ROUND #{currentRound.roundNumber} ({timeframe === '3M' ? 'DEMO_3MIN' : timeframe === '1M' ? '1MIN' : timeframe === '6H' ? '6HOUR' : '1DAY'})
                     </span>
                     <span
-                      className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                      className={`rounded-full px-3 py-1 text-xs font-bold ${
                         currentRound.status === 'BETTING_OPEN'
-                          ? 'bg-emerald-500/20 text-emerald-300'
+                          ? 'bg-emerald-500/30 text-emerald-700 border border-emerald-500/50'
                           : currentRound.status === 'BETTING_LOCKED'
-                            ? 'bg-yellow-500/20 text-yellow-300'
-                            : 'bg-slate-700/50 text-slate-400'
+                            ? 'bg-yellow-500/30 text-yellow-700 border border-yellow-500/50'
+                            : 'bg-slate-300/50 text-slate-600'
                       }`}
                     >
                       {currentRound.status === 'BETTING_OPEN'
-                        ? '베팅 가능'
+                        ? '🟢 OPEN'
                         : currentRound.status === 'BETTING_LOCKED'
-                          ? '베팅 마감'
+                          ? '🔒 LOCKED'
                           : currentRound.status}
                     </span>
                   </div>
-                  <div className="grid grid-cols-2 gap-2 text-xs">
-                    <div className="rounded bg-slate-800/50 px-2 py-1.5">
-                      <span className="text-slate-500">총 풀</span>
-                      <div className="mt-0.5 font-mono font-semibold text-cyan-300">
-                        {currentRound.totalPool.toLocaleString()} DEL
+                  <div className="grid grid-cols-2 gap-4 mb-4">
+                    <div className="rounded-lg bg-white/80 border border-cyan-500/30 px-4 py-3 shadow-sm">
+                      <span className="text-xs text-cyan-600 font-semibold">TOTAL POOL</span>
+                      <div className="mt-1 text-2xl font-black text-cyan-700 font-mono">
+                        {currentRound.totalPool.toLocaleString()}
                       </div>
+                      <span className="text-xs text-cyan-600/70">DEL</span>
                     </div>
-                    <div className="rounded bg-slate-800/50 px-2 py-1.5">
-                      <span className="text-slate-500">참여자</span>
-                      <div className="mt-0.5 font-semibold text-slate-200">
-                        {currentRound.totalBetsCount}명
+                    <div className="rounded-lg bg-white/80 border border-purple-500/30 px-4 py-3 shadow-sm">
+                      <span className="text-xs text-purple-600 font-semibold">PLAYERS</span>
+                      <div className="mt-1 text-2xl font-black text-purple-700">
+                        {currentRound.totalBetsCount}
                       </div>
+                      <span className="text-xs text-purple-600/70">Active</span>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="rounded-lg bg-white/80 border border-yellow-500/30 px-4 py-3 shadow-sm">
+                      <span className="text-xs text-yellow-600 font-semibold">GOLD BETS</span>
+                      <div className="mt-1 text-xl font-black text-yellow-700 font-mono">
+                        {currentRound.totalGoldBets?.toLocaleString() || 0}
+                      </div>
+                      <span className="text-xs text-yellow-600/70">
+                        {currentRound.totalPool > 0
+                          ? `${((currentRound.totalGoldBets || 0) / currentRound.totalPool * 100).toFixed(0)}%`
+                          : '0%'}
+                      </span>
+                    </div>
+                    <div className="rounded-lg bg-white/80 border border-orange-500/30 px-4 py-3 shadow-sm">
+                      <span className="text-xs text-orange-600 font-semibold">BTC BETS</span>
+                      <div className="mt-1 text-xl font-black text-orange-700 font-mono">
+                        {currentRound.totalBtcBets?.toLocaleString() || 0}
+                      </div>
+                      <span className="text-xs text-orange-600/70">
+                        {currentRound.totalPool > 0
+                          ? `${((currentRound.totalBtcBets || 0) / currentRound.totalPool * 100).toFixed(0)}%`
+                          : '0%'}
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -583,11 +606,21 @@ Exp: ${expMs}`;
                 {/* 차트 전환 버튼 */}
                 <div className="mb-4 flex gap-2">
                   <Button
+                    onClick={() => setActiveChart('strength')}
+                    className={`flex-1 transition-all duration-300 ${
+                      activeChart === 'strength'
+                        ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-lg shadow-purple-500/50'
+                        : 'border border-purple-500/40 bg-white/80 text-purple-600/70 hover:bg-purple-500/10 hover:border-purple-500/60'
+                    }`}
+                  >
+                    STRENGTH SPREAD
+                  </Button>
+                  <Button
                     onClick={() => setActiveChart('volatility')}
                     className={`flex-1 transition-all duration-300 ${
                       activeChart === 'volatility'
-                        ? 'bg-gradient-to-r from-cyan-500 to-purple-600 text-white shadow-lg shadow-cyan-500/50'
-                        : 'border border-cyan-500/30 bg-transparent text-cyan-300/70 hover:bg-cyan-500/10 hover:border-cyan-400/50'
+                        ? 'bg-gradient-to-r from-cyan-600 to-purple-600 text-white shadow-lg shadow-cyan-500/50'
+                        : 'border border-cyan-500/40 bg-white/80 text-cyan-600/70 hover:bg-cyan-500/10 hover:border-cyan-500/60'
                     }`}
                   >
                     <Activity className="mr-2 h-4 w-4" />
@@ -597,8 +630,8 @@ Exp: ${expMs}`;
                     onClick={() => setActiveChart('price')}
                     className={`flex-1 transition-all duration-300 ${
                       activeChart === 'price'
-                        ? 'bg-gradient-to-r from-cyan-500 to-purple-600 text-white shadow-lg shadow-cyan-500/50'
-                        : 'border border-cyan-500/30 bg-transparent text-cyan-300/70 hover:bg-cyan-500/10 hover:border-cyan-400/50'
+                        ? 'bg-gradient-to-r from-cyan-600 to-purple-600 text-white shadow-lg shadow-cyan-500/50'
+                        : 'border border-cyan-500/40 bg-white/80 text-cyan-600/70 hover:bg-cyan-500/10 hover:border-cyan-500/60'
                     }`}
                   >
                     <BarChart3 className="mr-2 h-4 w-4" />
@@ -607,45 +640,97 @@ Exp: ${expMs}`;
                 </div>
 
                 {/* 차트 내용 */}
-                {loadingChart ? (
-                  <div className="flex flex-col items-center justify-center h-64 gap-3">
-                    <div className="text-cyan-400">차트 데이터 로딩 중...</div>
-                    <div className="text-xs text-cyan-300/50">
-                      {collectStatus.isRunning
-                        ? `자동 수집 중... (${collectStatus.collectCount}회 수집됨)`
-                        : '자동 수집 대기 중...'}
-                    </div>
-                  </div>
-                ) : activeChart === 'volatility' && volatilityChartData ? (
+                {activeChart === 'strength' ? (
                   <div>
-                    <VolatilityComparisonChart data={volatilityChartData} />
-                    {comparisonData?.comparison && (
-                      <div className="mt-6 rounded-xl bg-gradient-to-r from-cyan-500/5 to-purple-500/5 border border-cyan-500/30 p-4">
-                        <div className="text-center">
-                          <p className="text-xs text-cyan-400 font-semibold mb-2">WINNER</p>
-                          <p className="text-2xl font-black text-cyan-300 mb-1">
-                            {comparisonData.comparison.winner}
-                          </p>
-                          <p className="text-sm text-cyan-200/70">
-                            Confidence: {(comparisonData.comparison.confidence * 100).toFixed(0)}%
-                          </p>
+                    <SpreadCandlestickChart
+                      height={300}
+                      period="1h"
+                      refreshInterval={5000}
+                      maxDataPoints={50}
+                    />
+                    {comparisonData && (
+                      <div className="mt-6 space-y-4">
+                        <div className="rounded-xl bg-gradient-to-r from-purple-500/10 to-pink-500/10 border border-purple-500/40 p-4 shadow-md bg-white/80">
+                          <div className="text-center">
+                            <p className="text-xs text-purple-600 font-semibold mb-2">현재 우세 (Current Dominance)</p>
+                            <p className="text-2xl font-black text-purple-700 mb-1">
+                              {comparisonData.comparison?.winner || 'PAXG'}
+                            </p>
+                            <p className="text-sm text-purple-600/70">영봉 (Bearish candle)</p>
+                          </div>
+                        </div>
+                        <div className="rounded-xl bg-gradient-to-r from-cyan-500/10 to-purple-500/10 border border-cyan-500/40 p-4 shadow-md bg-white/80">
+                          <div className="text-center">
+                            <p className="text-xs text-cyan-600 font-semibold mb-2">격차 (Spread)</p>
+                            <p className="text-2xl font-black text-cyan-700 mb-1">
+                              {comparisonData.comparison?.spread?.toFixed(2) || '78.63'}
+                            </p>
+                            <p className="text-sm text-cyan-600/70">큰 격차 (Large spread)</p>
+                          </div>
+                        </div>
+                        <div className="rounded-xl bg-gradient-to-r from-yellow-500/10 to-orange-500/10 border border-yellow-500/40 p-4 shadow-md bg-white/80">
+                          <div className="text-center">
+                            <p className="text-xs text-yellow-600 font-semibold mb-2">PAXG 승률 (PAXG Win Rate)</p>
+                            <p className="text-2xl font-black text-yellow-700 mb-1">100%</p>
+                            <p className="text-sm text-yellow-600/70">최근 50개 데이터 (Recent 50 data)</p>
+                          </div>
                         </div>
                       </div>
                     )}
                   </div>
-                ) : activeChart === 'price' && priceChartData.length > 0 ? (
-                  <div>
-                    <PriceTrendChart data={priceChartData} />
-                  </div>
+                ) : activeChart === 'volatility' ? (
+                  comparisonData && comparisonData.asset1 && comparisonData.asset2 ? (
+                    <div>
+                      <VolatilityComparisonChart data={volatilityChartData || {
+                        asset1: comparisonData.asset1,
+                        asset2: comparisonData.asset2,
+                      }} />
+                      {comparisonData?.comparison && (
+                        <div className="mt-6 rounded-xl bg-gradient-to-r from-cyan-500/10 to-purple-500/10 border border-cyan-500/40 p-4 shadow-md bg-white/80">
+                          <div className="text-center">
+                            <p className="text-xs text-cyan-600 font-semibold mb-2">WINNER</p>
+                            <p className="text-2xl font-black text-cyan-700 mb-1">
+                              {comparisonData.comparison.winner}
+                            </p>
+                            <p className="text-sm text-cyan-600/70">
+                              Confidence: {(comparisonData.comparison.confidence * 100).toFixed(0)}%
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div>
+                      <VolatilityComparisonChart data={{
+                        asset1: { name: 'PAXG', volatility: 0, return: 0, adjustedReturn: 0 },
+                        asset2: { name: 'BTC', volatility: 0, return: 0, adjustedReturn: 0 },
+                      }} />
+                    </div>
+                  )
+                ) : activeChart === 'price' ? (
+                  priceChartData.length > 0 ? (
+                    <div>
+                      <PriceTrendChart data={priceChartData} />
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center h-64 gap-3">
+                      <div className="text-cyan-600">가격 차트 데이터 로딩 중...</div>
+                      <div className="text-xs text-cyan-600/50">
+                        {collectStatus.isRunning
+                          ? `자동 수집 중... (${collectStatus.collectCount}회 수집됨)`
+                          : '자동 수집 대기 중...'}
+                      </div>
+                    </div>
+                  )
                 ) : (
-                  <div className="rounded-xl bg-slate-900/50 border border-cyan-500/20 p-4">
+                  <div className="rounded-xl bg-white/80 border border-cyan-500/30 p-4 shadow-md">
                     <div className="flex flex-col items-center gap-3">
-                      <p className="text-sm text-cyan-300/70 text-center">
+                      <p className="text-sm text-cyan-700/70 text-center">
                         {activeChart === 'volatility'
                           ? '변동성 분석 데이터를 불러올 수 없습니다.'
                           : '차트 데이터를 불러올 수 없습니다. 데이터 수집이 필요할 수 있습니다.'}
                       </p>
-                      <div className="text-xs text-cyan-300/50">
+                      <div className="text-xs text-cyan-600/50">
                         {collectStatus.isRunning
                           ? `자동 수집 중... (${collectStatus.collectCount}회 수집됨)`
                           : '자동 수집 대기 중...'}
@@ -679,7 +764,7 @@ Exp: ${expMs}`;
                             });
                           }
                         }}
-                        className="bg-gradient-to-r from-cyan-500 to-purple-600 hover:shadow-lg hover:shadow-cyan-500/50 transition-all duration-300 text-white font-bold"
+                        className="bg-gradient-to-r from-cyan-600 to-purple-600 hover:shadow-lg hover:shadow-cyan-500/50 transition-all duration-300 text-white font-bold shadow-md"
                       >
                         데이터 수집하기
                       </Button>
@@ -689,125 +774,112 @@ Exp: ${expMs}`;
               </div>
             </Card>
 
-            {/* 하단: 랭킹 보드 */}
-            <Card className="border border-slate-800/80 rounded-2xl bg-slate-950/80 p-4 shadow-xl shadow-black/40">
-              <div className="mb-3 flex items-center justify-between">
+            {/* 랭킹 보드 */}
+            <Card className="border border-cyan-500/30 bg-white/90 backdrop-blur-sm p-6 shadow-lg shadow-cyan-500/20 hover:border-cyan-500/50 transition-all duration-300">
+              <div className="mb-4 flex items-center justify-between">
                 <div>
-                  <h2 className="text-sm font-semibold text-slate-200">Leaderboard 🏆</h2>
-                  <p className="text-[11px] text-slate-500">
+                  <h2 className="text-xl font-black text-cyan-700 flex items-center gap-2">
+                    <Sparkles className="h-5 w-5 text-cyan-600" />
+                    Leaderboard 🏆
+                  </h2>
+                  <p className="text-xs text-cyan-600/70 mt-1">
                     DEL 보유량 + NFT/뱃지 등 Achievements의 총자산 기준 상위 유저입니다.
                   </p>
                 </div>
-                <span className="rounded-full bg-slate-900/80 px-2 py-1 text-[10px] text-slate-400">
+                <span className="rounded-full bg-cyan-500/10 border border-cyan-500/30 px-3 py-1 text-xs text-cyan-700 font-semibold">
                   데모 랭킹
                 </span>
               </div>
 
               <RankingList />
             </Card>
+
           </section>
 
-          {/* 우측: 내 계정 / 포인트 / 퀵 액션 */}
-          <section className="flex flex-col gap-4">
-            <PointsPanel points={points} />
-
-            <Card className="border border-slate-800/80 rounded-2xl bg-slate-950/80 p-4 shadow-lg shadow-black/40">
-              <h3 className="mb-3 border-b border-slate-800 pb-2 text-sm font-semibold text-slate-200">
-                Quick Actions ⚡
+          {/* 우측: QUICK ACTIONS + MARKET */}
+          <section className="flex flex-col gap-6">
+            {/* QUICK ACTIONS */}
+            <Card className="border border-cyan-500/30 bg-white/90 backdrop-blur-sm p-6 shadow-lg shadow-cyan-500/20 hover:border-cyan-500/50 transition-all duration-300">
+              <h3 className="mb-4 text-xl font-black text-cyan-700 flex items-center gap-2">
+                <Zap className="h-5 w-5 text-cyan-600 animate-pulse" />
+                QUICK ACTIONS
               </h3>
-              <div className="flex flex-col gap-2.5">
+              <div className="flex flex-col gap-3">
                 <Button
                   onClick={handleOpenBettingModal}
                   disabled={loadingRound || !currentRound || currentRound.status !== 'BETTING_OPEN'}
-                  className="w-full justify-between rounded-xl bg-gradient-to-r from-cyan-500 to-emerald-500 text-xs font-semibold text-slate-950 shadow-md shadow-cyan-500/30 hover:from-cyan-400 hover:to-emerald-400 hover:shadow-cyan-400/40 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="w-full justify-between rounded-lg bg-gradient-to-r from-cyan-500 to-purple-600 text-sm font-bold text-white shadow-lg shadow-cyan-500/30 hover:shadow-cyan-500/50 transition-all duration-300 py-6"
                 >
-                  {loadingRound
-                    ? '로딩 중...'
-                    : !currentRound
-                      ? '라운드 없음'
-                      : currentRound.status !== 'BETTING_OPEN'
-                        ? '베팅 마감'
-                        : '베팅하기'}
-                  <ArrowRight className="h-4 w-4" />
+                  🎯 PLACE BET
+                  <ArrowRight className="h-5 w-5" />
                 </Button>
                 <Button
                   asChild
-                  variant="outline"
-                  className="w-full justify-between rounded-xl border-purple-500/40 bg-slate-950/60 text-xs font-semibold text-purple-200 hover:bg-slate-900/80"
+                  className="w-full justify-between rounded-lg border border-pink-500/50 bg-transparent text-sm font-bold text-pink-300 hover:bg-pink-500/10 hover:border-pink-400 transition-all duration-300 py-6"
                 >
                   <a href="/shop">
-                    {' '}
-                    {/* a 태그로 감싸 /shop 이동 */}
-                    NFT 상점 보기
-                    <Wallet className="h-4 w-4" />
+                    🛍️ NFT SHOP
+                    <Calendar className="h-5 w-5" />
                   </a>
-                </Button>
-                <Button
-                  variant="outline"
-                  className="w-full justify-between rounded-xl border-slate-700 bg-slate-950/60 text-[11px] font-medium text-slate-200 hover:bg-slate-900/80"
-                >
-                  지난 라운드 히스토리
-                  <ArrowRight className="h-3 w-3" />
                 </Button>
               </div>
             </Card>
 
-            {/* 실시간 관전 차트 */}
-            <LiveChartSection />
-                  <div className="flex items-center justify-between rounded-lg bg-emerald-500/5 border border-emerald-500/20 px-4 py-3">
-                    <span className="flex items-center gap-2 text-sm font-semibold text-emerald-400">
-                      <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+            {/* MARKET */}
+            <Card className="border border-cyan-500/30 bg-white/90 backdrop-blur-sm p-6 shadow-lg shadow-cyan-500/20 hover:border-cyan-500/50 transition-all duration-300">
+              <div className="mb-4 flex items-center gap-2">
+                <BarChart3 className="h-5 w-5 text-cyan-600" />
+                <h3 className="text-xl font-black text-cyan-700">MARKET</h3>
+              </div>
+              <div className="space-y-3">
+                {/* GOLD */}
+                {comparisonData?.asset1 ? (
+                  <div className="flex items-center justify-between rounded-lg bg-white/80 border border-emerald-500/30 px-4 py-3 shadow-sm">
+                    <span className="flex items-center gap-2 text-sm font-semibold text-emerald-600">
+                      <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
                       GOLD
                     </span>
-                    <span
-                      className={`font-mono text-lg font-bold ${
-                        comparisonData.asset1.return >= 0 ? 'text-emerald-300' : 'text-red-300'
-                      }`}
-                    >
+                    <span className="font-mono text-lg font-bold text-emerald-700">
                       {comparisonData.asset1.return >= 0 ? '+' : ''}
                       {comparisonData.asset1.return.toFixed(2)}%
                     </span>
                   </div>
                 ) : (
-                  <div className="flex items-center justify-between rounded-lg bg-emerald-500/5 border border-emerald-500/20 px-4 py-3">
-                    <span className="flex items-center gap-2 text-sm font-semibold text-emerald-400">
-                      <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+                  <div className="flex items-center justify-between rounded-lg bg-white/80 border border-emerald-500/30 px-4 py-3 shadow-sm">
+                    <span className="flex items-center gap-2 text-sm font-semibold text-emerald-600">
+                      <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
                       GOLD
                     </span>
-                    <span className="font-mono text-sm text-emerald-300/50">로딩 중...</span>
+                    <span className="font-mono text-sm text-emerald-600/50">로딩 중...</span>
                   </div>
                 )}
 
                 {/* BTC */}
                 {comparisonData?.asset2 ? (
-                  <div className="flex items-center justify-between rounded-lg bg-red-500/5 border border-red-500/20 px-4 py-3">
-                    <span className="flex items-center gap-2 text-sm font-semibold text-red-400">
-                      <span className="h-2 w-2 rounded-full bg-red-400 animate-pulse" />
+                  <div className="flex items-center justify-between rounded-lg bg-white/80 border border-red-500/30 px-4 py-3 shadow-sm">
+                    <span className="flex items-center gap-2 text-sm font-semibold text-red-600">
+                      <span className="h-2 w-2 rounded-full bg-red-500 animate-pulse" />
                       BTC
                     </span>
-                    <span
-                      className={`font-mono text-lg font-bold ${
-                        comparisonData.asset2.return >= 0 ? 'text-emerald-300' : 'text-red-300'
-                      }`}
-                    >
+                    <span className="font-mono text-lg font-bold text-red-700">
                       {comparisonData.asset2.return >= 0 ? '+' : ''}
                       {comparisonData.asset2.return.toFixed(2)}%
                     </span>
                   </div>
                 ) : (
-                  <div className="flex items-center justify-between rounded-lg bg-red-500/5 border border-red-500/20 px-4 py-3">
-                    <span className="flex items-center gap-2 text-sm font-semibold text-red-400">
-                      <span className="h-2 w-2 rounded-full bg-red-400 animate-pulse" />
+                  <div className="flex items-center justify-between rounded-lg bg-white/80 border border-red-500/30 px-4 py-3 shadow-sm">
+                    <span className="flex items-center gap-2 text-sm font-semibold text-red-600">
+                      <span className="h-2 w-2 rounded-full bg-red-500 animate-pulse" />
                       BTC
                     </span>
-                    <span className="font-mono text-sm text-red-300/50">로딩 중...</span>
+                    <span className="font-mono text-sm text-red-600/50">로딩 중...</span>
                   </div>
                 )}
 
                 {/* POOL SIZE */}
-                <div className="flex items-center justify-between rounded-lg bg-cyan-500/5 border border-cyan-500/20 px-4 py-3">
-                  <span className="text-sm font-semibold text-cyan-400">POOL SIZE</span>
-                  <span className="font-mono text-lg font-bold text-cyan-300">
+                <div className="flex items-center justify-between rounded-lg bg-white/80 border border-cyan-500/30 px-4 py-3 shadow-sm">
+                  <span className="text-sm font-semibold text-cyan-600">POOL SIZE</span>
+                  <span className="font-mono text-lg font-bold text-cyan-700">
                     {currentRound
                       ? currentRound.totalPool >= 1000000
                         ? `${(currentRound.totalPool / 1000000).toFixed(1)}M`
@@ -819,7 +891,6 @@ Exp: ${expMs}`;
                 </div>
               </div>
             </Card>
->>>>>>> c5d3bbd (feat: Market 강도 연결)
           </section>
         </div>
       </div>

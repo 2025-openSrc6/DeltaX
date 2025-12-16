@@ -188,8 +188,20 @@ export default function SpreadCandlestickChart({
         <ComposedChart data={data} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#cbd5e1" />
 
-          {/* X축 숨김 */}
-          <XAxis dataKey="timestamp" hide={true} />
+          {/* X축 시간 표시 */}
+          <XAxis
+            dataKey="timestamp"
+            stroke="#64748b"
+            style={{ fontSize: '12px' }}
+            tickFormatter={(value: string) => {
+              if (!value) return '';
+              const date = new Date(value);
+              // 시간만 표시 (HH:mm 형식)
+              const hours = date.getHours().toString().padStart(2, '0');
+              const minutes = date.getMinutes().toString().padStart(2, '0');
+              return `${hours}:${minutes}`;
+            }}
+          />
 
           <YAxis
             stroke="#64748b"
