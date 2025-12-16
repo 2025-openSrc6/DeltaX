@@ -121,6 +121,7 @@ export function useAutoCollect(interval: number = 5000, enabled: boolean = true)
         intervalRef.current = null;
       }
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enabled, interval]);
 
   return {

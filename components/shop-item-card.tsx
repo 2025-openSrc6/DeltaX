@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Zap, Palette, User, Box, Hexagon, Check } from 'lucide-react';
+import { Loader2, Zap, Palette, User, Box, Hexagon } from 'lucide-react';
 import { ShopItem } from '@/db/schema/shopItems';
 
 interface ShopItemCardProps {
@@ -60,6 +60,7 @@ export function ShopItemCard({ item, onPurchase, disabled }: ShopItemCardProps) 
       <div className="flex items-start justify-between">
         {item.imageUrl ? (
           <div className="relative h-20 w-20 overflow-hidden rounded-xl border border-slate-700">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={item.imageUrl} alt={item.name} className="h-full w-full object-cover" />
           </div>
         ) : (

@@ -7,12 +7,14 @@ import { RoundRepository } from '@/lib/rounds/repository';
 import * as schema from '@/db/schema';
 import type { NewRound } from '@/db/schema';
 
+type GetTestDb = () => ReturnType<typeof drizzle<typeof schema>>;
+
 function getTestDb() {
   const sqlite = new Database(':memory:');
   return drizzle(sqlite, { schema });
 }
 
-type TestDb = ReturnType<typeof getTestDb>;
+type TestDb = ReturnType<GetTestDb>;
 type SqliteDatabase = InstanceType<typeof Database>;
 
 let testDb: TestDb;

@@ -18,7 +18,6 @@ export function BettingModal({
   isOpen,
   onClose,
   round,
-  userAddress,
   onBetSuccess,
 }: BettingModalProps) {
   const [selectedPrediction, setSelectedPrediction] = useState<'GOLD' | 'BTC' | null>(null);

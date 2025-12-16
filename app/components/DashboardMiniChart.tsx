@@ -1,7 +1,5 @@
 'use client';
 
-import { Card } from '@/components/ui/card';
-
 export function DashboardMiniChart() {
   return (
     <div className="rounded-xl bg-gradient-to-br from-slate-900/50 to-slate-950/50 border border-cyan-500/20 p-6">
