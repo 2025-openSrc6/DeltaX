@@ -9,7 +9,7 @@ interface BettingModalProps {
     roundType?: RoundType;
 }
 
-export function BettingModal({ isOpen, onClose, roundType = '1MIN' }: BettingModalProps) {
+export function BettingModal({ isOpen, onClose, roundType = 'DEMO_3MIN' }: BettingModalProps) {
     if (!isOpen) return null;
 
     return (
@@ -21,7 +21,7 @@ export function BettingModal({ isOpen, onClose, roundType = '1MIN' }: BettingMod
             />
 
             {/* 모달 컨텐츠 */}
-            <div className="relative z-10 w-full max-w-6xl mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="relative z-10 w-full max-w-6xl mx-4 max-h-[90vh] overflow-y-auto rounded-lg scrollbar-thin scrollbar-thumb-stone-400 scrollbar-track-transparent">
                 {/* 닫기 버튼 */}
                 <button
                     onClick={onClose}
@@ -57,7 +57,7 @@ interface BettingButtonProps {
     className?: string;
 }
 
-export function BettingButton({ roundType = '1MIN', onClick, className = '' }: BettingButtonProps) {
+export function BettingButton({ roundType = 'DEMO_3MIN', onClick, className = '' }: BettingButtonProps) {
     const { round, canBet, isLoading } = useCurrentRound(roundType);
 
     const isDisabled = isLoading || !round || !canBet;
