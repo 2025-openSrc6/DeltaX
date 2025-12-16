@@ -34,7 +34,7 @@ async function verifyShopApi() {
     groupedItems[cat] = [];
   });
 
-  items.forEach((item) => {
+  items.forEach((item: ShopItem) => {
     if (!groupedItems[item.category]) {
       groupedItems[item.category] = [];
     }
