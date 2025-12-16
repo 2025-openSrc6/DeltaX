@@ -42,7 +42,6 @@ export interface Round {
   bettingClosesIn?: string;
 }
 
-
 interface CurrentRoundResponse {
   success: boolean;
   data?: Round;

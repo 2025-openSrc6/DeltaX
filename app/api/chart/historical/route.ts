@@ -113,4 +113,3 @@ function getPeriodMs(period: string): number {
   };
   return periods[period] || periods['24h'];
 }
-
