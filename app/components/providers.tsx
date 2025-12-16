@@ -4,6 +4,7 @@ import { SuiClientProvider, WalletProvider } from '@mysten/dapp-kit';
 import { getFullnodeUrl } from '@mysten/sui/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useState } from 'react';
+import '@mysten/dapp-kit/dist/index.css';
 
 const isUserRejectionError = (error: unknown): boolean => {
   if (!error) return false;
@@ -25,9 +26,7 @@ const queryClientLogger = {
 };
 
 export function Providers({ children }: { children: React.ReactNode }) {
-  // QueryClient는 상태로 관리하여 매 렌더링마다 새로 생성되지 않도록 함
   const [queryClient] = useState(() =>
-    // logger 필드를 타입 강제 없이 주입
     (() => {
       const client = new QueryClient({
         defaultOptions: {
@@ -47,7 +46,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
         networks={{ testnet: { url: getFullnodeUrl('testnet') } }}
         defaultNetwork="testnet"
       >
-        <WalletProvider>{children}</WalletProvider>
+        <WalletProvider autoConnect>{children}</WalletProvider>
       </SuiClientProvider>
     </QueryClientProvider>
   );
