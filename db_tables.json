@@ -1,0 +1,52 @@
+[
+  {
+    "results": [
+      {
+        "name": "d1_migrations"
+      },
+      {
+        "name": "sqlite_sequence"
+      },
+      {
+        "name": "_cf_METADATA"
+      },
+      {
+        "name": "users"
+      },
+      {
+        "name": "rounds"
+      },
+      {
+        "name": "bets"
+      },
+      {
+        "name": "price_snapshots"
+      },
+      {
+        "name": "settlements"
+      },
+      {
+        "name": "point_transactions"
+      },
+      {
+        "name": "achievements"
+      },
+      {
+        "name": "round_transitions"
+      },
+      {
+        "name": "chart_data"
+      },
+      {
+        "name": "volatility_snapshots"
+      },
+      {
+        "name": "shop_items"
+      }
+    ],
+    "success": true,
+    "meta": {
+      "duration": 1
+    }
+  }
+]

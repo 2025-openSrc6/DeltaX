@@ -1,0 +1,15 @@
+
+{
+  "error": {
+    "text": "A request to the Cloudflare API (/accounts/60e6c11c914ab8de27510eadadfacfc0/d1/database/a0637bbd-181c-4c6e-b52d-85557e3a1e1c/query) failed.",
+    "notes": [
+      {
+        "text": "The database a0637bbd-181c-4c6e-b52d-85557e3a1e1c could not be found [code: 7404]"
+      }
+    ],
+    "kind": "error",
+    "name": "APIError",
+    "code": 7404,
+    "accountTag": "60e6c11c914ab8de27510eadadfacfc0"
+  }
+}

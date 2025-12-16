@@ -1,17 +1,12 @@
 'use client';
 
-<<<<<<< HEAD
 import { useState, useEffect, useCallback } from 'react';
-=======
-import { useState, useEffect } from 'react';
->>>>>>> 7e955ef (feat: Implement NFT Shop with UI, API, and Sui integration)
 import Image from 'next/image';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-<<<<<<< HEAD
-import { Wallet, LogOut, ArrowLeft, ShoppingBag, Filter, Loader2, Rocket, Zap } from 'lucide-react';
+import { Wallet, LogOut, ArrowLeft, ShoppingBag, Filter, Loader2, Rocket } from 'lucide-react';
 import { ShopItem } from '@/db/schema/shopItems';
 import { ShopItemCard } from '@/components/shop-item-card';
 import { NicknameModal } from '@/components/NicknameModal';
@@ -25,12 +20,6 @@ import {
   useSignTransaction,
 } from '@mysten/dapp-kit';
 import { fromBase64 } from '@mysten/sui/utils';
-=======
-import { Wallet, LogOut, ArrowLeft, ShoppingBag, Filter } from 'lucide-react';
-import { ShopItem } from '@/db/schema/shopItems';
-import { ShopItemCard } from '@/components/shop-item-card';
-import { toast } from 'sonner';
->>>>>>> 7e955ef (feat: Implement NFT Shop with UI, API, and Sui integration)
 
 // Static Shop Items (DB 연결 문제 회피용)
 const SHOP_ITEMS: ShopItem[] = [
@@ -43,12 +32,7 @@ const SHOP_ITEMS: ShopItem[] = [
     price: 50000,
     currency: 'DEL',
     requiresNickname: false,
-<<<<<<< HEAD
-    imageUrl:
-      'https://images.unsplash.com/photo-1511367461989-f85a21fda167?w=500&auto=format&fit=crop&q=60',
-=======
     imageUrl: 'https://images.unsplash.com/photo-1511367461989-f85a21fda167?w=500&auto=format&fit=crop&q=60',
->>>>>>> 7e955ef (feat: Implement NFT Shop with UI, API, and Sui integration)
     available: true,
     tier: null,
     metadata: null,
@@ -63,12 +47,7 @@ const SHOP_ITEMS: ShopItem[] = [
     currency: 'DEL',
     requiresNickname: true,
     metadata: JSON.stringify({ color: '#FF5733' }),
-<<<<<<< HEAD
-    imageUrl:
-      'https://images.unsplash.com/photo-1505909182942-e2f09aee3e89?w=500&auto=format&fit=crop&q=60',
-=======
     imageUrl: 'https://images.unsplash.com/photo-1505909182942-e2f09aee3e89?w=500&auto=format&fit=crop&q=60',
->>>>>>> 7e955ef (feat: Implement NFT Shop with UI, API, and Sui integration)
     available: true,
     tier: null,
     createdAt: Date.now(),
@@ -82,12 +61,7 @@ const SHOP_ITEMS: ShopItem[] = [
     currency: 'DEL',
     requiresNickname: true,
     metadata: JSON.stringify({ color: 'RAINBOW' }),
-<<<<<<< HEAD
-    imageUrl:
-      'https://images.unsplash.com/photo-1550684848-fac1c5b4e853?w=500&auto=format&fit=crop&q=60',
-=======
     imageUrl: 'https://images.unsplash.com/photo-1550684848-fac1c5b4e853?w=500&auto=format&fit=crop&q=60',
->>>>>>> 7e955ef (feat: Implement NFT Shop with UI, API, and Sui integration)
     available: true,
     tier: null,
     createdAt: Date.now(),
@@ -102,11 +76,7 @@ const SHOP_ITEMS: ShopItem[] = [
     tier: 'Obsidian',
     price: 300000,
     currency: 'DEL',
-<<<<<<< HEAD
-    imageUrl: '/images/tiger - obsidian.png',
-=======
     imageUrl: '/images/tiger%20-%20obsidian.png',
->>>>>>> 7e955ef (feat: Implement NFT Shop with UI, API, and Sui integration)
     available: true,
     requiresNickname: false,
     metadata: null,
@@ -120,11 +90,7 @@ const SHOP_ITEMS: ShopItem[] = [
     tier: 'Aurum',
     price: 500000,
     currency: 'DEL',
-<<<<<<< HEAD
-    imageUrl: '/images/blue dragon - aurum.png',
-=======
     imageUrl: '/images/blue%20dragon%20-%20aurum.png',
->>>>>>> 7e955ef (feat: Implement NFT Shop with UI, API, and Sui integration)
     available: true,
     requiresNickname: false,
     metadata: null,
@@ -138,11 +104,7 @@ const SHOP_ITEMS: ShopItem[] = [
     tier: 'Nova',
     price: 1000000,
     currency: 'DEL',
-<<<<<<< HEAD
-    imageUrl: '/images/sky - nova.png',
-=======
     imageUrl: '/images/sky%20-%20nova.png',
->>>>>>> 7e955ef (feat: Implement NFT Shop with UI, API, and Sui integration)
     available: true,
     requiresNickname: false,
     metadata: null,
@@ -156,11 +118,7 @@ const SHOP_ITEMS: ShopItem[] = [
     tier: 'Aetherion',
     price: 2000000,
     currency: 'DEL',
-<<<<<<< HEAD
-    imageUrl: '/images/taegeuk - aetherion.png',
-=======
     imageUrl: '/images/taegeuk%20-%20aetherion.png',
->>>>>>> 7e955ef (feat: Implement NFT Shop with UI, API, and Sui integration)
     available: true,
     requiresNickname: false,
     metadata: null,
@@ -174,11 +132,7 @@ const SHOP_ITEMS: ShopItem[] = [
     tier: 'Singularity',
     price: 100000000,
     currency: 'DEL',
-<<<<<<< HEAD
-    imageUrl: '/images/star - singularity.png',
-=======
     imageUrl: '/images/star%20-%20singularity.png',
->>>>>>> 7e955ef (feat: Implement NFT Shop with UI, API, and Sui integration)
     available: true,
     requiresNickname: false,
     metadata: null,
@@ -194,12 +148,7 @@ const SHOP_ITEMS: ShopItem[] = [
     price: 2,
     currency: 'CRYSTAL',
     metadata: JSON.stringify({ durationMs: 86400000 }),
-<<<<<<< HEAD
-    imageUrl:
-      'https://images.unsplash.com/photo-1639815188546-c43c240ff4df?w=500&auto=format&fit=crop&q=60',
-=======
     imageUrl: 'https://images.unsplash.com/photo-1639815188546-c43c240ff4df?w=500&auto=format&fit=crop&q=60',
->>>>>>> 7e955ef (feat: Implement NFT Shop with UI, API, and Sui integration)
     available: true,
     tier: null,
     requiresNickname: false,
@@ -224,19 +173,15 @@ const SHOP_ITEMS: ShopItem[] = [
 export default function ShopPage() {
   const [isConnected, setIsConnected] = useState(false);
   const [walletAddress, setWalletAddress] = useState('');
-<<<<<<< HEAD
   const [delBalance, setDelBalance] = useState(0);
   const [crystalBalance, setCrystalBalance] = useState(0);
   const [boostCount, setBoostCount] = useState(0);
   const [greenMushroomCount, setGreenMushroomCount] = useState(0);
-=======
-  const [points, setPoints] = useState(12000); // Mock points
->>>>>>> 7e955ef (feat: Implement NFT Shop with UI, API, and Sui integration)
   const [items, setItems] = useState<ShopItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeCategory, setActiveCategory] = useState('ALL');
+  const [sessionChecked, setSessionChecked] = useState(false); // 세션 확인 완료 여부
 
-<<<<<<< HEAD
   // 닉네임 모달 상태
   const [isNicknameModalOpen, setIsNicknameModalOpen] = useState(false);
   const [pendingNicknameItem, setPendingNicknameItem] = useState<ShopItem | null>(null);
@@ -258,32 +203,14 @@ export default function ShopPage() {
 
   // Tier 순서 정의
   const tierOrder: Record<string, number> = {
-    Obsidian: 1,
-    Aurum: 2,
-    Nova: 3,
-    Aetherion: 4,
-    Singularity: 5,
+    'Obsidian': 1,
+    'Aurum': 2,
+    'Nova': 3,
+    'Aetherion': 4,
+    'Singularity': 5
   };
 
-  // 온체인 DEL 잔액 조회 함수 (DB 값보다 클 때만 업데이트)
-  const fetchOnChainBalance = useCallback(async (address: string) => {
-    try {
-      const res = await fetch(`/api/shop/balance?address=${address}`);
-      const data = await res.json();
-      if (data.success && data.data?.balanceNumber) {
-        const onChainBalance = data.data.balanceNumber;
-        // 온체인 잔액이 현재 잔액보다 크거나 같을 때만 업데이트 (0으로 덮어쓰지 않음)
-        setDelBalance((prev) => {
-          return onChainBalance > prev ? onChainBalance : prev;
-        });
-      }
-    } catch (error) {
-      console.error('Failed to fetch on-chain DEL balance:', error);
-      // 에러 발생 시 DB 값 유지 (아무것도 하지 않음)
-    }
-  }, []);
-
-  // 페이지 로드 시 쿠키에서 주소 읽어서 상태 복원 (메인 페이지와 동일한 방식)
+  // 페이지 로드 시 세션에서 지갑 상태 및 잔액 복원
   useEffect(() => {
     fetch('/api/auth/session', { credentials: 'include' })
       .then((res) => res.json())
@@ -292,9 +219,7 @@ export default function ShopPage() {
           const address = data.data.user.suiAddress;
           setIsConnected(true);
           setWalletAddress(address);
-          // DEL 잔액: DB 값 사용 (메인 페이지와 동일)
-          setDelBalance(data.data.user.delBalance || 0);
-          // 추가로 온체인에서도 조회 (실시간 업데이트용)
+          // DEL은 온체인에서 조회 (DB 값 사용 안함)
           fetchOnChainBalance(address);
           setCrystalBalance(data.data.user.crystalBalance || 0);
           // 부스트 활성 여부 계산 (boostUntil이 현재 시간 이후면 활성)
@@ -305,41 +230,49 @@ export default function ShopPage() {
           if (data.data.user.nickname) {
             setCurrentNickname(data.data.user.nickname);
           }
+          setSessionChecked(true);
+        } else {
+          // 세션이 없거나 만료됨 - 지갑이 autoConnect 되어도 UI는 로그아웃 상태로 표시
+          setIsConnected(false);
+          setWalletAddress('');
+          setSessionChecked(true);
+          console.log('⚠️ No valid session, showing as logged out');
         }
       })
       .catch(() => {
-        // 에러 무시 (로그인 안 된 상태일 수 있음)
+        // 세션 확인 실패 시에도 로그아웃 상태로
+        setIsConnected(false);
+        setWalletAddress('');
+        setSessionChecked(true);
       });
-  }, [fetchOnChainBalance]);
+  }, []);
 
-  // currentWallet 상태 동기화 (메인 페이지와 동일한 방식)
+  // currentWallet 상태 동기화 및 온체인 잔액 조회
+  // 세션 확인이 완료된 후에만 autoConnect로 인한 연결 처리
   useEffect(() => {
-    if (currentWallet?.accounts[0]?.address) {
-      const address = currentWallet.accounts[0].address;
-      setIsConnected(true);
-      setWalletAddress(address);
-      // 지갑이 연결되면 온체인 잔액 조회
-      fetchOnChainBalance(address);
-    } else if (!currentWallet) {
-      setIsConnected(false);
-      setWalletAddress('');
+    // 세션 확인이 안 끝났으면 무시 (세션 확인 결과가 우선)
+    if (!sessionChecked) return;
+
+    // 이미 로그인 상태면 무시 (세션에서 이미 처리됨)
+    if (isConnected) return;
+
+    // autoConnect로 지갑만 연결된 상태 - 세션이 없으면 연결 UI 안 보여줌
+    // (사용자가 "지갑 연결" 버튼을 눌러서 세션 생성해야 함)
+  }, [currentWallet, sessionChecked, isConnected]);
+
+  // 온체인 DEL 잔액 조회 함수
+  const fetchOnChainBalance = useCallback(async (address: string) => {
+    try {
+      const res = await fetch(`/api/shop/balance?address=${address}`);
+      const data = await res.json();
+      if (data.success && data.data) {
+        setDelBalance(data.data.balanceNumber || 0);
+      }
+    } catch (error) {
+      console.error('Failed to fetch on-chain DEL balance:', error);
     }
-  }, [currentWallet, fetchOnChainBalance]);
+  }, []);
 
-=======
-  // Mock User ID for purchase
-  const userId = 'test-user-id';
-
-  // Tier 순서 정의
-  const tierOrder: Record<string, number> = {
-    'Obsidian': 1,
-    'Aurum': 2,
-    'Nova': 3,
-    'Aetherion': 4,
-    'Singularity': 5
-  };
-
->>>>>>> 7e955ef (feat: Implement NFT Shop with UI, API, and Sui integration)
   // DB에서 아이템 불러오기
   useEffect(() => {
     const fetchItems = async () => {
@@ -352,19 +285,11 @@ export default function ShopPage() {
           setItems(data.data.items);
           console.log('✅ Loaded items from DB:', data.data.items.length);
         } else {
-<<<<<<< HEAD
-=======
-          // DB에 데이터가 없으면 폴백으로 하드코딩 데이터 사용
->>>>>>> 7e955ef (feat: Implement NFT Shop with UI, API, and Sui integration)
           setItems(SHOP_ITEMS);
           console.log('⚠️ Using fallback static data');
         }
       } catch (error) {
         console.error('Failed to fetch items:', error);
-<<<<<<< HEAD
-=======
-        // 에러 시에도 폴백 데이터 사용
->>>>>>> 7e955ef (feat: Implement NFT Shop with UI, API, and Sui integration)
         setItems(SHOP_ITEMS);
         toast.error('상점 데이터를 불러오는데 실패했습니다.');
       } finally {
@@ -375,7 +300,6 @@ export default function ShopPage() {
     fetchItems();
   }, []);
 
-<<<<<<< HEAD
   const isUserRejectionError = (error: unknown) => {
     if (!error) return false;
     if (error instanceof Error && /user rejected/i.test(error.message)) return true;
@@ -435,21 +359,6 @@ Exp: ${expMs}`;
 
     setIsConnected(true);
     setWalletAddress(address);
-
-    // 로그인 성공 시 잔액 및 정보 업데이트
-    if (parsed.data?.user) {
-      // DEL 잔액: DB 값 사용 (메인 페이지와 동일)
-      setDelBalance(parsed.data.user.delBalance || 0);
-      // 추가로 온체인에서도 조회 (실시간 업데이트용)
-      fetchOnChainBalance(address);
-      setCrystalBalance(parsed.data.user.crystalBalance || 0);
-      const boostUntil = parsed.data.user.boostUntil || 0;
-      setBoostCount(boostUntil > Date.now() ? 1 : 0);
-      setGreenMushroomCount(parsed.data.user.greenMushrooms || 0);
-      if (parsed.data.user.nickname) {
-        setCurrentNickname(parsed.data.user.nickname);
-      }
-    }
   };
 
   const handleConnect = async () => {
@@ -486,7 +395,7 @@ Exp: ${expMs}`;
     await fetch('/api/auth/logout', {
       method: 'POST',
       credentials: 'include',
-    }).catch(() => {});
+    }).catch(() => { });
 
     if (currentWallet) {
       if (currentWallet.features && currentWallet.features['standard:disconnect']) {
@@ -584,7 +493,7 @@ Exp: ${expMs}`;
 
         // 버섯 구매 시 개수 증가
         if (item.category === 'ITEM' && item.id.includes('mushroom')) {
-          setGreenMushroomCount((prev) => prev + 1);
+          setGreenMushroomCount(prev => prev + 1);
         }
       } else {
         toast.error(executeData.message || '구매에 실패했습니다.');
@@ -633,25 +542,10 @@ Exp: ${expMs}`;
 
     if (!isConnected) {
       console.log('❌ Not connected');
-=======
-  const handleConnect = () => {
-    setIsConnected(true);
-    setWalletAddress('0x742d...9f3a');
-  };
-
-  const handleDisconnect = () => {
-    setIsConnected(false);
-    setWalletAddress('');
-  };
-
-  const handlePurchase = async (item: ShopItem) => {
-    if (!isConnected) {
->>>>>>> 7e955ef (feat: Implement NFT Shop with UI, API, and Sui integration)
       toast.error('지갑을 먼저 연결해주세요.');
       return;
     }
 
-<<<<<<< HEAD
     // DEL 토큰 구매 → 온체인 2단계 플로우 사용
     if (item.currency === 'DEL') {
       await handleDelPurchase(item, nickname);
@@ -663,18 +557,13 @@ Exp: ${expMs}`;
     if (currentBalance < item.price) {
       console.log('❌ Insufficient balance:', currentBalance, '<', item.price);
       toast.error('CRYSTAL 잔액이 부족합니다.');
-=======
-    if (points < item.price) {
-      toast.error('잔액이 부족합니다.');
->>>>>>> 7e955ef (feat: Implement NFT Shop with UI, API, and Sui integration)
       return;
     }
 
     try {
-<<<<<<< HEAD
       const requestBody: { userId: string; itemId: string; newNickname?: string } = {
         userId,
-        itemId: item.id,
+        itemId: item.id
       };
 
       // 닉네임 변경권인 경우 newNickname 포함
@@ -709,20 +598,8 @@ Exp: ${expMs}`;
 
         // 버섯 구매 시 개수 증가
         if (item.category === 'ITEM' && item.id.includes('mushroom')) {
-          setGreenMushroomCount((prev) => prev + 1);
+          setGreenMushroomCount(prev => prev + 1);
         }
-=======
-      const res = await fetch('/api/nfts/purchase', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, itemId: item.id }),
-      });
-      const data = await res.json();
-
-      if (data.success) {
-        toast.success(`${item.name} 구매 완료!`);
-        setPoints(data.data.newBalance); // Update balance
->>>>>>> 7e955ef (feat: Implement NFT Shop with UI, API, and Sui integration)
       } else {
         toast.error(data.message || '구매 실패');
       }
@@ -732,7 +609,6 @@ Exp: ${expMs}`;
     }
   };
 
-<<<<<<< HEAD
   // 닉네임 모달 확인 핸들러
   const handleNicknameConfirm = (nickname: string) => {
     setIsNicknameModalOpen(false);
@@ -743,20 +619,10 @@ Exp: ${expMs}`;
   };
 
   const filteredItems = items
-    .filter((item) => activeCategory === 'ALL' || item.category === activeCategory)
-    .sort((a, b) => {
-      // 1. NFT인 경우 Tier 순서로 정렬
-      if (
-        activeCategory === 'NFT' ||
-        (activeCategory === 'ALL' && a.category === 'NFT' && b.category === 'NFT')
-      ) {
-=======
-  const filteredItems = items
     .filter(item => activeCategory === 'ALL' || item.category === activeCategory)
     .sort((a, b) => {
       // 1. NFT인 경우 Tier 순서로 정렬
       if (activeCategory === 'NFT' || (activeCategory === 'ALL' && a.category === 'NFT' && b.category === 'NFT')) {
->>>>>>> 7e955ef (feat: Implement NFT Shop with UI, API, and Sui integration)
         const tierA = tierOrder[a.tier || ''] || 99;
         const tierB = tierOrder[b.tier || ''] || 99;
         if (tierA !== tierB) return tierA - tierB;
@@ -773,143 +639,12 @@ Exp: ${expMs}`;
     { id: 'BOOST', label: '부스트' },
   ];
 
-<<<<<<< HEAD
   // 닉네임이 있으면 닉네임, 없으면 지갑 주소 축약형 표시
-  const displayName =
-    currentNickname ||
-    (walletAddress.length > 10
-      ? `${walletAddress.substring(0, 6)}...${walletAddress.substring(walletAddress.length - 4)}`
-      : walletAddress);
-
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
-      {/* 배경 그라디언트 */}
-      <div className="pointer-events-none fixed inset-0">
-        <div className="absolute top-20 right-1/4 w-96 h-96 bg-cyan-500/20 rounded-full blur-3xl" />
-        <div className="absolute bottom-20 left-1/4 w-96 h-96 bg-purple-500/20 rounded-full blur-3xl" />
-        <div className="absolute top-1/2 right-0 w-80 h-80 bg-pink-500/15 rounded-full blur-3xl" />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(34,211,238,0.1),transparent_70%)]" />
-      </div>
-
-      {/* 상단 헤더 */}
-      <header className="sticky top-0 z-50 border-b border-cyan-500/30 backdrop-blur-xl bg-white/90 shadow-sm">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            {/* 로고 + 타이틀 */}
-            <div className="flex items-center gap-3">
-              <Link
-                href="/"
-                className="flex items-center justify-center w-10 h-10 rounded-full bg-slate-100 hover:bg-slate-200 transition-colors border border-slate-300"
-              >
-                <ArrowLeft className="h-5 w-5 text-slate-600" />
-              </Link>
-              <div className="relative w-16 h-16 flex-shrink-0">
-                <Image src="/logo.png" alt="DeltaX Logo" fill className="object-contain" priority />
-              </div>
-              <h1 className="text-3xl font-black bg-gradient-to-r from-cyan-600 via-purple-600 to-pink-600 bg-clip-text text-transparent drop-shadow-lg">
-                NFT SHOP
-              </h1>
-            </div>
-
-            {/* 헤더 오른쪽: 포인트 + 지갑 버튼 */}
-            <div className="flex items-center gap-4">
-              {isConnected && (
-                <>
-                  <div className="hidden sm:flex items-center gap-3 rounded-full bg-white/80 border border-cyan-500/30 px-3 py-1.5 backdrop-blur-sm">
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-xs text-cyan-600">DEL:</span>
-                      <span className="text-sm font-bold text-cyan-700">
-                        {delBalance.toLocaleString()}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-xs text-cyan-600">💎:</span>
-                      <span className="text-sm font-bold text-pink-600">
-                        {crystalBalance.toLocaleString()}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-1.5" title="부스트 상태">
-                      <Rocket className="h-3.5 w-3.5 text-orange-500" />
-                      <span
-                        className={`text-xs font-bold ${boostCount > 0 ? 'text-orange-600' : 'text-slate-400'}`}
-                      >
-                        {boostCount > 0 ? 'ON' : 'OFF'}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-1.5" title="Green Mushroom">
-                      <svg
-                        className="h-3.5 w-3.5 text-green-500"
-                        viewBox="0 0 24 24"
-                        fill="currentColor"
-                      >
-                        <path d="M12 2C8 2 4 5 4 9c0 3 2 5 4 6v5c0 1.1.9 2 2 2h4c1.1 0 2-.9 2-2v-5c2-1 4-3 4-6 0-4-4-7-8-7zm0 2c3 0 6 2 6 5 0 2-1.5 3.5-3 4.3V19h-6v-5.7C7.5 12.5 6 11 6 9c0-3 3-5 6-5z" />
-                        <circle cx="9" cy="8" r="1.5" />
-                        <circle cx="15" cy="8" r="1.5" />
-                        <circle cx="12" cy="11" r="1" />
-                      </svg>
-                      <span className="text-sm font-bold text-green-600">{greenMushroomCount}</span>
-                    </div>
-                  </div>
-                  <Card className="px-4 py-2 bg-gradient-to-r from-cyan-500/20 to-purple-500/20 border border-cyan-500/40 backdrop-blur-sm hover:border-cyan-500/60 transition-all duration-300 shadow-lg shadow-cyan-500/30 bg-white/80">
-                    <div className="flex items-center gap-2">
-                      <Zap className="h-4 w-4 text-cyan-600 animate-pulse" />
-                      <span className="font-mono font-bold text-cyan-700">
-                        {delBalance.toLocaleString()}
-                      </span>
-                      <span className="text-sm text-cyan-600/70">DEL</span>
-                    </div>
-                  </Card>
-                </>
-              )}
-
-              {isConnected ? (
-                <Button
-                  onClick={handleDisconnect}
-                  className="bg-gradient-to-r from-purple-600 to-pink-600 hover:shadow-lg hover:shadow-purple-500/50 transition-all duration-300 text-white font-bold shadow-md"
-                >
-                  <LogOut className="mr-2 h-4 w-4" />
-                  Disconnect
-                </Button>
-              ) : (
-                <Button
-                  onClick={handleConnect}
-                  className="bg-gradient-to-r from-cyan-600 to-purple-600 hover:shadow-lg hover:shadow-cyan-500/50 transition-all duration-300 text-white font-bold shadow-md"
-                >
-                  <Wallet className="mr-2 h-4 w-4" />
-                  Connect
-                </Button>
-              )}
-            </div>
-          </div>
-        </div>
-      </header>
-
-      {/* 메인 컨텐츠 */}
-      <div className="container mx-auto px-4 py-8">
-        <div className="flex flex-col gap-6">
-          {/* Banner */}
-          <Card className="border border-cyan-500/30 bg-white/90 backdrop-blur-sm p-6 sm:p-10 shadow-lg shadow-cyan-500/20 hover:border-cyan-500/50 transition-all duration-300">
-            <div className="mb-6">
-              <div className="inline-flex items-center gap-2 rounded-full border border-cyan-500/30 bg-cyan-500/10 px-3 py-1 text-xs font-medium text-cyan-600 mb-4">
-                <ShoppingBag className="h-3 w-3" />
-                New Arrivals
-              </div>
-              <h2 className="text-3xl md:text-4xl font-black mb-2 bg-gradient-to-r from-cyan-600 to-purple-600 bg-clip-text text-transparent flex items-center gap-2">
-                <ShoppingBag className="h-8 w-8 text-cyan-600" />
-                NFT SHOP
-              </h2>
-              <div className="w-24 h-1 bg-gradient-to-r from-cyan-500 via-purple-500 to-pink-500 rounded-full shadow-lg shadow-cyan-500/50" />
-            </div>
-            <p className="text-slate-600 max-w-md text-sm sm:text-base leading-relaxed">
-              닉네임 변경권부터 한정판 NFT까지. DEL 토큰으로 다양한 아이템을 구매하고 혜택을
-              누리세요.
-            </p>
-          </Card>
-=======
-  const displayAddress =
+  const displayName = currentNickname || (
     walletAddress.length > 10
       ? `${walletAddress.substring(0, 6)}...${walletAddress.substring(walletAddress.length - 4)}`
-      : walletAddress;
+      : walletAddress
+  );
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-[#02040a] text-slate-50 px-2 py-3 sm:px-4 sm:py-6">
@@ -947,9 +682,30 @@ Exp: ${expMs}`;
           <div className="flex items-center gap-3">
             {isConnected ? (
               <>
-                <div className="hidden sm:flex items-center gap-1.5 rounded-full bg-slate-900/80 border border-slate-800 px-3 py-1.5">
-                  <span className="text-xs text-slate-400">Balance:</span>
-                  <span className="text-sm font-bold text-cyan-400">{points.toLocaleString()} DEL</span>
+                <div className="hidden sm:flex items-center gap-3 rounded-full bg-slate-900/80 border border-slate-800 px-3 py-1.5">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs text-slate-400">DEL:</span>
+                    <span className="text-sm font-bold text-cyan-400">{delBalance.toLocaleString()}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs text-slate-400">💎:</span>
+                    <span className="text-sm font-bold text-pink-400">{crystalBalance.toLocaleString()}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5" title="부스트 상태">
+                    <Rocket className="h-3.5 w-3.5 text-orange-400" />
+                    <span className={`text-xs font-bold ${boostCount > 0 ? 'text-orange-400' : 'text-slate-500'}`}>
+                      {boostCount > 0 ? 'ON' : 'OFF'}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5" title="Green Mushroom">
+                    <svg className="h-3.5 w-3.5 text-green-400" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M12 2C8 2 4 5 4 9c0 3 2 5 4 6v5c0 1.1.9 2 2 2h4c1.1 0 2-.9 2-2v-5c2-1 4-3 4-6 0-4-4-7-8-7zm0 2c3 0 6 2 6 5 0 2-1.5 3.5-3 4.3V19h-6v-5.7C7.5 12.5 6 11 6 9c0-3 3-5 6-5z" />
+                      <circle cx="9" cy="8" r="1.5" />
+                      <circle cx="15" cy="8" r="1.5" />
+                      <circle cx="12" cy="11" r="1" />
+                    </svg>
+                    <span className="text-sm font-bold text-green-400">{greenMushroomCount}</span>
+                  </div>
                 </div>
                 <Card className="flex items-center gap-2 rounded-full border border-emerald-500/40 bg-emerald-950/60 px-3 py-1.5 text-xs shadow-md shadow-emerald-500/25">
                   <div className="flex items-center gap-1.5">
@@ -957,7 +713,7 @@ Exp: ${expMs}`;
                     <span className="font-semibold text-emerald-100">Connected</span>
                   </div>
                   <span className="max-w-[100px] truncate font-mono text-[11px] text-emerald-200/80 hidden sm:block">
-                    {displayAddress}
+                    {displayName}
                   </span>
                   <Button
                     onClick={handleDisconnect}
@@ -1002,37 +758,24 @@ Exp: ${expMs}`;
               </p>
             </div>
           </div>
->>>>>>> 7e955ef (feat: Implement NFT Shop with UI, API, and Sui integration)
 
           {/* Categories & Items */}
           <div className="flex flex-col gap-6">
             <Tabs value={activeCategory} onValueChange={setActiveCategory} className="w-full">
               <div className="flex items-center justify-between mb-6">
-<<<<<<< HEAD
-                <TabsList className="h-10 bg-white/80 border border-cyan-500/30 p-1 rounded-xl backdrop-blur-sm">
-=======
                 <TabsList className="h-10 bg-slate-950/80 border border-slate-800/80 p-1 rounded-xl">
->>>>>>> 7e955ef (feat: Implement NFT Shop with UI, API, and Sui integration)
                   {categories.map((cat) => (
                     <TabsTrigger
                       key={cat.id}
                       value={cat.id}
-<<<<<<< HEAD
-                      className="rounded-lg px-4 text-xs font-medium data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-700 text-slate-600"
-=======
                       className="rounded-lg px-4 text-xs font-medium data-[state=active]:bg-slate-800 data-[state=active]:text-slate-100 text-slate-500"
->>>>>>> 7e955ef (feat: Implement NFT Shop with UI, API, and Sui integration)
                     >
                       {cat.label}
                     </TabsTrigger>
                   ))}
                 </TabsList>
 
-<<<<<<< HEAD
-                <div className="flex items-center gap-2 text-xs text-slate-600">
-=======
                 <div className="flex items-center gap-2 text-xs text-slate-500">
->>>>>>> 7e955ef (feat: Implement NFT Shop with UI, API, and Sui integration)
                   <Filter className="h-3 w-3" />
                   <span>{filteredItems.length} Items</span>
                 </div>
@@ -1042,14 +785,7 @@ Exp: ${expMs}`;
                 {loading ? (
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                     {[...Array(4)].map((_, i) => (
-<<<<<<< HEAD
-                      <div
-                        key={i}
-                        className="h-[280px] rounded-2xl bg-slate-200/50 animate-pulse border border-slate-300"
-                      />
-=======
                       <div key={i} className="h-[280px] rounded-2xl bg-slate-900/50 animate-pulse" />
->>>>>>> 7e955ef (feat: Implement NFT Shop with UI, API, and Sui integration)
                     ))}
                   </div>
                 ) : filteredItems.length > 0 ? (
@@ -1074,7 +810,6 @@ Exp: ${expMs}`;
           </div>
         </div>
       </div>
-<<<<<<< HEAD
 
       {/* 닉네임 입력 모달 */}
       <NicknameModal
@@ -1086,8 +821,6 @@ Exp: ${expMs}`;
         onConfirm={handleNicknameConfirm}
         currentNickname={currentNickname}
       />
-=======
->>>>>>> 7e955ef (feat: Implement NFT Shop with UI, API, and Sui integration)
     </div>
   );
 }
