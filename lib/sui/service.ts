@@ -492,4 +492,32 @@ export class SuiService {
       digest,
     });
   }
+
+  /**
+   * Sui 체인에서 특정 주소의 DEL 잔액 조회
+   * @param address Sui 주소 (0x...)
+   * @returns DEL 잔액 (정수, MIST 단위를 DEL 단위로 변환)
+   */
+  async getDelBalance(address: string): Promise<number> {
+    const packageId = process.env.SUI_PACKAGE_ID;
+    if (!packageId) {
+      throw new BusinessRuleError('ENV_MISSING', 'SUI_PACKAGE_ID is not configured');
+    }
+
+    const coinType = `${packageId}::del::DEL`;
+    const MIST_PER_DEL = 1_000_000_000; // DEL decimals = 9
+
+    try {
+      // getBalance는 모든 DEL 코인을 합산한 총 잔액을 반환
+      const balance = await suiClient.getBalance({ owner: address, coinType });
+      // MIST 단위를 DEL 단위로 변환 (정수로 반환)
+      return Math.floor(Number(balance.totalBalance) / MIST_PER_DEL);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new BusinessRuleError('SUI_GET_BALANCE_FAILED', 'Failed to get DEL balance from Sui', {
+        error: message,
+        address,
+      });
+    }
+  }
 }
