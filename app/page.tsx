@@ -4,15 +4,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import {
-  ArrowRight,
-  Sparkles,
-  BarChart3,
-  Wallet,
-  Zap,
-  Activity,
-  Calendar,
-} from 'lucide-react';
+import { ArrowRight, Sparkles, BarChart3, Wallet, Zap, Activity, Calendar } from 'lucide-react';
 
 import { RankingList } from '@/components/RankingList';
 import { BettingModal } from '@/components/bets/BettingModal';
@@ -344,7 +336,6 @@ export default function HomePage() {
     // }
   };
 
-
   const isUserRejectionError = (error: unknown) => {
     if (!error) return false;
     if (error instanceof Error && /user rejected/i.test(error.message)) return true;
@@ -484,7 +475,6 @@ Exp: ${expMs}`;
     setIsConnected(false);
     setWalletAddress('');
   };
-
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">

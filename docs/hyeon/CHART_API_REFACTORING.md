@@ -10,6 +10,7 @@
 차트 수집 로직에서 불필요한 계산을 제거하고, 정산팀이 필요한 메타데이터를 포함한 새로운 Binance 서비스 함수 4개를 추가했습니다.
 
 ### 핵심 원칙
+
 ```
 차트 DB가 비어있거나 깨져도 정산은 영향 없어야 함
 정산 = Binance klines 직접 호출 (on-demand, 재현 가능)
@@ -23,6 +24,7 @@
 ### 1. 새로운 Binance 서비스 함수 추가 (4개)
 
 #### `fetchTickPrice` - 5초 폴링용 경량 가격 조회
+
 ```typescript
 // Before: ticker/24hr (무거움)
 // After: ticker/price (경량)
@@ -30,6 +32,7 @@ const { price, timestamp } = await fetchTickPrice('PAXG');
 ```
 
 #### `fetchKlinesWithMeta` - 메타데이터 포함 klines
+
 ```typescript
 const { candles, meta } = await fetchKlinesWithMeta('BTC', '1m', 10);
 // candles: OHLCV 데이터
@@ -37,12 +40,14 @@ const { candles, meta } = await fetchKlinesWithMeta('BTC', '1m', 10);
 ```
 
 #### `fetchRoundSnapshotKline1m` - 라운드 가격 스냅샷
+
 ```typescript
 const { close, closeTimeMs, onchainMeta } = await fetchRoundSnapshotKline1m('PAXG');
 // 라운드 시작/종료 시점 가격 기록용
 ```
 
 #### `fetchAvgVolKlines1h720` - avgVol 계산 데이터
+
 ```typescript
 const { closes, onchainMeta } = await fetchAvgVolKlines1h720('BTC');
 // 1시간봉 720개 (30일) 종가 배열 반환
@@ -53,18 +58,21 @@ const { closes, onchainMeta } = await fetchAvgVolKlines1h720('BTC');
 ### 2. 차트 수집 로직 간소화
 
 **Before (215줄):**
+
 - `ticker/24hr` API 호출
 - 과거 500개 데이터 조회
 - 12개 파생 지표 계산
 - `volatility_snapshots` 테이블 저장
 
 **After (118줄):**
+
 - `ticker/price` API 호출 (경량)
 - Close 가격만 저장
 - 파생 지표 계산 제거
 - `volatility_snapshots` 저장 중단
 
 **제거된 계산 로직:**
+
 - `calculateVolatilityChangeRate`
 - `calculateVolatilityScore`
 - `calculateMovementIntensity`
@@ -79,19 +87,20 @@ const { closes, onchainMeta } = await fetchAvgVolKlines1h720('BTC');
 
 ## 📊 성능 개선
 
-| 항목 | Before | After | 개선율 |
-|------|--------|-------|--------|
-| API 응답 | ~5KB | ~0.5KB | ~90% |
-| DB 조회 | 500개 | 1개 | ~99.8% |
-| 계산 로직 | 12개 | 0개 | 100% |
-| DB 쓰기 | 2번 | 1번 | 50% |
-| 수집 속도 | ~2초 | ~1초 | ~50% |
+| 항목      | Before | After  | 개선율 |
+| --------- | ------ | ------ | ------ |
+| API 응답  | ~5KB   | ~0.5KB | ~90%   |
+| DB 조회   | 500개  | 1개    | ~99.8% |
+| 계산 로직 | 12개   | 0개    | 100%   |
+| DB 쓰기   | 2번    | 1번    | 50%    |
+| 수집 속도 | ~2초   | ~1초   | ~50%   |
 
 ---
 
 ## ✅ 테스트 결과
 
 ### 단위 테스트
+
 ```bash
 npx tsx __tests__/lib/services/binance-new-functions.manual.ts
 
@@ -102,6 +111,7 @@ npx tsx __tests__/lib/services/binance-new-functions.manual.ts
 ```
 
 ### 통합 테스트
+
 ```bash
 curl -X POST http://localhost:3000/api/chart/collect
 
@@ -116,6 +126,7 @@ curl -X POST http://localhost:3000/api/chart/collect
 ## 🔧 구현 상세
 
 ### 저장 데이터 구조
+
 ```typescript
 {
   asset: 'PAXG',
@@ -138,6 +149,7 @@ curl -X POST http://localhost:3000/api/chart/collect
 ```
 
 ### 메타데이터 구조 (정산용)
+
 ```typescript
 {
   exchange: 'binance',
@@ -168,11 +180,14 @@ curl -X POST http://localhost:3000/api/chart/collect
 ## 🚀 다음 단계
 
 ### 정산팀 통합
+
 새 함수를 활용하여 정산 로직 구현:
+
 - `fetchRoundSnapshotKline1m` → 라운드 시작/종료 가격
 - `fetchAvgVolKlines1h720` + `calculateAverageVolatility` → avgVol 계산
 
 ### 향후 개선 (옵션)
+
 ```sql
 -- 스키마 정리 (마이그레이션)
 ALTER TABLE chart_data ALTER COLUMN open SET DEFAULT NULL;

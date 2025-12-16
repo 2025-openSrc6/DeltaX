@@ -6,14 +6,14 @@ NFT Shop 기능을 구현하여 사용자가 닉네임, 색상, NFT, 부스트, 
 
 ## 요구사항 매핑 (`implementation_need.md`)
 
-| # | 요구사항 | 구현 방식 |
-|---|----------|-----------|
-| 1 | 닉네임 변경 상품 구매 시 닉네임 변경 + DB update | `users.nickname` 업데이트 |
-| 2 | 닉네임 컬러 상품 구매 시 무지개색 변경 + DB update | `users.nicknameColor` 업데이트 |
-| 3 | NFT 구매 시 Pinata CID로 minting + DB update | Sui 민팅 + `achievements` 저장 |
-| 4 | 부스트 상품 구매 시 버프 적용 + DB update | `users.boostUntil` 업데이트 |
-| 5 | Green Mushroom 구매 시 + DB update | `users.greenMushrooms` +1 |
-| 6 | 모든 아이템 tier에 맞게 리스트 | `shop_items` 테이블로 관리 |
+| #   | 요구사항                                           | 구현 방식                      |
+| --- | -------------------------------------------------- | ------------------------------ |
+| 1   | 닉네임 변경 상품 구매 시 닉네임 변경 + DB update   | `users.nickname` 업데이트      |
+| 2   | 닉네임 컬러 상품 구매 시 무지개색 변경 + DB update | `users.nicknameColor` 업데이트 |
+| 3   | NFT 구매 시 Pinata CID로 minting + DB update       | Sui 민팅 + `achievements` 저장 |
+| 4   | 부스트 상품 구매 시 버프 적용 + DB update          | `users.boostUntil` 업데이트    |
+| 5   | Green Mushroom 구매 시 + DB update                 | `users.greenMushrooms` +1      |
+| 6   | 모든 아이템 tier에 맞게 리스트                     | `shop_items` 테이블로 관리     |
 
 ---
 
@@ -61,6 +61,7 @@ export const shopItems = sqliteTable('shop_items', {
 ```
 
 **카테고리별 metadata 활용**:
+
 - `COLOR`: `{ "color": "#FF5733" }` 또는 `{ "color": "RAINBOW" }`
 - `BOOST`: `{ "durationMs": 86400000 }` (1일 = 86400000ms)
 - `NFT`: `{ "pinataCid": "QmXxx..." }`
@@ -74,11 +75,12 @@ export const shopItems = sqliteTable('shop_items', {
 **엔드포인트**: `POST /api/nfts/purchase`
 
 **요청 본문**:
+
 ```json
 {
   "userId": "user-uuid",
   "itemId": "item_nickname",
-  "newNickname": "MyNewName"  // NICKNAME 카테고리일 때만 필수
+  "newNickname": "MyNewName" // NICKNAME 카테고리일 때만 필수
 }
 ```
 
@@ -87,14 +89,16 @@ export const shopItems = sqliteTable('shop_items', {
 ```typescript
 db.transaction(async (tx) => {
   // 1. 공통: 잔액 차감
-  const newBalance = item.currency === 'DEL'
-    ? user.delBalance - item.price
-    : user.crystalBalance - item.price;
-  
-  await tx.update(users)
-    .set(item.currency === 'DEL' 
-      ? { delBalance: newBalance, updatedAt: Date.now() }
-      : { crystalBalance: newBalance, updatedAt: Date.now() })
+  const newBalance =
+    item.currency === 'DEL' ? user.delBalance - item.price : user.crystalBalance - item.price;
+
+  await tx
+    .update(users)
+    .set(
+      item.currency === 'DEL'
+        ? { delBalance: newBalance, updatedAt: Date.now() }
+        : { crystalBalance: newBalance, updatedAt: Date.now() },
+    )
     .where(eq(users.id, userId));
 
   // 2. 공통: 포인트 거래 기록
@@ -113,7 +117,8 @@ db.transaction(async (tx) => {
   switch (item.category) {
     case 'NICKNAME':
       // ✅ 요구사항 1: 닉네임 변경
-      await tx.update(users)
+      await tx
+        .update(users)
         .set({ nickname: newNickname, updatedAt: Date.now() })
         .where(eq(users.id, userId));
       break;
@@ -121,7 +126,8 @@ db.transaction(async (tx) => {
     case 'COLOR':
       // ✅ 요구사항 2: 닉네임 컬러 변경 (무지개색)
       const colorMeta = JSON.parse(item.metadata || '{}');
-      await tx.update(users)
+      await tx
+        .update(users)
         .set({ nicknameColor: colorMeta.color || 'RAINBOW', updatedAt: Date.now() })
         .where(eq(users.id, userId));
       break;
@@ -134,7 +140,7 @@ db.transaction(async (tx) => {
         tier: item.tier,
         imageUrl: item.imageUrl, // Pinata IPFS URL
       });
-      
+
       await tx.insert(achievements).values({
         userId,
         type: 'NFT',
@@ -156,18 +162,20 @@ db.transaction(async (tx) => {
       const durationMs = boostMeta.durationMs || 86400000; // 기본 1일
       const currentBoostUntil = user.boostUntil || Date.now();
       const newBoostUntil = Math.max(currentBoostUntil, Date.now()) + durationMs;
-      
-      await tx.update(users)
+
+      await tx
+        .update(users)
         .set({ boostUntil: newBoostUntil, updatedAt: Date.now() })
         .where(eq(users.id, userId));
       break;
 
     case 'ITEM':
       // ✅ 요구사항 5: Green Mushroom 수량 증가
-      await tx.update(users)
-        .set({ 
+      await tx
+        .update(users)
+        .set({
           greenMushrooms: (user.greenMushrooms || 0) + 1,
-          updatedAt: Date.now()
+          updatedAt: Date.now(),
         })
         .where(eq(users.id, userId));
       break;
@@ -194,13 +202,13 @@ export async function getIPFSUrl(cid: string): string {
 export async function uploadToPinata(file: Buffer, name: string): Promise<string> {
   const formData = new FormData();
   formData.append('file', new Blob([file]), name);
-  
+
   const response = await fetch('https://api.pinata.cloud/pinning/pinFileToIPFS', {
     method: 'POST',
-    headers: { 'Authorization': `Bearer ${PINATA_JWT}` },
+    headers: { Authorization: `Bearer ${PINATA_JWT}` },
     body: formData,
   });
-  
+
   const result = await response.json();
   return result.IpfsHash; // CID
 }
@@ -237,7 +245,7 @@ export async function mintNFT(params: MintParams): Promise<MintResult> {
   const keypair = Ed25519Keypair.fromSecretKey(Buffer.from(ADMIN_PRIVATE_KEY, 'hex'));
 
   const tx = new Transaction();
-  
+
   tx.moveCall({
     target: `${PACKAGE_ID}::nft::mint_nft`,
     arguments: [
@@ -256,7 +264,7 @@ export async function mintNFT(params: MintParams): Promise<MintResult> {
   });
 
   const createdNft = result.objectChanges?.find(
-    (change) => change.type === 'created' && change.objectType.includes('DeltaxNFT')
+    (change) => change.type === 'created' && change.objectType.includes('DeltaxNFT'),
   );
 
   return {
@@ -289,12 +297,12 @@ module deltax::nft {
     fun init(otw: NFT, ctx: &mut TxContext) {
         let publisher = package::claim(otw, ctx);
         let mut display = display::new<DeltaxNFT>(&publisher, ctx);
-        
+
         display::add(&mut display, b"name", b"{name}");
         display::add(&mut display, b"description", b"{description}");
         display::add(&mut display, b"image_url", b"{url}");
         display::add(&mut display, b"tier", b"{tier}");
-        
+
         display::update_version(&mut display);
         transfer::public_transfer(display, tx_context::sender(ctx));
         transfer::public_transfer(publisher, tx_context::sender(ctx));
@@ -523,6 +531,7 @@ sqlite3 delta.db "SELECT sui_nft_object_id, ipfs_metadata_url FROM achievements 
 ### 수동 검증
 
 **Drizzle Studio**:
+
 ```bash
 npm run db:studio
 ```
@@ -542,4 +551,3 @@ PINATA_GATEWAY=https://gateway.pinata.cloud
 SUI_NFT_PACKAGE_ID=0x...your_deployed_package_id
 SUI_ADMIN_PRIVATE_KEY=your_admin_wallet_private_key_hex
 ```
-

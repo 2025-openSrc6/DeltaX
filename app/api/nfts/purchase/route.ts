@@ -9,255 +9,251 @@ import { decodeSuiPrivateKey } from '@mysten/sui/cryptography';
 export const runtime = 'nodejs'; // Pinata 업로드 등 Node.js API 사용 필요
 
 export async function POST(request: Request, context: NextContext) {
-    console.log('🛒 POST /api/nfts/purchase called');
-    try {
-        const body = await request.json();
-        console.log('📦 Request body:', body);
-        const { userId, itemId } = body;
-        const db = getDb();
+  console.log('🛒 POST /api/nfts/purchase called');
+  try {
+    const body = await request.json();
+    console.log('📦 Request body:', body);
+    const { userId, itemId } = body;
+    const db = getDb();
 
-        // 1. 아이템 정보 조회
-        console.log('🔍 Looking up item:', itemId);
-        const item = await db
-            .select()
-            .from(shopItems)
-            .where(eq(shopItems.id, itemId))
-            .limit(1);
+    // 1. 아이템 정보 조회
+    console.log('🔍 Looking up item:', itemId);
+    const item = await db.select().from(shopItems).where(eq(shopItems.id, itemId)).limit(1);
 
-        if (!item[0]) {
-            console.log('⚠️ Item not found, creating mock item...');
-            // 임시 아이템 자동 생성
-            const newItem = await db.insert(shopItems).values({
-                id: itemId,
-                category: itemId.includes('nft') ? 'NFT' : 'ITEM',
-                name: `Mock Item (${itemId})`,
-                description: 'Auto-generated mock item',
-                price: 100, // 저렴한 가격
-                currency: 'DEL',
-                available: true,
-                tier: itemId.includes('nft') ? 'Obsidian' : null,
-                imageUrl: '/images/placeholder.png',
-                createdAt: Date.now()
-            }).returning();
+    if (!item[0]) {
+      console.log('⚠️ Item not found, creating mock item...');
+      // 임시 아이템 자동 생성
+      const newItem = await db
+        .insert(shopItems)
+        .values({
+          id: itemId,
+          category: itemId.includes('nft') ? 'NFT' : 'ITEM',
+          name: `Mock Item (${itemId})`,
+          description: 'Auto-generated mock item',
+          price: 100, // 저렴한 가격
+          currency: 'DEL',
+          available: true,
+          tier: itemId.includes('nft') ? 'Obsidian' : null,
+          imageUrl: '/images/placeholder.png',
+          createdAt: Date.now(),
+        })
+        .returning();
 
-            item[0] = newItem[0];
-            console.log('✅ Mock item created:', item[0].name);
-        } else {
-            console.log('✅ Item found:', item[0].name);
-        }
-
-        if (!item[0].available) {
-            return Response.json({ error: '판매 중지된 아이템입니다' }, { status: 400 });
-        }
-
-        // 2. 유저 정보 조회 (suiAddress로 조회)
-        console.log('🔍 Looking up user by suiAddress:', userId);
-        let user = await db
-            .select()
-            .from(users)
-            .where(eq(users.suiAddress, userId))
-            .limit(1);
-
-        // suiAddress로 못 찾으면 id로도 조회 시도 (하위 호환)
-        if (!user[0]) {
-            console.log('🔍 Trying to find user by id...');
-            user = await db
-                .select()
-                .from(users)
-                .where(eq(users.id, userId))
-                .limit(1);
-        }
-
-        if (!user[0]) {
-            console.log('⚠️ User not found, creating test user...');
-            // 테스트 유저 자동 생성
-            const newUser = await db.insert(users).values({
-                suiAddress: userId, // userId를 suiAddress로 저장
-                nickname: 'TestUser',
-                delBalance: 1000000, // 넉넉한 초기 자금
-                crystalBalance: 1000,
-                createdAt: Date.now(),
-                updatedAt: Date.now()
-            }).returning();
-
-            user[0] = newUser[0];
-            console.log('✅ Test user created:', user[0].nickname);
-        } else {
-            console.log('✅ User found:', user[0].nickname);
-        }
-
-        // 3. 잔액 확인
-        const balance =
-            item[0].currency === 'DEL' ? user[0].delBalance : user[0].crystalBalance;
-        console.log('💰 Balance check:', balance, 'Required:', item[0].price);
-
-        if (balance < item[0].price) {
-            return Response.json(
-                { error: 'INSUFFICIENT_BALANCE', message: '잔액이 부족합니다' },
-                { status: 400 }
-            );
-        }
-
-        // 4. 닉네임 필요 여부 확인
-        if (item[0].requiresNickname && !user[0].nickname) {
-            return Response.json(
-                { error: 'NICKNAME_REQUIRED', message: '닉네임 설정이 필요합니다' },
-                { status: 400 }
-            );
-        }
-
-        // 5. 아이템별 효과 적용
-        let nftObjectId: string | undefined;
-        let ipfsMetadataUrl: string | undefined;
-        const updates: Partial<typeof users.$inferSelect> = {};
-
-        // 5-1. 닉네임 변경권
-        if (item[0].category === 'NICKNAME') {
-            const { newNickname } = body;
-            if (!newNickname || typeof newNickname !== 'string' || newNickname.length < 2) {
-                return Response.json(
-                    { error: 'INVALID_NICKNAME', message: '유효한 새 닉네임이 필요합니다' },
-                    { status: 400 }
-                );
-            }
-            // 닉네임 중복 체크 (선택 사항, 여기서는 생략하거나 추가 가능)
-            updates.nickname = newNickname;
-        }
-
-        // 5-2. 닉네임 컬러
-        if (item[0].category === 'COLOR') {
-            // metadata에서 color 값 읽기, 기본값 RAINBOW
-            let metadata: Record<string, unknown> = {};
-            try {
-                metadata = item[0].metadata ? JSON.parse(item[0].metadata) : {};
-            } catch {
-                console.warn('⚠️ COLOR metadata 파싱 실패:', item[0].metadata);
-            }
-            updates.nicknameColor = (metadata.color as string) || 'RAINBOW';
-        }
-
-        // 5-3. 부스트 아이템
-        if (item[0].category === 'BOOST') {
-            // metadata에서 durationMs 읽기, 기본값 1일(86400000ms)
-            let metadata: Record<string, unknown> = {};
-            try {
-                metadata = item[0].metadata ? JSON.parse(item[0].metadata) : {};
-            } catch {
-                console.warn('⚠️ BOOST metadata 파싱 실패:', item[0].metadata);
-            }
-            const duration = (metadata.durationMs as number) || 24 * 60 * 60 * 1000; // 기본 1일
-            const currentBoost = user[0].boostUntil || Date.now();
-            updates.boostUntil = Math.max(currentBoost, Date.now()) + duration;
-        }
-
-        // 5-4. 일반 아이템 (Green Mushroom)
-        if (item[0].category === 'ITEM' && item[0].id.includes('mushroom')) {
-            updates.greenMushrooms = (user[0].greenMushrooms || 0) + 1;
-        }
-
-        // 5-5. NFT 아이템
-        if (item[0].category === 'NFT') {
-            try {
-                // Mock Minting 여부 확인
-                const isMockMinting = process.env.MOCK_MINTING === 'true';
-
-                // 5-5-1. 이미지 URL 준비 (DB에 저장된 CID 사용)
-                // Sui Display Standard를 사용하므로 별도의 메타데이터 JSON 업로드 없이
-                // 이미지 URL을 직접 NFT 객체에 저장합니다.
-                const imageUrl = item[0].imageUrl
-                    ? (item[0].imageUrl.startsWith('ipfs://') ? item[0].imageUrl : `ipfs://${item[0].imageUrl}`)
-                    : `ipfs://QmPlaceholder${item[0].tier}`;
-
-                // DB 저장을 위해 변수 할당 (메타데이터 URL 대신 이미지 URL 저장)
-                ipfsMetadataUrl = imageUrl;
-
-                if (isMockMinting) {
-                    console.log('🧪 Mock Minting Enabled');
-                    nftObjectId = `mock_nft_${Date.now()}_${Math.random().toString(36).substring(7)}`;
-                } else {
-                    // 실제 민팅 로직 (Sui)
-                    const { secretKey } = decodeSuiPrivateKey(process.env.SUI_ADMIN_SECRET_KEY!);
-                    const adminKeypair = Ed25519Keypair.fromSecretKey(secretKey);
-
-                    const { nftObjectId: mintedNftId } = await mintNFT({
-                        userAddress: user[0].suiAddress,
-                        metadataUrl: imageUrl, // 메타데이터 JSON 대신 이미지 URL 전달
-                        tier: item[0].tier!,
-                        name: item[0].name,
-                        description: item[0].description || `${item[0].tier} Tier NFT`,
-                        adminKeypair,
-                    });
-
-                    nftObjectId = mintedNftId;
-                }
-            } catch (error) {
-                console.error('NFT Minting Error:', error);
-                return Response.json(
-                    { error: 'NFT_MINTING_FAILED', message: 'NFT 민팅에 실패했습니다' },
-                    { status: 500 }
-                );
-            }
-        }
-
-        // 6. 트랜잭션 실행 (DB 업데이트)
-        let newBalance = balance;
-
-        // 잔액 차감
-        if (item[0].currency === 'DEL') {
-            newBalance = user[0].delBalance - item[0].price;
-            updates.delBalance = newBalance;
-        } else {
-            newBalance = user[0].crystalBalance - item[0].price;
-            updates.crystalBalance = newBalance;
-        }
-
-        // 통합 업데이트 실행 (user[0].id 사용)
-        await db
-            .update(users)
-            .set(updates)
-            .where(eq(users.id, user[0].id));
-
-        // 포인트 거래 기록 (user[0].id 사용)
-        await db.insert(pointTransactions).values({
-            userId: user[0].id,
-            type: 'NFT_PURCHASE',
-            currency: item[0].currency,
-            amount: -item[0].price,
-            balanceBefore: balance,
-            balanceAfter: newBalance,
-            referenceId: item[0].id,
-            referenceType: 'SHOP_ITEM',
-            description: `${item[0].name} 구매`,
-        });
-
-        // 아이템 지급 (Achievements) (user[0].id 사용)
-        await db.insert(achievements).values({
-            userId: user[0].id,
-            type: item[0].category,
-            tier: item[0].tier,
-            name: item[0].name,
-            purchasePrice: item[0].price,
-            currency: item[0].currency,
-            suiNftObjectId: nftObjectId,
-            ipfsMetadataUrl,
-            acquiredAt: Date.now(),
-        });
-
-        return Response.json({
-            success: true,
-            data: {
-                item: item[0],
-                nftObjectId,
-                ipfsMetadataUrl,
-                newBalance,
-            },
-        });
-    } catch (error) {
-        console.error('구매 처리 실패:', error);
-        console.error('에러 상세:', error instanceof Error ? error.message : error);
-        return Response.json(
-            { error: 'PURCHASE_FAILED', message: '구매 처리에 실패했습니다', detail: error instanceof Error ? error.message : String(error) },
-            { status: 500 }
-        );
+      item[0] = newItem[0];
+      console.log('✅ Mock item created:', item[0].name);
+    } else {
+      console.log('✅ Item found:', item[0].name);
     }
+
+    if (!item[0].available) {
+      return Response.json({ error: '판매 중지된 아이템입니다' }, { status: 400 });
+    }
+
+    // 2. 유저 정보 조회 (suiAddress로 조회)
+    console.log('🔍 Looking up user by suiAddress:', userId);
+    let user = await db.select().from(users).where(eq(users.suiAddress, userId)).limit(1);
+
+    // suiAddress로 못 찾으면 id로도 조회 시도 (하위 호환)
+    if (!user[0]) {
+      console.log('🔍 Trying to find user by id...');
+      user = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+    }
+
+    if (!user[0]) {
+      console.log('⚠️ User not found, creating test user...');
+      // 테스트 유저 자동 생성
+      const newUser = await db
+        .insert(users)
+        .values({
+          suiAddress: userId, // userId를 suiAddress로 저장
+          nickname: 'TestUser',
+          delBalance: 1000000, // 넉넉한 초기 자금
+          crystalBalance: 1000,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        })
+        .returning();
+
+      user[0] = newUser[0];
+      console.log('✅ Test user created:', user[0].nickname);
+    } else {
+      console.log('✅ User found:', user[0].nickname);
+    }
+
+    // 3. 잔액 확인
+    const balance = item[0].currency === 'DEL' ? user[0].delBalance : user[0].crystalBalance;
+    console.log('💰 Balance check:', balance, 'Required:', item[0].price);
+
+    if (balance < item[0].price) {
+      return Response.json(
+        { error: 'INSUFFICIENT_BALANCE', message: '잔액이 부족합니다' },
+        { status: 400 },
+      );
+    }
+
+    // 4. 닉네임 필요 여부 확인
+    if (item[0].requiresNickname && !user[0].nickname) {
+      return Response.json(
+        { error: 'NICKNAME_REQUIRED', message: '닉네임 설정이 필요합니다' },
+        { status: 400 },
+      );
+    }
+
+    // 5. 아이템별 효과 적용
+    let nftObjectId: string | undefined;
+    let ipfsMetadataUrl: string | undefined;
+    const updates: Partial<typeof users.$inferSelect> = {};
+
+    // 5-1. 닉네임 변경권
+    if (item[0].category === 'NICKNAME') {
+      const { newNickname } = body;
+      if (!newNickname || typeof newNickname !== 'string' || newNickname.length < 2) {
+        return Response.json(
+          { error: 'INVALID_NICKNAME', message: '유효한 새 닉네임이 필요합니다' },
+          { status: 400 },
+        );
+      }
+      // 닉네임 중복 체크 (선택 사항, 여기서는 생략하거나 추가 가능)
+      updates.nickname = newNickname;
+    }
+
+    // 5-2. 닉네임 컬러
+    if (item[0].category === 'COLOR') {
+      // metadata에서 color 값 읽기, 기본값 RAINBOW
+      let metadata: Record<string, unknown> = {};
+      try {
+        metadata = item[0].metadata ? JSON.parse(item[0].metadata) : {};
+      } catch {
+        console.warn('⚠️ COLOR metadata 파싱 실패:', item[0].metadata);
+      }
+      updates.nicknameColor = (metadata.color as string) || 'RAINBOW';
+    }
+
+    // 5-3. 부스트 아이템
+    if (item[0].category === 'BOOST') {
+      // metadata에서 durationMs 읽기, 기본값 1일(86400000ms)
+      let metadata: Record<string, unknown> = {};
+      try {
+        metadata = item[0].metadata ? JSON.parse(item[0].metadata) : {};
+      } catch {
+        console.warn('⚠️ BOOST metadata 파싱 실패:', item[0].metadata);
+      }
+      const duration = (metadata.durationMs as number) || 24 * 60 * 60 * 1000; // 기본 1일
+      const currentBoost = user[0].boostUntil || Date.now();
+      updates.boostUntil = Math.max(currentBoost, Date.now()) + duration;
+    }
+
+    // 5-4. 일반 아이템 (Green Mushroom)
+    if (item[0].category === 'ITEM' && item[0].id.includes('mushroom')) {
+      updates.greenMushrooms = (user[0].greenMushrooms || 0) + 1;
+    }
+
+    // 5-5. NFT 아이템
+    if (item[0].category === 'NFT') {
+      try {
+        // Mock Minting 여부 확인
+        const isMockMinting = process.env.MOCK_MINTING === 'true';
+
+        // 5-5-1. 이미지 URL 준비 (DB에 저장된 CID 사용)
+        // Sui Display Standard를 사용하므로 별도의 메타데이터 JSON 업로드 없이
+        // 이미지 URL을 직접 NFT 객체에 저장합니다.
+        const imageUrl = item[0].imageUrl
+          ? item[0].imageUrl.startsWith('ipfs://')
+            ? item[0].imageUrl
+            : `ipfs://${item[0].imageUrl}`
+          : `ipfs://QmPlaceholder${item[0].tier}`;
+
+        // DB 저장을 위해 변수 할당 (메타데이터 URL 대신 이미지 URL 저장)
+        ipfsMetadataUrl = imageUrl;
+
+        if (isMockMinting) {
+          console.log('🧪 Mock Minting Enabled');
+          nftObjectId = `mock_nft_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+        } else {
+          // 실제 민팅 로직 (Sui)
+          const { secretKey } = decodeSuiPrivateKey(process.env.SUI_ADMIN_SECRET_KEY!);
+          const adminKeypair = Ed25519Keypair.fromSecretKey(secretKey);
+
+          const { nftObjectId: mintedNftId } = await mintNFT({
+            userAddress: user[0].suiAddress,
+            metadataUrl: imageUrl, // 메타데이터 JSON 대신 이미지 URL 전달
+            tier: item[0].tier!,
+            name: item[0].name,
+            description: item[0].description || `${item[0].tier} Tier NFT`,
+            adminKeypair,
+          });
+
+          nftObjectId = mintedNftId;
+        }
+      } catch (error) {
+        console.error('NFT Minting Error:', error);
+        return Response.json(
+          { error: 'NFT_MINTING_FAILED', message: 'NFT 민팅에 실패했습니다' },
+          { status: 500 },
+        );
+      }
+    }
+
+    // 6. 트랜잭션 실행 (DB 업데이트)
+    let newBalance = balance;
+
+    // 잔액 차감
+    if (item[0].currency === 'DEL') {
+      newBalance = user[0].delBalance - item[0].price;
+      updates.delBalance = newBalance;
+    } else {
+      newBalance = user[0].crystalBalance - item[0].price;
+      updates.crystalBalance = newBalance;
+    }
+
+    // 통합 업데이트 실행 (user[0].id 사용)
+    await db.update(users).set(updates).where(eq(users.id, user[0].id));
+
+    // 포인트 거래 기록 (user[0].id 사용)
+    await db.insert(pointTransactions).values({
+      userId: user[0].id,
+      type: 'NFT_PURCHASE',
+      currency: item[0].currency,
+      amount: -item[0].price,
+      balanceBefore: balance,
+      balanceAfter: newBalance,
+      referenceId: item[0].id,
+      referenceType: 'SHOP_ITEM',
+      description: `${item[0].name} 구매`,
+    });
+
+    // 아이템 지급 (Achievements) (user[0].id 사용)
+    await db.insert(achievements).values({
+      userId: user[0].id,
+      type: item[0].category,
+      tier: item[0].tier,
+      name: item[0].name,
+      purchasePrice: item[0].price,
+      currency: item[0].currency,
+      suiNftObjectId: nftObjectId,
+      ipfsMetadataUrl,
+      acquiredAt: Date.now(),
+    });
+
+    return Response.json({
+      success: true,
+      data: {
+        item: item[0],
+        nftObjectId,
+        ipfsMetadataUrl,
+        newBalance,
+      },
+    });
+  } catch (error) {
+    console.error('구매 처리 실패:', error);
+    console.error('에러 상세:', error instanceof Error ? error.message : error);
+    return Response.json(
+      {
+        error: 'PURCHASE_FAILED',
+        message: '구매 처리에 실패했습니다',
+        detail: error instanceof Error ? error.message : String(error),
+      },
+      { status: 500 },
+    );
+  }
 }

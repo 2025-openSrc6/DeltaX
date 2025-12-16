@@ -165,16 +165,16 @@ curl -sS -X POST 'http://localhost:3000/api/cron/rounds/finalize' \
 
 ### 5.2 (각 지갑) 베팅
 
-1) **Bet Prepare**: `POST /api/bets`
+1. **Bet Prepare**: `POST /api/bets`
    - 입력에 `roundId`, `prediction`, `amount`, `userDelCoinId`
-2) 지갑에서 txBytes 서명
-3) **Bet Execute**: `POST /api/bets/execute`
+2. 지갑에서 txBytes 서명
+3. **Bet Execute**: `POST /api/bets/execute`
 
 ### 5.3 승자(또는 임의 지갑) 클레임
 
-1) **Claim Prepare**: `POST /api/bets/claim/prepare` (body: `{ betId }`)
-2) 지갑에서 txBytes 서명
-3) **Claim Execute**: `POST /api/bets/claim/execute`
+1. **Claim Prepare**: `POST /api/bets/claim/prepare` (body: `{ betId }`)
+2. 지갑에서 txBytes 서명
+3. **Claim Execute**: `POST /api/bets/claim/execute`
 
 ---
 
@@ -188,5 +188,3 @@ curl -sS -X POST 'http://localhost:3000/api/cron/rounds/finalize' \
   - 해결: sponsor 지갑에 SUI 충전.
 - **userDelCoinId 오류**: 지갑에 DEL coin object가 없거나, 다른 타입 coin id를 넣음.
   - 해결: `scripts/sui-mint-check.ts`로 민팅 후 `scripts/sui-list-del-coins.ts`로 coinObjectId 재확인.
-
-
