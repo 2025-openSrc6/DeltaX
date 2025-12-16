@@ -4,6 +4,7 @@ import { eq } from 'drizzle-orm';
 import { NextContext } from '@/lib/types';
 import { mintNFT } from '@/lib/sui/nft';
 import { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519';
+import { decodeSuiPrivateKey } from '@mysten/sui/cryptography';
 
 export const runtime = 'nodejs'; // Pinata 업로드 등 Node.js API 사용 필요
 
@@ -49,23 +50,32 @@ export async function POST(request: Request, context: NextContext) {
             return Response.json({ error: '판매 중지된 아이템입니다' }, { status: 400 });
         }
 
-        // 2. 유저 정보 조회
-        console.log('🔍 Looking up user:', userId);
-        const user = await db
+        // 2. 유저 정보 조회 (suiAddress로 조회)
+        console.log('🔍 Looking up user by suiAddress:', userId);
+        let user = await db
             .select()
             .from(users)
-            .where(eq(users.id, userId))
+            .where(eq(users.suiAddress, userId))
             .limit(1);
+
+        // suiAddress로 못 찾으면 id로도 조회 시도 (하위 호환)
+        if (!user[0]) {
+            console.log('🔍 Trying to find user by id...');
+            user = await db
+                .select()
+                .from(users)
+                .where(eq(users.id, userId))
+                .limit(1);
+        }
 
         if (!user[0]) {
             console.log('⚠️ User not found, creating test user...');
             // 테스트 유저 자동 생성
             const newUser = await db.insert(users).values({
-                id: userId,
+                suiAddress: userId, // userId를 suiAddress로 저장
                 nickname: 'TestUser',
                 delBalance: 1000000, // 넉넉한 초기 자금
                 crystalBalance: 1000,
-                suiAddress: '0x742d35Cc6634C0532925a3b844Bc454e4438f44e', // Mock Address
                 createdAt: Date.now(),
                 updatedAt: Date.now()
             }).returning();
@@ -117,15 +127,25 @@ export async function POST(request: Request, context: NextContext) {
         // 5-2. 닉네임 컬러
         if (item[0].category === 'COLOR') {
             // metadata에서 color 값 읽기, 기본값 RAINBOW
-            const metadata = item[0].metadata ? JSON.parse(item[0].metadata) : {};
-            updates.nicknameColor = metadata.color || 'RAINBOW';
+            let metadata: Record<string, unknown> = {};
+            try {
+                metadata = item[0].metadata ? JSON.parse(item[0].metadata) : {};
+            } catch {
+                console.warn('⚠️ COLOR metadata 파싱 실패:', item[0].metadata);
+            }
+            updates.nicknameColor = (metadata.color as string) || 'RAINBOW';
         }
 
         // 5-3. 부스트 아이템
         if (item[0].category === 'BOOST') {
             // metadata에서 durationMs 읽기, 기본값 1일(86400000ms)
-            const metadata = item[0].metadata ? JSON.parse(item[0].metadata) : {};
-            const duration = metadata.durationMs || 24 * 60 * 60 * 1000; // 기본 1일
+            let metadata: Record<string, unknown> = {};
+            try {
+                metadata = item[0].metadata ? JSON.parse(item[0].metadata) : {};
+            } catch {
+                console.warn('⚠️ BOOST metadata 파싱 실패:', item[0].metadata);
+            }
+            const duration = (metadata.durationMs as number) || 24 * 60 * 60 * 1000; // 기본 1일
             const currentBoost = user[0].boostUntil || Date.now();
             updates.boostUntil = Math.max(currentBoost, Date.now()) + duration;
         }
@@ -156,9 +176,8 @@ export async function POST(request: Request, context: NextContext) {
                     nftObjectId = `mock_nft_${Date.now()}_${Math.random().toString(36).substring(7)}`;
                 } else {
                     // 실제 민팅 로직 (Sui)
-                    const adminKeypair = Ed25519Keypair.fromSecretKey(
-                        Buffer.from(process.env.ADMIN_SECRET_KEY!, 'base64')
-                    );
+                    const { secretKey } = decodeSuiPrivateKey(process.env.SUI_ADMIN_SECRET_KEY!);
+                    const adminKeypair = Ed25519Keypair.fromSecretKey(secretKey);
 
                     const { nftObjectId: mintedNftId } = await mintNFT({
                         userAddress: user[0].suiAddress,
@@ -192,15 +211,15 @@ export async function POST(request: Request, context: NextContext) {
             updates.crystalBalance = newBalance;
         }
 
-        // 통합 업데이트 실행
+        // 통합 업데이트 실행 (user[0].id 사용)
         await db
             .update(users)
             .set(updates)
-            .where(eq(users.id, userId));
+            .where(eq(users.id, user[0].id));
 
-        // 포인트 거래 기록
+        // 포인트 거래 기록 (user[0].id 사용)
         await db.insert(pointTransactions).values({
-            userId,
+            userId: user[0].id,
             type: 'NFT_PURCHASE',
             currency: item[0].currency,
             amount: -item[0].price,
@@ -211,9 +230,9 @@ export async function POST(request: Request, context: NextContext) {
             description: `${item[0].name} 구매`,
         });
 
-        // 아이템 지급 (Achievements)
+        // 아이템 지급 (Achievements) (user[0].id 사용)
         await db.insert(achievements).values({
-            userId,
+            userId: user[0].id,
             type: item[0].category,
             tier: item[0].tier,
             name: item[0].name,
@@ -235,8 +254,9 @@ export async function POST(request: Request, context: NextContext) {
         });
     } catch (error) {
         console.error('구매 처리 실패:', error);
+        console.error('에러 상세:', error instanceof Error ? error.message : error);
         return Response.json(
-            { error: 'PURCHASE_FAILED', message: '구매 처리에 실패했습니다' },
+            { error: 'PURCHASE_FAILED', message: '구매 처리에 실패했습니다', detail: error instanceof Error ? error.message : String(error) },
             { status: 500 }
         );
     }

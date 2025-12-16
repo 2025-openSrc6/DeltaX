@@ -1,0 +1,22 @@
+-- Shop Items Seed Data
+INSERT INTO shop_items (id, category, name, description, price, currency, tier, metadata, image_url, available, requires_nickname, created_at) VALUES
+('item_nickname', 'NICKNAME', '닉네임 변경권', '닉네임을 설정할 수 있습니다.', 50000, 'DEL', NULL, NULL, 'https://images.unsplash.com/photo-1511367461989-f85a21fda167?w=500', 1, 0, 1733750400000),
+('nft_obsidian', 'NFT', '호랑이', '호랑이', 300000, 'DEL', 'Obsidian', NULL, '/images/tiger - obsidian.png', 1, 0, 1733750400000),
+('nft_aurum', 'NFT', '청룡', '청룡', 500000, 'DEL', 'Aurum', NULL, '/images/blue dragon - aurum.png', 1, 0, 1733750400000),
+('nft_nova', 'NFT', '천', '천', 1000000, 'DEL', 'Nova', NULL, '/images/sky - nova.png', 1, 0, 1733750400000),
+('nft_aetherion', 'NFT', '태극', '태극', 2000000, 'DEL', 'Aetherion', NULL, '/images/taegeuk - aetherion.png', 1, 0, 1733750400000),
+('nft_singularity', 'NFT', 'Singularity', 'Singularity', 100000000, 'DEL', 'Singularity', NULL, '/images/star - singularity.png', 1, 0, 1733750400000),
+('item_color_single', 'COLOR', '닉네임 컬러 (단색)', '닉네임에 단색 컬러를 적용합니다.', 20000, 'DEL', NULL, '{"color": "#FF5733"}', NULL, 1, 1, 1733750400000),
+('item_color_special', 'COLOR', '닉네임 컬러 (스페셜)', '2중/3중/무지개 컬러를 적용합니다.', 100000, 'DEL', NULL, '{"color": "RAINBOW"}', NULL, 1, 1, 1733750400000),
+('item_boost_1day', 'BOOST', '부스트 토큰 (1일)', '1일간 베팅 성공 보상 +5%, 출석 포인트 +10%', 2, 'CRYSTAL', NULL, '{"durationMs": 86400000}', '/images/boost.png', 1, 0, 1733750400000),
+('item_green_mushroom', 'ITEM', 'Green Mushroom', '베팅 실패 시 투자 금액 50% 회수 (1회)', 2, 'CRYSTAL', NULL, NULL, '/images/item_green_mushroom.png', 1, 0, 1733750400000),
+('nft_obsidian_crane', 'NFT', '두루미', '두루미', 300000, 'DEL', 'Obsidian', NULL, '/images/crane - obsidian.png', 1, 0, 1733750400000),
+('nft_obsidian_otter', 'NFT', '수달', '수달', 300000, 'DEL', 'Obsidian', NULL, '/images/otter - obsidian.png', 1, 0, 1733750400000),
+('nft_obsidian_ssang', 'NFT', '삵', '삵', 300000, 'DEL', 'Obsidian', NULL, '/images/Ssang - obsidian.png', 1, 0, 1733750400000),
+('nft_obsidian_bear', 'NFT', '반달가슴곰', '반달가슴곰', 300000, 'DEL', 'Obsidian', NULL, '/images/Asiatic black bear - obsidian.png', 1, 0, 1733750400000),
+('nft_aurum_white_tiger', 'NFT', '백호', '백호', 500000, 'DEL', 'Aurum', NULL, '/images/white tiger - aurum.png', 1, 0, 1733750400000),
+('nft_aurum_black_turtle', 'NFT', '현무', '현무', 500000, 'DEL', 'Aurum', NULL, '/images/black turtle - aurum.png', 1, 0, 1733750400000),
+('nft_aurum_fire_bird', 'NFT', '주작', '주작', 500000, 'DEL', 'Aurum', NULL, '/images/fre bird - aurum.png', 1, 0, 1733750400000),
+('nft_nova_ground', 'NFT', '지', '지', 1000000, 'DEL', 'Nova', NULL, '/images/ground - nova.png', 1, 0, 1733750400000),
+('nft_nova_man', 'NFT', '인', '인', 1000000, 'DEL', 'Nova', NULL, '/images/man - nova.png', 1, 0, 1733750400000),
+('nft_aetherion_mugeuk', 'NFT', '무극', '무극', 2000000, 'DEL', 'Aetherion', NULL, '/images/mu geuk - aetherion.png', 1, 0, 1733750400000);

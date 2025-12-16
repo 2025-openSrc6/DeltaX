@@ -38,8 +38,8 @@ export const getDb = cache((): DbClient => {
       );
     }
 
-    const envType = process.env.NODE_ENV === 'development' ? 'local' : 'remote';
-    console.log(`[DB] Using Cloudflare D1 database (${envType})`);
+    const isRemote = process.env.USE_REMOTE_D1 === 'true';
+    console.log(`[DB] Using Cloudflare D1 database (${isRemote ? 'remote' : 'local'})`);
     return initializeDb({ DB: db });
   } catch (error) {
     console.error('[DB] Failed to initialize D1:', error);

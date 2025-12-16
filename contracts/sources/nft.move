@@ -1,4 +1,4 @@
-module deltaX::nft {
+module deltax::nft {
     use std::string::{String, utf8};
     use sui::package;
     use sui::display;

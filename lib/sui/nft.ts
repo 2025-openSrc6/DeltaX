@@ -27,6 +27,7 @@ export async function mintNFT({
     const tx = new Transaction();
 
     // nft.move의 mint_nft 함수 호출
+    // Move 컨트랙트: mint_nft(name, description, url, tier, recipient, ctx)
     tx.moveCall({
         target: `${PACKAGE_ID}::nft::mint_nft`,
         arguments: [
@@ -35,7 +36,6 @@ export async function mintNFT({
             tx.pure.string(metadataUrl),
             tx.pure.string(tier),
             tx.pure.address(userAddress),
-            tx.object('0x6'), // Clock
         ],
     });
 
@@ -56,10 +56,11 @@ export async function mintNFT({
     // NFT Object ID 추출
     const nftObjectChange = result.objectChanges?.find(
         (change: any) =>
-            change.type === 'created' && change.objectType.includes('::NFT')
+            change.type === 'created' && change.objectType.includes('DeltaxNFT')
     );
 
     if (!nftObjectChange || nftObjectChange.type !== 'created') {
+        console.log('🔍 Object Changes:', JSON.stringify(result.objectChanges, null, 2));
         throw new Error('NFT Object를 찾을 수 없습니다');
     }
 

@@ -10,6 +10,6 @@ binding = "ASSETS"
 # Cloudflare D1 Database 설정 (일단 ehdnd db입니다)
 [[d1_databases]]
 binding = "DB"
-database_name = "my-db-name"
-database_id = "a0637bbd-181c-4c6e-b52d-85557e3a1e1c"
+database_name = "deltax"
+database_id = "617a2c9b-adf9-4d63-8204-5b7afdb6a8de"
 migrations_dir = "drizzle"
