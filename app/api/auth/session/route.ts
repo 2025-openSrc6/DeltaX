@@ -29,6 +29,19 @@ export async function GET(request: NextRequest) {
       return createSuccessResponse({ user: null });
     }
 
+    // 로그인된 사용자의 활동 시간 업데이트 (출석보상 대상자로 포함시키기 위해)
+    // updatedAt이 1분 이상 지났을 때만 업데이트 (과도한 DB 업데이트 방지)
+    const now = Date.now();
+    const oneMinuteAgo = now - 60 * 1000;
+    if (user.updatedAt < oneMinuteAgo) {
+      await registry.userRepository.updateActivityTime(user.id);
+      // 업데이트된 사용자 정보 다시 조회
+      const updatedUser = await registry.userRepository.findById(user.id);
+      if (updatedUser) {
+        return createSuccessResponse({ user: updatedUser });
+      }
+    }
+
     return createSuccessResponse({ user });
   } catch (error) {
     return handleApiError(error);
@@ -121,6 +134,9 @@ export async function POST(request: NextRequest) {
 
     // 1. 유저 조회 또는 생성
     const user = await registry.userService.findOrCreateUser(suiAddress);
+
+    // 1-1. 로그인 시 활동 시간 업데이트 (출석보상 대상자로 포함시키기 위해)
+    await registry.userRepository.updateActivityTime(user.id);
 
     // 2. 이번 라운드 첫 로그인 보상 체크 및 지급
     const bonusResult = await registry.userService.checkAndGrantRoundLoginBonus(user.id);

@@ -32,13 +32,13 @@ export function NFTCard({ nft, isConnected, userPoints, onPurchase }: NFTCardPro
   const getRarityColor = (rarity: string) => {
     switch (rarity) {
       case 'Legendary':
-        return 'bg-secondary/20 text-secondary border-secondary/30';
+        return 'bg-pink-100 text-pink-700 border-pink-300';
       case 'Epic':
-        return 'bg-primary/20 text-primary border-primary/30';
+        return 'bg-purple-100 text-purple-700 border-purple-300';
       case 'Rare':
-        return 'bg-accent/20 text-accent-foreground border-accent/30';
+        return 'bg-cyan-100 text-cyan-700 border-cyan-300';
       default:
-        return 'bg-muted/20 text-muted-foreground border-muted/30';
+        return 'bg-slate-100 text-slate-700 border-slate-300';
     }
   };
 
@@ -52,12 +52,12 @@ export function NFTCard({ nft, isConnected, userPoints, onPurchase }: NFTCardPro
 
   return (
     <Card
-      className="group relative overflow-hidden border-border/50 bg-card hover:border-primary/50 transition-all duration-300"
+      className="group relative overflow-hidden border-cyan-200 bg-white/90 hover:border-cyan-300 hover:shadow-lg transition-all duration-300 shadow-sm"
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
       {/* Glow effect */}
-      <div className="absolute inset-0 bg-gradient-to-br from-primary/0 via-primary/0 to-secondary/0 group-hover:from-primary/10 group-hover:to-secondary/10 transition-all duration-500" />
+      <div className="absolute inset-0 bg-gradient-to-br from-cyan-50/0 via-purple-50/0 to-pink-50/0 group-hover:from-cyan-50/50 group-hover:to-purple-50/50 transition-all duration-500" />
 
       <CardContent className="p-0 relative">
         {/* Image container */}
@@ -71,7 +71,7 @@ export function NFTCard({ nft, isConnected, userPoints, onPurchase }: NFTCardPro
           />
 
           {/* Overlay gradient */}
-          <div className="absolute inset-0 bg-gradient-to-t from-background via-background/50 to-transparent opacity-60" />
+          <div className="absolute inset-0 bg-gradient-to-t from-white via-white/50 to-transparent opacity-60" />
 
           {/* Rarity badge */}
           <div className="absolute top-3 right-3">
@@ -83,8 +83,8 @@ export function NFTCard({ nft, isConnected, userPoints, onPurchase }: NFTCardPro
 
           {/* Hover overlay */}
           {isHovered && (
-            <div className="absolute inset-0 bg-background/90 flex items-center justify-center transition-opacity duration-300">
-              <p className="text-sm text-muted-foreground px-4 text-center text-pretty">
+            <div className="absolute inset-0 bg-white/90 flex items-center justify-center transition-opacity duration-300">
+              <p className="text-sm text-cyan-700 px-4 text-center text-pretty">
                 {nft.description}
               </p>
             </div>
@@ -93,14 +93,14 @@ export function NFTCard({ nft, isConnected, userPoints, onPurchase }: NFTCardPro
 
         {/* Info section */}
         <div className="p-4">
-          <h3 className="font-bold text-lg mb-2 text-foreground">{nft.name}</h3>
+          <h3 className="font-bold text-lg mb-2 text-cyan-800">{nft.name}</h3>
 
           <div className="flex items-center gap-2 mb-4">
-            <Zap className="h-4 w-4 text-secondary" />
-            <span className="font-mono font-bold text-foreground">
+            <Zap className="h-4 w-4 text-cyan-600" />
+            <span className="font-mono font-bold text-cyan-700">
               {nft.price.toLocaleString()}
             </span>
-            <span className="text-sm text-muted-foreground">Points</span>
+            <span className="text-sm text-cyan-600/70">DEL</span>
           </div>
         </div>
       </CardContent>
@@ -109,7 +109,7 @@ export function NFTCard({ nft, isConnected, userPoints, onPurchase }: NFTCardPro
         <Button
           onClick={handlePurchase}
           disabled={!isConnected || !canAfford || isPurchasing}
-          className="w-full bg-gradient-to-r from-primary to-secondary hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+          className="w-full bg-gradient-to-r from-cyan-500 to-purple-600 hover:shadow-lg hover:shadow-cyan-300/50 disabled:opacity-50 disabled:cursor-not-allowed transition-all text-white font-bold"
         >
           {isPurchasing ? (
             <>

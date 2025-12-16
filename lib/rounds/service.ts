@@ -514,6 +514,25 @@ export class RoundService {
       status: openedRound.status,
     });
 
+    // 라운드 오픈 시 활성 사용자들에게 출석보상 지급
+    try {
+      const { registry } = await import('@/lib/registry');
+      const rewardResult = await registry.userService.grantRoundAttendanceRewardsToActiveUsers(
+        openedRound.id,
+      );
+      cronLogger.info('[Job 2] Round attendance rewards granted', {
+        roundId: openedRound.id,
+        grantedCount: rewardResult.grantedCount,
+        failedCount: rewardResult.failedCount,
+      });
+    } catch (error) {
+      // 출석보상 지급 실패는 로깅만 하고 라운드 오픈은 계속 진행
+      cronLogger.error('[Job 2] Failed to grant round attendance rewards', {
+        roundId: openedRound.id,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+
     return {
       status: 'opened',
       round: openedRound,
