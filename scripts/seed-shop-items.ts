@@ -166,7 +166,7 @@ main().catch((err) => {
         imageUrl: 'https://images.unsplash.com/photo-1550684848-fac1c5b4e853?w=500&auto=format&fit=crop&q=60',
     },
 
-    // --- NFT Tiers ---
+    // --- NFT Tiers (IPFS URLs from Pinata) ---
     {
         id: 'nft_obsidian',
         category: 'NFT',
@@ -174,7 +174,7 @@ main().catch((err) => {
         tier: 'Obsidian',
         price: 300000,
         currency: 'DEL',
-        imageUrl: '/images/tiger%20-%20obsidian.png',
+        imageUrl: 'ipfs://bafybeihhwd3ivt5k6s6qnj3yscm3wtretf2bzdmostflwicfar4t6vmcjy', // tiger - obsidian.png
     },
     {
         id: 'nft_aurum',
@@ -183,7 +183,7 @@ main().catch((err) => {
         tier: 'Aurum',
         price: 500000,
         currency: 'DEL',
-        imageUrl: '/images/blue%20dragon%20-%20aurum.png',
+        imageUrl: 'ipfs://bafybeihfdmhzmkqzomzq3s2jvy2o7pjtshnhx63wwd5y66j7hrh2ftsysi', // blue dragon - aurum.png
     },
     {
         id: 'nft_nova',
@@ -192,7 +192,7 @@ main().catch((err) => {
         tier: 'Nova',
         price: 1000000,
         currency: 'DEL',
-        imageUrl: '/images/sky%20-%20nova.png',
+        imageUrl: 'ipfs://bafybeibsxr6ztbo6fushzmmqpwptddxtam5oimvnamuntqfhzoajsqi3aa', // sky - nova.png
     },
     {
         id: 'nft_aetherion',
@@ -201,7 +201,7 @@ main().catch((err) => {
         tier: 'Aetherion',
         price: 2000000,
         currency: 'DEL',
-        imageUrl: '/images/taegeuk%20-%20aetherion.png',
+        imageUrl: 'ipfs://bafybeidkisur3ziwdnicakyhcuaxejlbnyonb4t4xnhmobjl7inkny24ea', // taegeuk - aetherion.png
     },
     {
         id: 'nft_singularity',
@@ -210,7 +210,7 @@ main().catch((err) => {
         tier: 'Singularity',
         price: 100000000,
         currency: 'DEL',
-        imageUrl: '/images/star%20-%20singularity.png',
+        imageUrl: 'ipfs://bafybeih6qzbs2dfazjxvh35ndc6aoatbpb2ilxryhpm2gl27lslx6uypry', // star_singularity.png
     },
 
     // --- 아이템 (Crystal) ---

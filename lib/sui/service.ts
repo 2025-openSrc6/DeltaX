@@ -3,7 +3,6 @@ import { BusinessRuleError } from '@/lib/shared/errors';
 import { buildClaimPayoutTx, buildPlaceBetTx, buildShopPurchaseTx } from './builder';
 import { getSponsorKeypair, suiClient } from './client';
 import { getGasPayment } from './gas';
-import { getDelBalance as getDelBalanceUtil } from './balance';
 import type {
   BetPrediction,
   ExecuteSuiBetTxResult,
@@ -48,16 +47,16 @@ export interface ExecuteShopPurchaseResult {
 }
 
 // Platform wallet address (receives DEL from shop purchases)
-const PLATFORM_ADDRESS =
-  process.env.SUI_ADMIN_ADDRESS ||
-  '0xb092f93ec3605a42c99d421ccbec14a33db7eaf0ba7296c570934122f22dfd8b';
+const PLATFORM_ADDRESS = process.env.SUI_ADMIN_ADDRESS || '0xb092f93ec3605a42c99d421ccbec14a33db7eaf0ba7296c570934122f22dfd8b';
 
 export class SuiService {
-  constructor(private readonly nonceStore: NonceStore = createNonceStore()) {}
+  constructor(private readonly nonceStore: NonceStore = createNonceStore()) { }
 
   // ============ Shop Purchase Methods ============
 
-  async prepareShopPurchase(input: PrepareShopPurchaseInput): Promise<PrepareShopPurchaseResult> {
+  async prepareShopPurchase(
+    input: PrepareShopPurchaseInput,
+  ): Promise<PrepareShopPurchaseResult> {
     const { userAddress, userDelCoinId, itemId, amount } = input;
 
     // 스폰서 로드
@@ -118,7 +117,9 @@ export class SuiService {
     return { txBytes: Buffer.from(txBytes).toString('base64'), nonce, expiresAt };
   }
 
-  async executeShopPurchase(input: ExecuteShopPurchaseInput): Promise<ExecuteShopPurchaseResult> {
+  async executeShopPurchase(
+    input: ExecuteShopPurchaseInput,
+  ): Promise<ExecuteShopPurchaseResult> {
     const { txBytes: txBytesBase64, userSignature, nonce, itemId, userAddress } = input;
 
     // nonce 소비
@@ -145,10 +146,7 @@ export class SuiService {
       throw new BusinessRuleError('ITEM_MISMATCH', 'Prepared item does not match execution itemId');
     }
     if (prepared.userId !== userAddress) {
-      throw new BusinessRuleError(
-        'USER_MISMATCH',
-        'Prepared user does not match execution userAddress',
-      );
+      throw new BusinessRuleError('USER_MISMATCH', 'Prepared user does not match execution userAddress');
     }
 
     // 스폰서 서명 및 실행
@@ -493,15 +491,5 @@ export class SuiService {
       digest,
     });
   }
-
-  /**
-   * DEL 토큰 잔액 조회 (DEL 단위로 반환)
-   * @param address - Sui 지갑 주소
-   * @returns DEL 잔액 (number, decimals 9)
-   */
-  async getDelBalance(address: string): Promise<number> {
-    const DEL_DECIMALS = 9;
-    const balance = await getDelBalanceUtil(address);
-    return Number(balance / BigInt(10 ** DEL_DECIMALS));
-  }
 }
+

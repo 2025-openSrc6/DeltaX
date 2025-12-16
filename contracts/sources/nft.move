@@ -1,8 +1,4 @@
-<<<<<<< HEAD
 module deltax::nft {
-=======
-module deltaX::nft {
->>>>>>> 7e955ef (feat: Implement NFT Shop with UI, API, and Sui integration)
     use std::string::{String, utf8};
     use sui::package;
     use sui::display;

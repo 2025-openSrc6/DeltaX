@@ -1,0 +1,46 @@
+[
+  {
+    "results": [
+      {
+        "id": "7e54dbc7-0baf-4137-9424-c1ad73bfb40b",
+        "sui_address": "0x643cb78aeadd6e52b7a442b3f2c29d82240db458b6234221ec914961899d615b",
+        "nickname": "null",
+        "profile_color": "#3B82F6",
+        "del_balance": 1000000,
+        "crystal_balance": 90,
+        "total_bets": 0,
+        "total_wins": 0,
+        "total_volume": 0,
+        "last_attendance_at": "null",
+        "attendance_streak": 0,
+        "created_at": 1765272079420,
+        "updated_at": 1765272079420,
+        "nickname_color": "null",
+        "boost_until": 1765766825740,
+        "green_mushrooms": 3
+      },
+      {
+        "id": "0x643cb78aeadd6e52b7a442b3f2c29d82240db458b6234221ec914961899d615b",
+        "sui_address": "0x742d35Cc6634C0532925a3b844Bc454e4438f44e",
+        "nickname": "TestUser",
+        "profile_color": "#3B82F6",
+        "del_balance": 1000000,
+        "crystal_balance": 996,
+        "total_bets": 0,
+        "total_wins": 0,
+        "total_volume": 0,
+        "last_attendance_at": "null",
+        "attendance_streak": 0,
+        "created_at": 1765272497888,
+        "updated_at": 1765272497888,
+        "nickname_color": "null",
+        "boost_until": "null",
+        "green_mushrooms": 2
+      }
+    ],
+    "success": true,
+    "meta": {
+      "duration": 1
+    }
+  }
+]

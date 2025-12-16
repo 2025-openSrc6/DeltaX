@@ -23,13 +23,9 @@ export default async function setupConfig() {
   // Initialize Cloudflare bindings for local development
   // This enables D1, KV, R2, etc. via getPlatformProxy in npm run dev
   if (process.env.NODE_ENV === 'development') {
-<<<<<<< HEAD
     const useRemote = process.env.USE_REMOTE_D1 === 'true';
     console.log(`[Config] Initializing D1 bindings (remote: ${useRemote})`);
     await initOpenNextCloudflareForDev({ remoteBindings: useRemote });
-=======
-    // await initOpenNextCloudflareForDev();
->>>>>>> 7e955ef (feat: Implement NFT Shop with UI, API, and Sui integration)
   }
 
   return withBundleAnalyzer(nextConfig);
