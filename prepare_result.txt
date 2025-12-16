@@ -1,6 +1,0 @@
-
-{
-  "success": false,
-  "error": "PREPARE_FAILED",
-  "message": "Error checking transaction input objects: Transaction was not signed by the correct sender: Object 0xcb9d3c48d75fd7f02cd481e0054f6b1b3161ec47cd80190344383bdc75cfccd6 is owned by account address 0xb092f93ec3605a42c99d421ccbec14a33db7eaf0ba7296c570934122f22dfd8b, but given owner/signer address is 0x643cb78aeadd6e52b7a442b3f2c29d82240db458b6234221ec914961899d615b"
-}

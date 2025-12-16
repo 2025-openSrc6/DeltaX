@@ -7,22 +7,22 @@ const sqlite = new DatabaseConstructor('delta.db');
 const db = drizzle(sqlite, { schema });
 
 async function main() {
-    console.log('🧪 Testing DB connection...');
+  console.log('🧪 Testing DB connection...');
 
-    try {
-        const items = await db.query.shopItems.findMany();
-        console.log('✅ Shop items found:', items.length);
-        console.log(items);
+  try {
+    const items = await db.query.shopItems.findMany();
+    console.log('✅ Shop items found:', items.length);
+    console.log(items);
 
-        const myItems = await db.query.achievements.findMany();
-        console.log('✅ Achievements found:', myItems.length);
-        console.log(JSON.stringify(myItems, null, 2));
+    const myItems = await db.query.achievements.findMany();
+    console.log('✅ Achievements found:', myItems.length);
+    console.log(JSON.stringify(myItems, null, 2));
 
-        const users = await db.query.users.findMany();
-        console.log('✅ Users found:', users.length);
-    } catch (error) {
-        console.error('❌ DB Query failed:', error);
-    }
+    const users = await db.query.users.findMany();
+    console.log('✅ Users found:', users.length);
+  } catch (error) {
+    console.error('❌ DB Query failed:', error);
+  }
 }
 
 main();
