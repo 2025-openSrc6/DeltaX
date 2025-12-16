@@ -27,7 +27,7 @@ async function verifyShopApi() {
     Singularity: 5,
   };
 
-  type ShopItem = typeof items[number];
+  type ShopItem = (typeof items)[number];
   const groupedItems: Record<string, ShopItem[]> = {};
 
   ['NICKNAME', 'COLOR', 'NFT', 'BOOST', 'ITEM'].forEach((cat) => {
