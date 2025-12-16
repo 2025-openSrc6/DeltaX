@@ -71,7 +71,7 @@ export async function POST(request: Request) {
       .limit(1);
 
     const user =
-      existinguser ??
+      existingUser[0] ??
       (await (async () => {
         // 유저 자동 생성
         const newUser = await db
@@ -86,7 +86,7 @@ export async function POST(request: Request) {
           })
           .returning();
         console.log('✅ New user created:', userAddress);
-        return newuser;
+        return newUser[0];
       })());
 
     // 3. 아이템별 효과 적용
