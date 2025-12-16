@@ -11,7 +11,9 @@ import { LogOut, ArrowRight, Sparkles, BarChart3, Wallet } from 'lucide-react';
 import { RankingList } from '@/components/RankingList';
 import { PointsPanel } from '@/components/PointsPanel';
 import { DashboardMiniChart } from '@/components/DashboardMiniChart';
-import { BettingModal } from '@/components/BettingModal';
+import { BettingModal } from '@/components/bets/BettingModal';
+import { PAXGPriceChart, BTCPriceChart } from '@/components/charts';
+import SpreadCandlestickChart from '@/components/charts/SpreadCandlestickChart';
 import {
   useCurrentWallet,
   useConnectWallet,
@@ -22,12 +24,71 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import type { Round } from '@/db/schema/rounds';
 
+// 실시간 관전 차트 섹션
+function LiveChartSection() {
+  const [chartMode, setChartMode] = useState<'price' | 'strength'>('price');
+
+  return (
+    <Card className="border border-slate-800/80 rounded-2xl bg-slate-950/80 p-4 shadow-lg shadow-black/40">
+      <div className="mb-3 flex items-center justify-between">
+        <div className="flex items-center gap-2 text-xs font-semibold text-slate-300">
+          <BarChart3 className="h-4 w-4 text-cyan-400" />
+          실시간 차트
+        </div>
+        <div className="flex gap-1">
+          <button
+            onClick={() => setChartMode('price')}
+            className={`rounded-full px-2 py-0.5 text-[10px] transition-colors ${chartMode === 'price'
+                ? 'bg-cyan-500/20 text-cyan-300'
+                : 'bg-slate-900/70 text-slate-500 hover:text-slate-300'
+              }`}
+          >
+            가격
+          </button>
+          <button
+            onClick={() => setChartMode('strength')}
+            className={`rounded-full px-2 py-0.5 text-[10px] transition-colors ${chartMode === 'strength'
+                ? 'bg-purple-500/20 text-purple-300'
+                : 'bg-slate-900/70 text-slate-500 hover:text-slate-300'
+              }`}
+          >
+            강도
+          </button>
+        </div>
+      </div>
+
+      {chartMode === 'price' ? (
+        <div className="space-y-3">
+          <div className="rounded-lg bg-slate-900/50 p-2">
+            <div className="mb-1 text-[10px] text-yellow-400 font-semibold">GOLD (PAXG)</div>
+            <PAXGPriceChart height={100} period="1h" theme="dark" />
+          </div>
+          <div className="rounded-lg bg-slate-900/50 p-2">
+            <div className="mb-1 text-[10px] text-orange-400 font-semibold">BTC</div>
+            <BTCPriceChart height={100} period="1h" theme="dark" />
+          </div>
+        </div>
+      ) : (
+        <div className="rounded-lg bg-slate-900/50 p-2">
+          <SpreadCandlestickChart
+            height={200}
+            period="1h"
+            refreshInterval={5000}
+            maxDataPoints={30}
+          />
+        </div>
+      )}
+    </Card>
+  );
+}
+
+
 // 메인 트레이드 대시보드 (Basevol 스타일 레이아웃 레퍼런스)
 export default function HomePage() {
   const [isConnected, setIsConnected] = useState(false);
   const [walletAddress, setWalletAddress] = useState('');
   const [points, setPoints] = useState(12000);
-  const [timeframe, setTimeframe] = useState<'1M' | '6H' | '1D'>('1D');
+  const [timeframe, setTimeframe] = useState<'3M' | '1M' | '6H' | '1D'>('3M');
   const [currentRound, setCurrentRound] = useState<Round | null>(null);
   const [loadingRound, setLoadingRound] = useState(false);
   const [isBettingModalOpen, setIsBettingModalOpen] = useState(false);
@@ -70,7 +131,7 @@ export default function HomePage() {
   const loadCurrentRound = async () => {
     setLoadingRound(true);
     try {
-      const roundType = timeframe === '1M' ? '1MIN' : timeframe === '6H' ? '6HOUR' : '1DAY';
+      const roundType = timeframe === '3M' ? 'DEMO_3MIN' : timeframe === '1M' ? '1MIN' : timeframe === '6H' ? '6HOUR' : '1DAY';
       const response = await fetch(`/api/rounds/current?type=${roundType}`, {
         credentials: 'include',
       });
@@ -314,10 +375,13 @@ Exp: ${expMs}`;
             {/* 타임프레임 탭 */}
             <Tabs
               value={timeframe}
-              onValueChange={(v) => setTimeframe(v as '1M' | '6H' | '1D')}
+              onValueChange={(v) => setTimeframe(v as '3M' | '1M' | '6H' | '1D')}
               className="hidden rounded-full border border-slate-700/70 bg-slate-900/70 px-1 py-0.5 text-xs text-slate-300 sm:block"
             >
               <TabsList className="h-7 bg-transparent">
+                <TabsTrigger value="3M" className="h-6 rounded-full px-3 text-[11px]">
+                  3 MIN
+                </TabsTrigger>
                 <TabsTrigger value="1M" className="h-6 rounded-full px-3 text-[11px]">
                   1 MIN
                 </TabsTrigger>
@@ -373,6 +437,7 @@ Exp: ${expMs}`;
                     <Sparkles className="h-3 w-3 text-cyan-400" /> 실시간 라운드 현황
                   </div>
                   <h1 className="mt-2 text-lg font-semibold text-slate-50 lg:text-xl">
+                    {timeframe === '3M' && '3 MIN 라운드 변동성 차트'}
                     {timeframe === '1D' && '1 DAY 라운드 변동성 차트'}
                     {timeframe === '6H' && '6 HOUR 라운드 변동성 차트'}
                     {timeframe === '1M' && '1 MIN 라운드 스캘핑 차트'}
@@ -388,13 +453,12 @@ Exp: ${expMs}`;
                       라운드 #{currentRound.roundNumber}
                     </span>
                     <span
-                      className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                        currentRound.status === 'BETTING_OPEN'
-                          ? 'bg-emerald-500/20 text-emerald-300'
-                          : currentRound.status === 'BETTING_LOCKED'
-                            ? 'bg-yellow-500/20 text-yellow-300'
-                            : 'bg-slate-700/50 text-slate-400'
-                      }`}
+                      className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${currentRound.status === 'BETTING_OPEN'
+                        ? 'bg-emerald-500/20 text-emerald-300'
+                        : currentRound.status === 'BETTING_LOCKED'
+                          ? 'bg-yellow-500/20 text-yellow-300'
+                          : 'bg-slate-700/50 text-slate-400'
+                        }`}
                     >
                       {currentRound.status === 'BETTING_OPEN'
                         ? '베팅 가능'
@@ -486,37 +550,8 @@ Exp: ${expMs}`;
               </div>
             </Card>
 
-            <Card className="border border-slate-800/80 rounded-2xl bg-slate-950/80 p-4 shadow-lg shadow-black/40">
-              <div className="mb-2 flex items-center justify-between">
-                <div className="flex items-center gap-2 text-xs font-semibold text-slate-300">
-                  <BarChart3 className="h-4 w-4 text-cyan-400" />
-                  마켓 스냅샷
-                </div>
-                <span className="rounded-full bg-slate-900/70 px-2 py-0.5 text-[10px] text-slate-500">
-                  데모 데이터
-                </span>
-              </div>
-              <div className="space-y-2 text-xs text-slate-300">
-                <div className="flex items-center justify-between rounded-lg bg-slate-900/70 px-2.5 py-2">
-                  <span className="flex items-center gap-1.5 text-[11px] text-slate-400">
-                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" /> GOLD 변동률
-                  </span>
-                  <span className="font-mono text-xs text-emerald-300">+1.42%</span>
-                </div>
-                <div className="flex items-center justify-between rounded-lg bg-slate-900/70 px-2.5 py-2">
-                  <span className="flex items-center gap-1.5 text-[11px] text-slate-400">
-                    <span className="h-1.5 w-1.5 rounded-full bg-red-400" /> BTC 변동률
-                  </span>
-                  <span className="font-mono text-xs text-red-300">-0.87%</span>
-                </div>
-                <div className="flex items-center justify-between rounded-lg bg-slate-900/70 px-2.5 py-2">
-                  <span className="flex items-center gap-1.5 text-[11px] text-slate-400">
-                    풀 규모 (DEL)
-                  </span>
-                  <span className="font-mono text-xs text-cyan-300">1,234,000</span>
-                </div>
-              </div>
-            </Card>
+            {/* 실시간 관전 차트 */}
+            <LiveChartSection />
           </section>
         </div>
       </div>
@@ -525,9 +560,7 @@ Exp: ${expMs}`;
       <BettingModal
         isOpen={isBettingModalOpen}
         onClose={() => setIsBettingModalOpen(false)}
-        round={currentRound}
-        userAddress={walletAddress}
-        onBetSuccess={handleBetSuccess}
+        roundType={timeframe === '3M' ? 'DEMO_3MIN' : timeframe === '1M' ? '1MIN' : timeframe === '6H' ? '6HOUR' : '1DAY'}
       />
     </div>
   );

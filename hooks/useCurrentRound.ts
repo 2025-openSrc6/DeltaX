@@ -3,7 +3,7 @@
 import useSWR from 'swr';
 
 // 라운드 타입
-export type RoundType = '1MIN' | '6HOUR' | '1DAY';
+export type RoundType = '1MIN' | 'DEMO_3MIN' | '6HOUR' | '1DAY';
 
 // 라운드 상태
 export type RoundStatus =
@@ -12,6 +12,7 @@ export type RoundStatus =
   | 'BETTING_LOCKED'
   | 'SETTLING'
   | 'SETTLED'
+  | 'VOIDED'
   | 'CANCELLED';
 
 // 라운드 데이터 타입
@@ -31,6 +32,7 @@ export interface Round {
   totalGoldBets: number;
   totalBtcBets: number;
   totalBetsCount: number;
+  winner?: 'GOLD' | 'BTC' | null;
   // UI용 계산 필드
   timeRemaining?: number;
   bettingTimeRemaining?: number;
@@ -39,6 +41,7 @@ export interface Round {
   canBet?: boolean;
   bettingClosesIn?: string;
 }
+
 
 interface CurrentRoundResponse {
   success: boolean;
@@ -57,7 +60,7 @@ const fetcher = async (url: string): Promise<Round | null> => {
   return json.data;
 };
 
-export function useCurrentRound(type: RoundType = '1MIN', refreshInterval: number = 5000) {
+export function useCurrentRound(type: RoundType = 'DEMO_3MIN', refreshInterval: number = 5000) {
   const { data, error, isLoading, mutate } = useSWR<Round | null>(
     `/api/rounds/current?type=${type}`,
     fetcher,
