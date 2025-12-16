@@ -6,7 +6,7 @@ import { NextContext } from '@/lib/types';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-export async function GET(request: Request, context: NextContext) {
+export async function GET() {
   try {
     const db = getDb();
 

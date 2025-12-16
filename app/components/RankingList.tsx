@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Card } from '@/components/ui/card';
 
 // 데이터 타입
 type RankingUser = {

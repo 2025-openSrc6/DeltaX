@@ -5,7 +5,7 @@ import { registry } from '@/lib/registry';
 import { createSuccessResponse, handleApiError } from '@/lib/shared/response';
 import { getDb } from '@/lib/db';
 import { users, pointTransactions } from '@/db/schema';
-import { eq, and, gt, sql, or, inArray } from 'drizzle-orm';
+import { eq, gt, inArray } from 'drizzle-orm';
 
 /**
  * POST /api/cron/sync-del-balances

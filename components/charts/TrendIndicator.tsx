@@ -47,7 +47,6 @@ export function TrendIndicator({
   // 상승/하락/보합 판단
   const isUp = change > 0;
   const isDown = change < 0;
-  const isFlat = change === 0;
 
   // 아이콘 선택
   const icon = isUp ? '📈' : isDown ? '📉' : '➡️';

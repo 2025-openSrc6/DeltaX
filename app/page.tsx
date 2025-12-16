@@ -2,30 +2,26 @@
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import Image from 'next/image';
-import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import {
-  LogOut,
   ArrowRight,
   Sparkles,
   BarChart3,
   Wallet,
   Zap,
   Activity,
-  Heart,
-  ShoppingBag,
   Calendar,
 } from 'lucide-react';
 
 import { RankingList } from '@/components/RankingList';
-import { PointsPanel } from '@/components/PointsPanel';
-import { DashboardMiniChart } from '@/components/DashboardMiniChart';
 import { BettingModal } from '@/components/bets/BettingModal';
 import { PAXGPriceChart, BTCPriceChart } from '@/components/charts';
 import SpreadCandlestickChart from '@/components/charts/SpreadCandlestickChart';
 import { VolatilityComparisonChart } from '@/app/chart/components/VolatilityComparisonChart';
 import { PriceTrendChart } from '@/app/chart/components/PriceTrendChart';
+
+// 실시간 관전 차트 섹션 (현재 사용되지 않음)
 import {
   useCurrentWallet,
   useConnectWallet,
@@ -37,7 +33,47 @@ import { useToast } from '@/hooks/use-toast';
 import { useAutoCollect } from '@/hooks/useAutoCollect';
 import type { Round } from '@/db/schema/rounds';
 
-// 실시간 관전 차트 섹션
+// 차트 데이터 타입 정의
+type HistoricalDataPoint = {
+  timestamp: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+  volatility: number | null;
+};
+
+type ComparisonData = {
+  asset1: {
+    name: string;
+    volatility: number;
+    return: number;
+    adjustedReturn: number;
+    currentPrice: number;
+    startPrice: number;
+    dataPoints: number;
+  };
+  asset2: {
+    name: string;
+    volatility: number;
+    return: number;
+    adjustedReturn: number;
+    currentPrice: number;
+    startPrice: number;
+    dataPoints: number;
+  };
+  comparison: {
+    winner: string;
+    confidence: number;
+    difference: number;
+    interpretation: string;
+    spread?: number;
+  };
+  period: string;
+  timestamp: string;
+};
+
 function LiveChartSection() {
   const [chartMode, setChartMode] = useState<'price' | 'strength'>('price');
 
@@ -102,13 +138,13 @@ export default function HomePage() {
   const [isConnected, setIsConnected] = useState(false);
   const [walletAddress, setWalletAddress] = useState('');
   const [points, setPoints] = useState(0);
-  const [timeframe, setTimeframe] = useState<'3M' | '1M' | '6H' | '1D'>('3M');
+  const [timeframe] = useState<'3M' | '1M' | '6H' | '1D'>('3M');
   const [currentRound, setCurrentRound] = useState<Round | null>(null);
   const [loadingRound, setLoadingRound] = useState(false);
   const [isBettingModalOpen, setIsBettingModalOpen] = useState(false);
-  const [comparisonData, setComparisonData] = useState<any>(null);
-  const [historicalPaxg, setHistoricalPaxg] = useState<any[]>([]);
-  const [historicalBtc, setHistoricalBtc] = useState<any[]>([]);
+  const [comparisonData, setComparisonData] = useState<ComparisonData | null>(null);
+  const [historicalPaxg, setHistoricalPaxg] = useState<HistoricalDataPoint[]>([]);
+  const [historicalBtc, setHistoricalBtc] = useState<HistoricalDataPoint[]>([]);
   const [activeChart, setActiveChart] = useState<'strength' | 'volatility' | 'price'>('strength');
 
   const { currentWallet } = useCurrentWallet();
@@ -216,12 +252,12 @@ export default function HomePage() {
 
       // 데이터가 변경된 경우에만 상태 업데이트 (불필요한 리렌더링 방지)
       if (comparisonResult.success) {
-        setComparisonData((prev: any) => {
+        setComparisonData((prev: ComparisonData | null) => {
           // 데이터가 실제로 변경되었는지 확인
           if (prev && JSON.stringify(prev) === JSON.stringify(comparisonResult.data)) {
             return prev; // 동일하면 이전 값 반환
           }
-          return comparisonResult.data;
+          return comparisonResult.data as ComparisonData;
         });
       } else {
         console.warn('비교 데이터 로드 실패:', comparisonResult.error);
@@ -271,6 +307,7 @@ export default function HomePage() {
     // 10초마다 라운드 정보 갱신
     const interval = setInterval(loadCurrentRound, 10000);
     return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [timeframe]);
 
   // 베팅 모달 열기 (테스트용 - 검증 우회)
@@ -307,25 +344,6 @@ export default function HomePage() {
     // }
   };
 
-  // 베팅 성공 핸들러
-  const handleBetSuccess = async () => {
-    toast({
-      title: '베팅 성공! 🎉',
-      description: '베팅이 성공적으로 등록되었습니다.',
-    });
-    loadCurrentRound(); // 라운드 정보 갱신
-
-    // 포인트 업데이트 (베팅 후 잔액 반영)
-    try {
-      const response = await fetch('/api/auth/session', { credentials: 'include' });
-      const data = await response.json();
-      if (data.success && data.data?.user) {
-        setPoints(data.data.user.delBalance || 0);
-      }
-    } catch (error) {
-      console.error('포인트 업데이트 실패:', error);
-    }
-  };
 
   const isUserRejectionError = (error: unknown) => {
     if (!error) return false;
@@ -467,10 +485,6 @@ Exp: ${expMs}`;
     setWalletAddress('');
   };
 
-  const displayAddress =
-    walletAddress.length > 10
-      ? `${walletAddress.substring(0, 6)}...${walletAddress.substring(walletAddress.length - 4)}`
-      : walletAddress;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
@@ -790,7 +804,7 @@ Exp: ${expMs}`;
                                 variant: 'destructive',
                               });
                             }
-                          } catch (error) {
+                          } catch {
                             toast({
                               title: '데이터 수집 실패',
                               description: '데이터 수집 중 오류가 발생했습니다.',

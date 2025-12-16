@@ -105,6 +105,7 @@ export default function NormalizedStrengthChart({
     fetchData();
     const interval = setInterval(fetchData, refreshInterval);
     return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [period, refreshInterval, maxDataPoints]);
 
   if (loading) {

@@ -5,7 +5,7 @@ import { NextContext } from '@/lib/types';
 
 export const runtime = 'nodejs';
 
-export async function GET(request: Request, context: NextContext) {
+export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const userId = searchParams.get('userId');

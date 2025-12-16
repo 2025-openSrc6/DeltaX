@@ -47,16 +47,16 @@ export interface ExecuteShopPurchaseResult {
 }
 
 // Platform wallet address (receives DEL from shop purchases)
-const PLATFORM_ADDRESS =
-  process.env.SUI_ADMIN_ADDRESS ||
-  '0xb092f93ec3605a42c99d421ccbec14a33db7eaf0ba7296c570934122f22dfd8b';
+const PLATFORM_ADDRESS = process.env.SUI_ADMIN_ADDRESS || '0xb092f93ec3605a42c99d421ccbec14a33db7eaf0ba7296c570934122f22dfd8b';
 
 export class SuiService {
-  constructor(private readonly nonceStore: NonceStore = createNonceStore()) {}
+  constructor(private readonly nonceStore: NonceStore = createNonceStore()) { }
 
   // ============ Shop Purchase Methods ============
 
-  async prepareShopPurchase(input: PrepareShopPurchaseInput): Promise<PrepareShopPurchaseResult> {
+  async prepareShopPurchase(
+    input: PrepareShopPurchaseInput,
+  ): Promise<PrepareShopPurchaseResult> {
     const { userAddress, userDelCoinId, itemId, amount } = input;
 
     // 스폰서 로드
@@ -117,7 +117,9 @@ export class SuiService {
     return { txBytes: Buffer.from(txBytes).toString('base64'), nonce, expiresAt };
   }
 
-  async executeShopPurchase(input: ExecuteShopPurchaseInput): Promise<ExecuteShopPurchaseResult> {
+  async executeShopPurchase(
+    input: ExecuteShopPurchaseInput,
+  ): Promise<ExecuteShopPurchaseResult> {
     const { txBytes: txBytesBase64, userSignature, nonce, itemId, userAddress } = input;
 
     // nonce 소비
@@ -144,10 +146,7 @@ export class SuiService {
       throw new BusinessRuleError('ITEM_MISMATCH', 'Prepared item does not match execution itemId');
     }
     if (prepared.userId !== userAddress) {
-      throw new BusinessRuleError(
-        'USER_MISMATCH',
-        'Prepared user does not match execution userAddress',
-      );
+      throw new BusinessRuleError('USER_MISMATCH', 'Prepared user does not match execution userAddress');
     }
 
     // 스폰서 서명 및 실행
@@ -492,32 +491,5 @@ export class SuiService {
       digest,
     });
   }
-
-  /**
-   * Sui 체인에서 특정 주소의 DEL 잔액 조회
-   * @param address Sui 주소 (0x...)
-   * @returns DEL 잔액 (정수, MIST 단위를 DEL 단위로 변환)
-   */
-  async getDelBalance(address: string): Promise<number> {
-    const packageId = process.env.SUI_PACKAGE_ID;
-    if (!packageId) {
-      throw new BusinessRuleError('ENV_MISSING', 'SUI_PACKAGE_ID is not configured');
-    }
-
-    const coinType = `${packageId}::del::DEL`;
-    const MIST_PER_DEL = 1_000_000_000; // DEL decimals = 9
-
-    try {
-      // getBalance는 모든 DEL 코인을 합산한 총 잔액을 반환
-      const balance = await suiClient.getBalance({ owner: address, coinType });
-      // MIST 단위를 DEL 단위로 변환 (정수로 반환)
-      return Math.floor(Number(balance.totalBalance) / MIST_PER_DEL);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      throw new BusinessRuleError('SUI_GET_BALANCE_FAILED', 'Failed to get DEL balance from Sui', {
-        error: message,
-        address,
-      });
-    }
-  }
 }
+

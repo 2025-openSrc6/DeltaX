@@ -114,7 +114,6 @@ export default function DevDemoPage() {
 
   // Round Control
   const [roundId, setRoundId] = useState(''); // Target Round ID
-  const [roundType, setRoundType] = useState('DEMO_3MIN'); // DEMO_3MIN fixed for demo
   const [roundStatusLog, setRoundStatusLog] = useState<string[]>([]);
 
   // Bet Control
@@ -122,7 +121,6 @@ export default function DevDemoPage() {
   const [prediction, setPrediction] = useState<'GOLD' | 'BTC'>('GOLD');
   const [userDelCoinId, setUserDelCoinId] = useState('');
   const [betLog, setBetLog] = useState<string[]>([]);
-  const [lastBetId, setLastBetId] = useState('');
 
   // Claim Control
   const [claimBetId, setClaimBetId] = useState('');
@@ -364,6 +362,7 @@ export default function DevDemoPage() {
 
   useEffect(() => {
     if (user?.id) fetchMyBets();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
   const handleClaim = async () => {
