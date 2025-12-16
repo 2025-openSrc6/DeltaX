@@ -1,0 +1,148 @@
+'use client';
+
+import { useMyBets, Bet, ResultStatus } from '@/hooks/useMyBets';
+
+interface MyBetsListProps {
+  roundId?: string;
+}
+
+// 결과 상태에 따른 스타일
+const getResultStyle = (status: ResultStatus) => {
+  switch (status) {
+    case 'WON':
+      return 'bg-green-100 text-green-700';
+    case 'LOST':
+      return 'bg-red-100 text-red-700';
+    case 'PENDING':
+      return 'bg-amber-100 text-amber-700';
+    case 'REFUNDED':
+      return 'bg-blue-100 text-blue-700';
+    case 'FAILED':
+      return 'bg-stone-100 text-stone-700';
+    default:
+      return 'bg-stone-100 text-stone-500';
+  }
+};
+
+// 결과 상태 한글 변환
+const getResultLabel = (status: ResultStatus) => {
+  switch (status) {
+    case 'WON':
+      return '승리';
+    case 'LOST':
+      return '패배';
+    case 'PENDING':
+      return '진행중';
+    case 'REFUNDED':
+      return '환불';
+    case 'FAILED':
+      return '실패';
+    default:
+      return status;
+  }
+};
+
+// 예측 라벨
+const getPredictionLabel = (prediction: 'GOLD' | 'BTC') => {
+  return prediction === 'GOLD' ? '금 (PAXG)' : '비트코인 (BTC)';
+};
+
+// 개별 베팅 카드
+function BetCard({ bet }: { bet: Bet }) {
+  const date = new Date(bet.createdAt);
+  const formattedDate = date.toLocaleDateString('ko-KR', {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+
+  return (
+    <div className="flex items-center justify-between p-4 bg-white border border-stone-200 rounded-lg hover:shadow-sm transition-shadow">
+      <div className="flex items-center gap-4">
+        {/* 예측 아이콘 */}
+        <div
+          className={`w-10 h-10 rounded-full flex items-center justify-center text-lg ${
+            bet.prediction === 'GOLD'
+              ? 'bg-yellow-100 text-yellow-600'
+              : 'bg-orange-100 text-orange-600'
+          }`}
+        >
+          {bet.prediction === 'GOLD' ? '🪙' : '₿'}
+        </div>
+
+        {/* 베팅 정보 */}
+        <div>
+          <p className="font-medium text-stone-800">{getPredictionLabel(bet.prediction)}</p>
+          <p className="text-sm text-stone-500">{formattedDate}</p>
+        </div>
+      </div>
+
+      <div className="text-right">
+        {/* 베팅 금액 */}
+        <p className="font-semibold text-stone-800">
+          {bet.amount.toLocaleString()} {bet.currency}
+        </p>
+
+        {/* 결과 상태 */}
+        <span
+          className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${getResultStyle(bet.resultStatus)}`}
+        >
+          {getResultLabel(bet.resultStatus)}
+          {bet.payoutAmount && bet.resultStatus === 'WON' && (
+            <span className="ml-1">+{bet.payoutAmount.toLocaleString()}</span>
+          )}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+export function MyBetsList({ roundId }: MyBetsListProps) {
+  const { bets, isLoading, error, hasBets, totalBets } = useMyBets({ roundId });
+
+  if (isLoading) {
+    return (
+      <div className="bg-white rounded-lg border border-stone-200 p-6">
+        <div className="animate-pulse space-y-4">
+          <div className="h-4 bg-stone-200 rounded w-1/3"></div>
+          <div className="h-16 bg-stone-100 rounded"></div>
+          <div className="h-16 bg-stone-100 rounded"></div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700 text-sm">
+        베팅 내역을 불러오는데 실패했습니다: {error}
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-white rounded-lg border border-stone-200 overflow-hidden">
+      {/* 헤더 */}
+      <div className="px-6 py-4 border-b border-stone-200 bg-stone-50">
+        <div className="flex justify-between items-center">
+          <h3 className="text-lg font-semibold text-stone-800">내 베팅 내역</h3>
+          <span className="text-sm text-stone-500">총 {totalBets}건</span>
+        </div>
+      </div>
+
+      {/* 베팅 리스트 */}
+      <div className="p-4 space-y-3">
+        {!hasBets ? (
+          <div className="text-center py-8 text-stone-500">
+            <p className="text-lg mb-1">📋</p>
+            <p>아직 베팅 내역이 없습니다</p>
+            <p className="text-sm">첫 베팅을 시작해보세요!</p>
+          </div>
+        ) : (
+          bets.map((bet: Bet) => <BetCard key={bet.id} bet={bet} />)
+        )}
+      </div>
+    </div>
+  );
+}
