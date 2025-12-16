@@ -25,7 +25,7 @@ async function main() {
   console.log('✅ Test user created:', testUser);
 }
 
-main().catch((err) => {
+main().catch((err: any) => {
   console.error('❌ Failed to create test user:', err);
   process.exit(1);
 });

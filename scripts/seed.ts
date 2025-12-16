@@ -4,7 +4,7 @@
  * 사용법: npx tsx scripts/seed.ts
  */
 
-import { drizzle } from 'drizzle-orm/d1';
+import { drizzle } from 'drizzle-orm/better-sqlite3';
 import Database from 'better-sqlite3';
 import { rounds, bets, users } from '../db/schema';
 
@@ -111,7 +111,7 @@ async function seed() {
     console.log('\nBets:', insertedBets);
 
     process.exit(0);
-  } catch (error) {
+  } catch (error: any) {
     console.error('❌ Seeding failed:', error);
     process.exit(1);
   }

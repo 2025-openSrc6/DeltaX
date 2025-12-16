@@ -23,7 +23,7 @@ async function verify() {
   // 2. Test user 확인
   console.log('\n🔍 Checking test user...');
   const users = await db.query.users.findMany();
-  const testUser = users.find((u) => u.id === 'test-user-id');
+  const testUser = users.find((u: any) => u.id === 'test-user-id');
 
   if (testUser) {
     console.log(`✅ Test user found:`);

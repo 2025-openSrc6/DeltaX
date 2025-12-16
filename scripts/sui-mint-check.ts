@@ -82,7 +82,7 @@ async function main() {
   console.log(`- Approx: ${human} DEL`);
 }
 
-main().catch((error) => {
+main().catch((error: any) => {
   console.error('[sui-mint-check] Failed:', error);
   process.exit(1);
 });
