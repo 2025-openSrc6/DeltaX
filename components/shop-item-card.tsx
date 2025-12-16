@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Image from 'next/image';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -60,8 +61,24 @@ export function ShopItemCard({ item, onPurchase, disabled }: ShopItemCardProps) 
       <div className="flex items-start justify-between">
         {item.imageUrl ? (
           <div className="relative h-20 w-20 overflow-hidden rounded-xl border border-slate-700">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={item.imageUrl} alt={item.name} className="h-full w-full object-cover" />
+            {item.imageUrl.startsWith('ipfs://') ? (
+              // IPFS URL은 일반 img 태그 사용
+              <img
+                src={item.imageUrl.replace('ipfs://', 'https://ipfs.io/ipfs/')}
+                alt={item.name}
+                className="h-full w-full object-cover"
+              />
+            ) : (
+              // 일반 URL은 Next.js Image 컴포넌트 사용
+              <Image
+                src={item.imageUrl}
+                alt={item.name}
+                fill
+                sizes="80px"
+                className="object-cover"
+                unoptimized={item.imageUrl.startsWith('http')}
+              />
+            )}
           </div>
         ) : (
           <div className={`rounded-xl border p-3 ${getCategoryColor()}`}>{getIcon()}</div>
