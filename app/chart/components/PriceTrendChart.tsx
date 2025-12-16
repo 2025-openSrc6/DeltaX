@@ -28,65 +28,65 @@ export function PriceTrendChart({ data }: PriceTrendChartProps) {
   return (
     <div className="w-full" style={{ minHeight: '400px' }}>
       <ResponsiveContainer width="100%" height={400}>
-          <LineChart data={normalizedData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-            <XAxis
-              dataKey="timestamp"
-              tick={{ fontSize: 12, fill: '#6b7280' }}
-              tickFormatter={(value) => {
-                if (!value) return '';
-                const date = new Date(value);
-                // 시간만 표시 (HH:mm 형식, 24시간제)
-                const hours = date.getHours().toString().padStart(2, '0');
-                const minutes = date.getMinutes().toString().padStart(2, '0');
-                return `${hours}:${minutes}`;
-              }}
-            />
-            <YAxis 
-              tick={{ fontSize: 12, fill: '#6b7280' }} 
-              tickFormatter={(value) => `${value.toFixed(1)}%`} 
-            />
-            <Tooltip
-              content={({ active, payload }) => {
-                if (!active || !payload || payload.length === 0) return null;
-                return (
-                  <div className="bg-background p-3 border rounded-lg shadow-lg">
-                    <p className="text-sm font-medium mb-2">
-                      {(() => {
-                        const date = new Date(payload[0].payload.timestamp);
-                        const hours = date.getHours().toString().padStart(2, '0');
-                        const minutes = date.getMinutes().toString().padStart(2, '0');
-                        return `${hours}:${minutes}`;
-                      })()}
+        <LineChart data={normalizedData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+          <XAxis
+            dataKey="timestamp"
+            tick={{ fontSize: 12, fill: '#6b7280' }}
+            tickFormatter={(value) => {
+              if (!value) return '';
+              const date = new Date(value);
+              // 시간만 표시 (HH:mm 형식, 24시간제)
+              const hours = date.getHours().toString().padStart(2, '0');
+              const minutes = date.getMinutes().toString().padStart(2, '0');
+              return `${hours}:${minutes}`;
+            }}
+          />
+          <YAxis
+            tick={{ fontSize: 12, fill: '#6b7280' }}
+            tickFormatter={(value) => `${value.toFixed(1)}%`}
+          />
+          <Tooltip
+            content={({ active, payload }) => {
+              if (!active || !payload || payload.length === 0) return null;
+              return (
+                <div className="bg-background p-3 border rounded-lg shadow-lg">
+                  <p className="text-sm font-medium mb-2">
+                    {(() => {
+                      const date = new Date(payload[0].payload.timestamp);
+                      const hours = date.getHours().toString().padStart(2, '0');
+                      const minutes = date.getMinutes().toString().padStart(2, '0');
+                      return `${hours}:${minutes}`;
+                    })()}
+                  </p>
+                  {payload.map((entry: { dataKey: string; value: number; color: string }) => (
+                    <p key={entry.dataKey} className="text-sm" style={{ color: entry.color }}>
+                      {entry.dataKey === 'paxg' ? 'PAXG' : 'BTC'}: {entry.value.toFixed(2)}%
                     </p>
-                    {payload.map((entry: { dataKey: string; value: number; color: string }) => (
-                      <p key={entry.dataKey} className="text-sm" style={{ color: entry.color }}>
-                        {entry.dataKey === 'paxg' ? 'PAXG' : 'BTC'}: {entry.value.toFixed(2)}%
-                      </p>
-                    ))}
-                  </div>
-                );
-              }}
-            />
-            <Legend />
-            <Line
-              type="monotone"
-              dataKey="paxg"
-              name="PAXG"
-              stroke="#FFD700"
-              strokeWidth={2}
-              dot={false}
-            />
-            <Line
-              type="monotone"
-              dataKey="btc"
-              name="BTC"
-              stroke="#F7931A"
-              strokeWidth={2}
-              dot={false}
-            />
-          </LineChart>
-        </ResponsiveContainer>
+                  ))}
+                </div>
+              );
+            }}
+          />
+          <Legend />
+          <Line
+            type="monotone"
+            dataKey="paxg"
+            name="PAXG"
+            stroke="#FFD700"
+            strokeWidth={2}
+            dot={false}
+          />
+          <Line
+            type="monotone"
+            dataKey="btc"
+            name="BTC"
+            stroke="#F7931A"
+            strokeWidth={2}
+            dot={false}
+          />
+        </LineChart>
+      </ResponsiveContainer>
     </div>
   );
 }

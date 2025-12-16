@@ -97,9 +97,7 @@ export function NFTCard({ nft, isConnected, userPoints, onPurchase }: NFTCardPro
 
           <div className="flex items-center gap-2 mb-4">
             <Zap className="h-4 w-4 text-cyan-600" />
-            <span className="font-mono font-bold text-cyan-700">
-              {nft.price.toLocaleString()}
-            </span>
+            <span className="font-mono font-bold text-cyan-700">{nft.price.toLocaleString()}</span>
             <span className="text-sm text-cyan-600/70">DEL</span>
           </div>
         </div>
