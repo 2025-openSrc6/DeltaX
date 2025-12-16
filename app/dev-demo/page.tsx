@@ -114,12 +114,14 @@ export default function DevDemoPage() {
 
   // Round Control
   const [roundId, setRoundId] = useState(''); // Target Round ID
+  const [roundType, setRoundType] = useState<'DEMO_3MIN' | '1MIN' | '6HOUR' | '1DAY'>('DEMO_3MIN');
   const [roundStatusLog, setRoundStatusLog] = useState<string[]>([]);
 
   // Bet Control
   const [betAmount, setBetAmount] = useState(100);
   const [prediction, setPrediction] = useState<'GOLD' | 'BTC'>('GOLD');
   const [userDelCoinId, setUserDelCoinId] = useState('');
+  const [lastBetId, setLastBetId] = useState('');
   const [betLog, setBetLog] = useState<string[]>([]);
 
   // Claim Control

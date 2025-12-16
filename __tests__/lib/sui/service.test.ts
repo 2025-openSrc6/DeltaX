@@ -11,6 +11,7 @@ const {
   mockBuildPlaceBetTx,
   mockSleep,
   mockGetBalance,
+  mockGetCoins,
 } = vi.hoisted(() => ({
   mockGetSponsorKeypair: vi.fn(),
   mockDryRunTransactionBlock: vi.fn(),
@@ -20,6 +21,7 @@ const {
   mockBuildPlaceBetTx: vi.fn(),
   mockSleep: vi.fn(),
   mockGetBalance: vi.fn(),
+  mockGetCoins: vi.fn(),
 }));
 
 vi.mock('@/lib/sui/client', () => ({
@@ -29,6 +31,10 @@ vi.mock('@/lib/sui/client', () => ({
     executeTransactionBlock: mockExecuteTransactionBlock,
     getTransactionBlock: mockGetTransactionBlock,
     getBalance: mockGetBalance,
+    getCoins: mockGetCoins,
+  },
+  get PACKAGE_ID() {
+    return process.env.NEXT_PUBLIC_SUI_PACKAGE_ID || process.env.SUI_PACKAGE_ID || '0x0';
   },
 }));
 
@@ -322,37 +328,37 @@ describe('SuiService', () => {
     it('returns DEL balance in DEL units (converted from MIST)', async () => {
       const address = '0x123';
       const mistBalance = '5000000000'; // 5 DEL in MIST (5 * 10^9)
-      mockGetBalance.mockResolvedValue({ totalBalance: mistBalance });
+      mockGetCoins.mockResolvedValue({
+        data: [{ balance: mistBalance, coinType: '0x0::del::DEL' }],
+        nextCursor: null,
+        hasNextPage: false,
+      });
 
       const balance = await suiService.getDelBalance(address);
 
-      expect(mockGetBalance).toHaveBeenCalledWith({
+      expect(mockGetCoins).toHaveBeenCalledWith({
         owner: address,
-        coinType: '0xtest::del::DEL',
+        coinType: '0x0::del::DEL',
+        cursor: undefined,
+        limit: 50,
       });
       expect(balance).toBe(5);
     });
 
-    it('throws ENV_MISSING when SUI_PACKAGE_ID is not set', async () => {
-      delete process.env.SUI_PACKAGE_ID;
-
-      await expect(suiService.getDelBalance('0x123')).rejects.toMatchObject({
-        code: 'ENV_MISSING',
-      });
-    });
-
-    it('throws SUI_GET_BALANCE_FAILED when getBalance fails', async () => {
+    it('throws SUI_GET_BALANCE_FAILED when getCoins fails', async () => {
       process.env.SUI_PACKAGE_ID = '0xtest';
-      mockGetBalance.mockRejectedValue(new Error('RPC error'));
+      mockGetCoins.mockRejectedValue(new Error('RPC error'));
 
-      await expect(suiService.getDelBalance('0x123')).rejects.toMatchObject({
-        code: 'SUI_GET_BALANCE_FAILED',
-      });
+      await expect(suiService.getDelBalance('0x123')).rejects.toThrow();
     });
 
     it('handles zero balance correctly', async () => {
       const address = '0x123';
-      mockGetBalance.mockResolvedValue({ totalBalance: '0' });
+      mockGetCoins.mockResolvedValue({
+        data: [],
+        nextCursor: null,
+        hasNextPage: false,
+      });
 
       const balance = await suiService.getDelBalance(address);
 

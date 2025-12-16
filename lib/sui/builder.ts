@@ -5,7 +5,9 @@ const PACKAGE_ID = process.env.SUI_PACKAGE_ID!;
 const CLOCK_OBJECT_ID = '0x6';
 
 // Platform wallet address (receives DEL from shop purchases)
-const PLATFORM_ADDRESS = process.env.SUI_ADMIN_ADDRESS || '0xb092f93ec3605a42c99d421ccbec14a33db7eaf0ba7296c570934122f22dfd8b';
+const PLATFORM_ADDRESS =
+  process.env.SUI_ADMIN_ADDRESS ||
+  '0xb092f93ec3605a42c99d421ccbec14a33db7eaf0ba7296c570934122f22dfd8b';
 
 interface BetParams {
   userAddress: string;
@@ -73,15 +75,11 @@ interface ShopPurchaseParams {
 
 /**
  * 상점 구매를 위한 DEL 토큰 전송 트랜잭션을 빌드합니다.
- * 
+ *
  * 유저의 DEL 코인에서 필요한 금액을 분리(split)하여 플랫폼 주소로 전송합니다.
  * (이전: TreasuryCap burn → TreasuryCap 권한 문제로 변경)
  */
-export function buildShopPurchaseTx({
-  userAddress,
-  userDelCoinId,
-  amount,
-}: ShopPurchaseParams) {
+export function buildShopPurchaseTx({ userAddress, userDelCoinId, amount }: ShopPurchaseParams) {
   const tx = new Transaction();
 
   // 1. 유저의 DEL 코인에서 필요한 금액만큼 분리

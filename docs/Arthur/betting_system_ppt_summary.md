@@ -1,4 +1,5 @@
 # DeltaX 베팅 시스템 PPT 요약
+
 > 키워드 위주 정리 (슬라이드용)
 
 ---
@@ -6,6 +7,7 @@
 ## 1. 라운드 Cron Job 시스템
 
 ### 라운드 상태 (FSM - 7개)
+
 ```
 SCHEDULED → BETTING_OPEN → BETTING_LOCKED → CALCULATING → SETTLED
                 ↓                ↓               ↓
@@ -13,16 +15,18 @@ SCHEDULED → BETTING_OPEN → BETTING_LOCKED → CALCULATING → SETTLED
 ```
 
 ### Cron Job 흐름 (5개 Job)
-| Job | 역할 | 트리거 |
-|-----|------|--------|
-| **Job 1: Create** | 다음 라운드 생성 | 정기 스케줄 |
-| **Job 2: Open** | 베팅 시작 + 시작가격 기록 | startTime 도달 |
-| **Job 3: Lock** | 베팅 마감 | lockTime 도달 |
-| **Job 4: Finalize** | 종료가격 기록 + 승자 판정 | endTime 도달 |
-| **Job 5: Settle** | 정산 + 환금 | CALCULATING 후 |
-| **Job 6: Recovery** | stuck 라운드 복구/알림 | 10분+ 지연 감지 |
+
+| Job                 | 역할                      | 트리거          |
+| ------------------- | ------------------------- | --------------- |
+| **Job 1: Create**   | 다음 라운드 생성          | 정기 스케줄     |
+| **Job 2: Open**     | 베팅 시작 + 시작가격 기록 | startTime 도달  |
+| **Job 3: Lock**     | 베팅 마감                 | lockTime 도달   |
+| **Job 4: Finalize** | 종료가격 기록 + 승자 판정 | endTime 도달    |
+| **Job 5: Settle**   | 정산 + 환금               | CALCULATING 후  |
+| **Job 6: Recovery** | stuck 라운드 복구/알림    | 10분+ 지연 감지 |
 
 ### FSM 핵심 함수
+
 - `canTransition(from, to)` - 전이 가능 여부
 - `transitionRoundStatus()` - 상태 전이 + 멱등성 보장 + 메타데이터 검증
 
@@ -31,12 +35,14 @@ SCHEDULED → BETTING_OPEN → BETTING_LOCKED → CALCULATING → SETTLED
 ## 2. 배당 계산 로직 (Calculator)
 
 ### 승자 판정
+
 ```
 변동률 = (종료가 - 시작가) / 시작가
 승자 = 변동률 높은 자산 (동률 시 GOLD 승)
 ```
 
 ### 정산 공식
+
 ```
 플랫폼 수수료 = 총 풀 × 5%
 배당 풀 = 총 풀 - 플랫폼 수수료
@@ -45,6 +51,7 @@ SCHEDULED → BETTING_OPEN → BETTING_LOCKED → CALCULATING → SETTLED
 ```
 
 ### 예시
+
 - 총 풀: 1,000,000 DEL
 - GOLD: 600,000 / BTC: 400,000
 - 승자: GOLD
@@ -56,6 +63,7 @@ SCHEDULED → BETTING_OPEN → BETTING_LOCKED → CALCULATING → SETTLED
 ---
 
 ## 3. Next.js 보안 패치
+
 - 최신 Next.js 16.0.7 적용
 - HTTP-only 쿠키 기반 세션
 - API Route 보호 (requireAuth, optionalAuth)
@@ -66,15 +74,18 @@ SCHEDULED → BETTING_OPEN → BETTING_LOCKED → CALCULATING → SETTLED
 ## 4. Sui Move 컨트랙트 (Web3)
 
 ### DEL 코인
+
 - Sui 네트워크 발행
 - testnet 배포 완료
 
 ### 베팅 시스템 온체인
+
 - Pool 생성 (라운드당 1개)
 - 베팅 기록 on-chain
 - 정산 결과 on-chain 저장
 
 ### 정산 로직
+
 - 승자 Pool에서 배당 분배
 - 플랫폼 수수료 수취
 
@@ -83,6 +94,7 @@ SCHEDULED → BETTING_OPEN → BETTING_LOCKED → CALCULATING → SETTLED
 ## 5. BET 온/오프체인 통합 (SuiService)
 
 ### 2단계 트랜잭션 (prepare + execute)
+
 ```
 1. prepareBetTransaction()
    - 스폰서 가스비 설정
@@ -96,11 +108,13 @@ SCHEDULED → BETTING_OPEN → BETTING_LOCKED → CALCULATING → SETTLED
 ```
 
 ### 스폰서 가스비 대납
+
 - 사용자 가스비 부담 없음
 - 백엔드에서 스폰서 키로 서명
 - 사용자 + 스폰서 다중 서명
 
 ### Nonce 관리
+
 - Upstash Redis 저장
 - TTL 기반 만료 (5분)
 - 1회성 소비
@@ -109,13 +123,13 @@ SCHEDULED → BETTING_OPEN → BETTING_LOCKED → CALCULATING → SETTLED
 
 ## 6. 주요 기술 스택
 
-| 영역 | 기술 |
-|------|------|
-| **Backend** | Next.js 16, TypeScript |
-| **Database** | Cloudflare D1, Drizzle ORM |
-| **Blockchain** | Sui Move, @mysten/sui |
-| **Cache** | Upstash Redis |
-| **Scheduler** | Cron API Routes |
+| 영역           | 기술                       |
+| -------------- | -------------------------- |
+| **Backend**    | Next.js 16, TypeScript     |
+| **Database**   | Cloudflare D1, Drizzle ORM |
+| **Blockchain** | Sui Move, @mysten/sui      |
+| **Cache**      | Upstash Redis              |
+| **Scheduler**  | Cron API Routes            |
 
 ---
 

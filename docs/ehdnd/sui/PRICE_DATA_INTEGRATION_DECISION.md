@@ -78,5 +78,3 @@ avgVol은 현재 `fetchKlines()`로 1h 720개를 가져오지만, “fetch 메�
 
 - 진행 상태/체크리스트: `docs/ehdnd/sui/TODO_UPDATED.md`
 - Sui-first/cron 흐름: `docs/ehdnd/sui/CRON_FLOW_AND_CLAIM_MODEL.md`
-
-

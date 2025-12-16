@@ -14,12 +14,7 @@ interface BettingModalProps {
   onBetSuccess: () => void;
 }
 
-export function BettingModal({
-  isOpen,
-  onClose,
-  round,
-  onBetSuccess,
-}: BettingModalProps) {
+export function BettingModal({ isOpen, onClose, round, onBetSuccess }: BettingModalProps) {
   const [selectedPrediction, setSelectedPrediction] = useState<'GOLD' | 'BTC' | null>(null);
   const [amount, setAmount] = useState('');
   const [loading, setLoading] = useState(false);
