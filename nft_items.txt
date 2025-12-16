@@ -1,0 +1,56 @@
+
+ ⛅️ wrangler 4.47.0 (update available 4.54.0)
+─────────────────────────────────────────────
+Resource location: remote 
+
+🌀 Executing on remote database deltax (617a2c9b-adf9-4d63-8204-5b7afdb6a8de):
+🌀 To execute on your local development database, remove the --remote flag from your wrangler command.
+🚣 Executed 1 command in 0.17ms
+[
+  {
+    "results": [
+      {
+        "id": "nft_obsidian",
+        "name": "호랑이",
+        "image_url": "ipfs://bafybeihhwd3ivt5k6s6qnj3yscm3wtretf2bzdmostflwicfar4t6vmcjy"
+      },
+      {
+        "id": "nft_obsidian_crane",
+        "name": "두루미",
+        "image_url": "ipfs://bafybeihowygs5i6n7tdazn2wrhhwz2nrwobgtjsn57y6gkj7ypezjguh7i"
+      },
+      {
+        "id": "nft_obsidian_otter",
+        "name": "수달",
+        "image_url": "ipfs://bafybeigijtniqm2azxpdhs2pywytnw6tlvjcqz6xyqtz74tputmxnz2qoa"
+      },
+      {
+        "id": "nft_obsidian_ssang",
+        "name": "삵",
+        "image_url": "ipfs://bafybeifxzkgrd2klnv5y65qza6gswcejzrg24kued3k6is2sgofbtligxy"
+      },
+      {
+        "id": "nft_obsidian_bear",
+        "name": "반달가슴곰",
+        "image_url": "ipfs://bafybeiglrknmrxo3jm4g3nveqvxv6n4sozp3y32ib7cxik3ammjsmpryf4"
+      }
+    ],
+    "success": true,
+    "meta": {
+      "served_by": "v3-prod",
+      "served_by_region": "APAC",
+      "served_by_primary": true,
+      "timings": {
+        "sql_duration_ms": 0.1704
+      },
+      "duration": 0.1704,
+      "changes": 0,
+      "last_row_id": 0,
+      "changed_db": false,
+      "size_after": 274432,
+      "rows_read": 20,
+      "rows_written": 0,
+      "total_attempts": 1
+    }
+  }
+]

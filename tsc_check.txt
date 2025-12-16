@@ -1,0 +1,4 @@
+app/api/nfts/purchase/route.ts(1,23): error TS2307: Cannot find module '@/lib/db' or its corresponding type declarations.
+app/api/nfts/purchase/route.ts(2,67): error TS2307: Cannot find module '@/db/schema' or its corresponding type declarations.
+app/api/nfts/purchase/route.ts(4,29): error TS2307: Cannot find module '@/lib/types' or its corresponding type declarations.
+app/api/nfts/purchase/route.ts(5,25): error TS2307: Cannot find module '@/lib/sui/nft' or its corresponding type declarations.

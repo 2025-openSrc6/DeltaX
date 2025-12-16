@@ -1,0 +1,78 @@
+[note] Dependencies on Bridge, MoveStdlib, Sui, and SuiSystem are automatically added, but this feature is disabled for your package because you have explicitly included dependencies on Sui. Consider removing these dependencies from Move.toml.
+UPDATING GIT DEPENDENCY https://github.com/MystenLabs/sui.git
+INCLUDING DEPENDENCY Sui
+INCLUDING DEPENDENCY MoveStdlib
+BUILDING deltax
+warning[W04037]: deprecated usage
+   ┌─ .\sources\del.move:34:42
+   │
+34 │     let (treasury_cap, metadata) = coin::create_currency<DEL>(
+   │                                          ^^^^^^^^^^^^^^^ The function 'sui::coin::create_currency' is deprecated: Use `coin_registry::new_currency_with_otw` instead
+   │
+   = This warning can be suppressed with '#[allow(deprecated_usage)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+error[E03001]: address with no value
+  ┌─ .\sources\nft.move:1:8
+  │
+1 │ module deltaX::nft {
+  │        ^^^^^^ address 'deltaX' is not assigned a value. Try assigning it a value when calling the compiler
+
+warning[Lint W99010]: unnecessary `entry` on a `public` function
+   ┌─ .\sources\nft.move:45:12
+   │
+45 │     public entry fun mint_nft(
+   │            ^^^^^ `entry` on `public` functions limits composability as it adds restrictions, e.g. the type of each return value must have `drop`. `entry` on `public` is only meaningful in niche scenarios.
+   │
+   = `public` functions can be called from PTBs. `entry` can be used to allow non-`public` functions to be called from PTBs, but it adds restrictions on the usage of input arguments and on the type of return values. Unless this `public` function interacts with an intricate set of other `entry` functions, the `entry` modifier should be removed.
+   = This warning can be suppressed with '#[allow(lint(public_entry))]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+warning[W09001]: unused alias
+  ┌─ .\sources\betting.move:4:10
+  │
+4 │ use std::u128;
+  │          ^^^^ Unused 'use' of alias 'u128'. Consider removing it
+  │
+  = This alias does not shadow the built-in type 'u128' in type annotations.
+  = This warning can be suppressed with '#[allow(unused_use)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+warning[W09011]: unused constant
+   ┌─ .\sources\betting.move:45:7
+   │
+45 │ const E_BETTING_CLOSED: u64 = 2;
+   │       ^^^^^^^^^^^^^^^^ The constant 'E_BETTING_CLOSED' is never used. Consider removing it.
+   │
+   = This warning can be suppressed with '#[allow(unused_const)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+warning[W09011]: unused constant
+   ┌─ .\sources\betting.move:48:7
+   │
+48 │ const E_UNAUTHORIZED: u64 = 5;
+   │       ^^^^^^^^^^^^^^ The constant 'E_UNAUTHORIZED' is never used. Consider removing it.
+   │
+   = This warning can be suppressed with '#[allow(unused_const)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+warning[W09011]: unused constant
+   ┌─ .\sources\betting.move:53:7
+   │
+53 │ const E_ALREADY_SETTLED: u64 = 12;
+   │       ^^^^^^^^^^^^^^^^^ The constant 'E_ALREADY_SETTLED' is never used. Consider removing it.
+   │
+   = This warning can be suppressed with '#[allow(unused_const)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+warning[W09011]: unused constant
+   ┌─ .\sources\betting.move:55:7
+   │
+55 │ const E_NOT_WINNER: u64 = 13;
+   │       ^^^^^^^^^^^^ The constant 'E_NOT_WINNER' is never used. Consider removing it.
+   │
+   = This warning can be suppressed with '#[allow(unused_const)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+warning[W09011]: unused constant
+   ┌─ .\sources\betting.move:58:7
+   │
+58 │ const E_INVALID_AVGVOL: u64 = 16;
+   │       ^^^^^^^^^^^^^^^^ The constant 'E_INVALID_AVGVOL' is never used. Consider removing it.
+   │
+   = This warning can be suppressed with '#[allow(unused_const)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
+
+Failed to build Move modules: Compilation error.
