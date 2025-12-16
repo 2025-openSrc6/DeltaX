@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -95,7 +95,7 @@ export default function HomePage() {
   const [comparisonData, setComparisonData] = useState<any>(null);
   const [historicalPaxg, setHistoricalPaxg] = useState<any[]>([]);
   const [historicalBtc, setHistoricalBtc] = useState<any[]>([]);
-  const [loadingChart, setLoadingChart] = useState(true);
+  const [loadingChart, setLoadingChart] = useState(false); // 초기값을 false로 변경하여 차트가 먼저 표시되도록
   const [activeChart, setActiveChart] = useState<'volatility' | 'price'>('volatility');
 
   const { currentWallet } = useCurrentWallet();
@@ -107,6 +107,28 @@ export default function HomePage() {
 
   // 자동 차트 데이터 수집 (5초마다)
   const { status: collectStatus } = useAutoCollect(5000);
+
+  // 차트 데이터 메모이제이션 (불필요한 리렌더링 방지)
+  const priceChartData = useMemo(() => {
+    if (historicalPaxg.length === 0 || historicalBtc.length === 0) return [];
+    return historicalPaxg.map((paxgPoint, index) => {
+      const btcPoint = historicalBtc[index];
+      return {
+        timestamp: paxgPoint.timestamp,
+        paxg: paxgPoint.close,
+        btc: btcPoint ? btcPoint.close : 0,
+      };
+    });
+  }, [historicalPaxg, historicalBtc]);
+
+  // 변동성 차트 데이터 메모이제이션
+  const volatilityChartData = useMemo(() => {
+    if (!comparisonData) return null;
+    return {
+      asset1: comparisonData.asset1,
+      asset2: comparisonData.asset2,
+    };
+  }, [comparisonData]);
 
   // 페이지 로드 시 쿠키에서 주소 읽어서 상태 복원
   useEffect(() => {
@@ -167,27 +189,57 @@ export default function HomePage() {
   };
 
   // 타임프레임 변경 시 라운드 새로 로드
+        fetch('/api/chart/historical?asset=BTC&period=24h'),
+      ]);
+
+      const comparisonResult = await comparisonRes.json();
+>>>>>>> f4ce134 (refactor: 차트 메모이제이션으로 업데이트 최소화)
       const paxgResult = await paxgRes.json();
       const btcResult = await btcRes.json();
 
-      console.log('차트 데이터 응답:', {
-        comparison: comparisonResult,
-        paxg: paxgResult,
-        btc: btcResult,
-      });
-
+      // 데이터가 변경된 경우에만 상태 업데이트 (불필요한 리렌더링 방지)
       if (comparisonResult.success) {
-        setComparisonData(comparisonResult.data);
+        setComparisonData((prev: any) => {
+          // 데이터가 실제로 변경되었는지 확인
+          if (prev && JSON.stringify(prev) === JSON.stringify(comparisonResult.data)) {
+            return prev; // 동일하면 이전 값 반환
+          }
+          return comparisonResult.data;
+        });
       } else {
         console.warn('비교 데이터 로드 실패:', comparisonResult.error);
       }
+
       if (paxgResult.success) {
-        setHistoricalPaxg(paxgResult.data.data || []);
+        setHistoricalPaxg((prev) => {
+          const newData = paxgResult.data.data || [];
+          // 배열이 동일한지 확인 (간단한 길이와 마지막 값 비교)
+          if (prev.length === newData.length && prev.length > 0) {
+            const prevLast = prev[prev.length - 1];
+            const newLast = newData[newData.length - 1];
+            if (prevLast?.timestamp === newLast?.timestamp && prevLast?.close === newLast?.close) {
+              return prev; // 동일하면 이전 값 반환
+            }
+          }
+          return newData;
+        });
       } else {
         console.warn('PAXG 데이터 로드 실패:', paxgResult.error);
       }
+
       if (btcResult.success) {
-        setHistoricalBtc(btcResult.data.data || []);
+        setHistoricalBtc((prev) => {
+          const newData = btcResult.data.data || [];
+          // 배열이 동일한지 확인
+          if (prev.length === newData.length && prev.length > 0) {
+            const prevLast = prev[prev.length - 1];
+            const newLast = newData[newData.length - 1];
+            if (prevLast?.timestamp === newLast?.timestamp && prevLast?.close === newLast?.close) {
+              return prev; // 동일하면 이전 값 반환
+            }
+          }
+          return newData;
+        });
       } else {
         console.warn('BTC 데이터 로드 실패:', btcResult.error);
       }
@@ -196,13 +248,11 @@ export default function HomePage() {
     } finally {
       setLoadingChart(false);
     }
-  };
+  }, []); // 의존성 배열을 비워서 함수가 재생성되지 않도록 함
 
-  // 컴포넌트 마운트 시 라운드 로드 및 주기적 갱신
->>>>>>> c5d3bbd (feat: Market 강도 연결)
+  // 타임프레임 변경 시 라운드 새로 로드
   useEffect(() => {
     loadCurrentRound();
-    loadChartData();
     // 10초마다 라운드 정보 갱신
     const interval = setInterval(loadCurrentRound, 10000);
     return () => clearInterval(interval);
@@ -566,15 +616,10 @@ Exp: ${expMs}`;
                         : '자동 수집 대기 중...'}
                     </div>
                   </div>
-                ) : activeChart === 'volatility' && comparisonData ? (
+                ) : activeChart === 'volatility' && volatilityChartData ? (
                   <div>
-                    <VolatilityComparisonChart
-                      data={{
-                        asset1: comparisonData.asset1,
-                        asset2: comparisonData.asset2,
-                      }}
-                    />
-                    {comparisonData.comparison && (
+                    <VolatilityComparisonChart data={volatilityChartData} />
+                    {comparisonData?.comparison && (
                       <div className="mt-6 rounded-xl bg-gradient-to-r from-cyan-500/5 to-purple-500/5 border border-cyan-500/30 p-4">
                         <div className="text-center">
                           <p className="text-xs text-cyan-400 font-semibold mb-2">WINNER</p>
@@ -588,18 +633,9 @@ Exp: ${expMs}`;
                       </div>
                     )}
                   </div>
-                ) : activeChart === 'price' && historicalPaxg.length > 0 && historicalBtc.length > 0 ? (
+                ) : activeChart === 'price' && priceChartData.length > 0 ? (
                   <div>
-                    <PriceTrendChart
-                      data={historicalPaxg.map((paxgPoint, index) => {
-                        const btcPoint = historicalBtc[index];
-                        return {
-                          timestamp: paxgPoint.timestamp,
-                          paxg: paxgPoint.close,
-                          btc: btcPoint ? btcPoint.close : 0,
-                        };
-                      })}
-                    />
+                    <PriceTrendChart data={priceChartData} />
                   </div>
                 ) : (
                   <div className="rounded-xl bg-slate-900/50 border border-cyan-500/20 p-4">
