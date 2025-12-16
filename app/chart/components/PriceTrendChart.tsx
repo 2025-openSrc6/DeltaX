@@ -34,11 +34,12 @@ export function PriceTrendChart({ data }: PriceTrendChartProps) {
               dataKey="timestamp"
               tick={{ fontSize: 12, fill: '#6b7280' }}
               tickFormatter={(value) => {
+                if (!value) return '';
                 const date = new Date(value);
-                return date.toLocaleTimeString('en-US', {
-                  hour: '2-digit',
-                  minute: '2-digit',
-                });
+                // 시간만 표시 (HH:mm 형식, 24시간제)
+                const hours = date.getHours().toString().padStart(2, '0');
+                const minutes = date.getMinutes().toString().padStart(2, '0');
+                return `${hours}:${minutes}`;
               }}
             />
             <YAxis 
@@ -51,7 +52,12 @@ export function PriceTrendChart({ data }: PriceTrendChartProps) {
                 return (
                   <div className="bg-background p-3 border rounded-lg shadow-lg">
                     <p className="text-sm font-medium mb-2">
-                      {new Date(payload[0].payload.timestamp).toLocaleString()}
+                      {(() => {
+                        const date = new Date(payload[0].payload.timestamp);
+                        const hours = date.getHours().toString().padStart(2, '0');
+                        const minutes = date.getMinutes().toString().padStart(2, '0');
+                        return `${hours}:${minutes}`;
+                      })()}
                     </p>
                     {payload.map((entry: { dataKey: string; value: number; color: string }) => (
                       <p key={entry.dataKey} className="text-sm" style={{ color: entry.color }}>
