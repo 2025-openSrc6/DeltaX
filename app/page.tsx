@@ -92,6 +92,11 @@ export default function HomePage() {
   const [currentRound, setCurrentRound] = useState<Round | null>(null);
   const [loadingRound, setLoadingRound] = useState(false);
   const [isBettingModalOpen, setIsBettingModalOpen] = useState(false);
+  const [comparisonData, setComparisonData] = useState<any>(null);
+  const [historicalPaxg, setHistoricalPaxg] = useState<any[]>([]);
+  const [historicalBtc, setHistoricalBtc] = useState<any[]>([]);
+  const [loadingChart, setLoadingChart] = useState(true);
+  const [activeChart, setActiveChart] = useState<'volatility' | 'price'>('volatility');
 
   const { currentWallet } = useCurrentWallet();
   const { mutateAsync: connectWallet } = useConnectWallet();
@@ -99,6 +104,9 @@ export default function HomePage() {
   const wallets = useWallets();
   const { mutateAsync: signPersonalMessage } = useSignPersonalMessage();
   const { toast } = useToast();
+
+  // 자동 차트 데이터 수집 (5초마다)
+  const { status: collectStatus } = useAutoCollect(5000);
 
   // 페이지 로드 시 쿠키에서 주소 읽어서 상태 복원
   useEffect(() => {
@@ -159,8 +167,42 @@ export default function HomePage() {
   };
 
   // 타임프레임 변경 시 라운드 새로 로드
+      const paxgResult = await paxgRes.json();
+      const btcResult = await btcRes.json();
+
+      console.log('차트 데이터 응답:', {
+        comparison: comparisonResult,
+        paxg: paxgResult,
+        btc: btcResult,
+      });
+
+      if (comparisonResult.success) {
+        setComparisonData(comparisonResult.data);
+      } else {
+        console.warn('비교 데이터 로드 실패:', comparisonResult.error);
+      }
+      if (paxgResult.success) {
+        setHistoricalPaxg(paxgResult.data.data || []);
+      } else {
+        console.warn('PAXG 데이터 로드 실패:', paxgResult.error);
+      }
+      if (btcResult.success) {
+        setHistoricalBtc(btcResult.data.data || []);
+      } else {
+        console.warn('BTC 데이터 로드 실패:', btcResult.error);
+      }
+    } catch (error) {
+      console.error('차트 데이터 로드 실패:', error);
+    } finally {
+      setLoadingChart(false);
+    }
+  };
+
+  // 컴포넌트 마운트 시 라운드 로드 및 주기적 갱신
+>>>>>>> c5d3bbd (feat: Market 강도 연결)
   useEffect(() => {
     loadCurrentRound();
+    loadChartData();
     // 10초마다 라운드 정보 갱신
     const interval = setInterval(loadCurrentRound, 10000);
     return () => clearInterval(interval);
@@ -486,7 +528,129 @@ Exp: ${expMs}`;
                 </div>
               )}
 
-              <DashboardMiniChart />
+              {/* 차트 섹션 */}
+              <div className="mt-6">
+                {/* 차트 전환 버튼 */}
+                <div className="mb-4 flex gap-2">
+                  <Button
+                    onClick={() => setActiveChart('volatility')}
+                    className={`flex-1 transition-all duration-300 ${
+                      activeChart === 'volatility'
+                        ? 'bg-gradient-to-r from-cyan-500 to-purple-600 text-white shadow-lg shadow-cyan-500/50'
+                        : 'border border-cyan-500/30 bg-transparent text-cyan-300/70 hover:bg-cyan-500/10 hover:border-cyan-400/50'
+                    }`}
+                  >
+                    <Activity className="mr-2 h-4 w-4" />
+                    VOLATILITY ANALYSIS
+                  </Button>
+                  <Button
+                    onClick={() => setActiveChart('price')}
+                    className={`flex-1 transition-all duration-300 ${
+                      activeChart === 'price'
+                        ? 'bg-gradient-to-r from-cyan-500 to-purple-600 text-white shadow-lg shadow-cyan-500/50'
+                        : 'border border-cyan-500/30 bg-transparent text-cyan-300/70 hover:bg-cyan-500/10 hover:border-cyan-400/50'
+                    }`}
+                  >
+                    <BarChart3 className="mr-2 h-4 w-4" />
+                    PRICE TREND
+                  </Button>
+                </div>
+
+                {/* 차트 내용 */}
+                {loadingChart ? (
+                  <div className="flex flex-col items-center justify-center h-64 gap-3">
+                    <div className="text-cyan-400">차트 데이터 로딩 중...</div>
+                    <div className="text-xs text-cyan-300/50">
+                      {collectStatus.isRunning
+                        ? `자동 수집 중... (${collectStatus.collectCount}회 수집됨)`
+                        : '자동 수집 대기 중...'}
+                    </div>
+                  </div>
+                ) : activeChart === 'volatility' && comparisonData ? (
+                  <div>
+                    <VolatilityComparisonChart
+                      data={{
+                        asset1: comparisonData.asset1,
+                        asset2: comparisonData.asset2,
+                      }}
+                    />
+                    {comparisonData.comparison && (
+                      <div className="mt-6 rounded-xl bg-gradient-to-r from-cyan-500/5 to-purple-500/5 border border-cyan-500/30 p-4">
+                        <div className="text-center">
+                          <p className="text-xs text-cyan-400 font-semibold mb-2">WINNER</p>
+                          <p className="text-2xl font-black text-cyan-300 mb-1">
+                            {comparisonData.comparison.winner}
+                          </p>
+                          <p className="text-sm text-cyan-200/70">
+                            Confidence: {(comparisonData.comparison.confidence * 100).toFixed(0)}%
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : activeChart === 'price' && historicalPaxg.length > 0 && historicalBtc.length > 0 ? (
+                  <div>
+                    <PriceTrendChart
+                      data={historicalPaxg.map((paxgPoint, index) => {
+                        const btcPoint = historicalBtc[index];
+                        return {
+                          timestamp: paxgPoint.timestamp,
+                          paxg: paxgPoint.close,
+                          btc: btcPoint ? btcPoint.close : 0,
+                        };
+                      })}
+                    />
+                  </div>
+                ) : (
+                  <div className="rounded-xl bg-slate-900/50 border border-cyan-500/20 p-4">
+                    <div className="flex flex-col items-center gap-3">
+                      <p className="text-sm text-cyan-300/70 text-center">
+                        {activeChart === 'volatility'
+                          ? '변동성 분석 데이터를 불러올 수 없습니다.'
+                          : '차트 데이터를 불러올 수 없습니다. 데이터 수집이 필요할 수 있습니다.'}
+                      </p>
+                      <div className="text-xs text-cyan-300/50">
+                        {collectStatus.isRunning
+                          ? `자동 수집 중... (${collectStatus.collectCount}회 수집됨)`
+                          : '자동 수집 대기 중...'}
+                      </div>
+                      <Button
+                        onClick={async () => {
+                          try {
+                            const response = await fetch('/api/chart/collect', { method: 'POST' });
+                            const result = await response.json();
+                            if (result.success) {
+                              toast({
+                                title: '데이터 수집 성공',
+                                description: '차트 데이터를 수집했습니다. 잠시 후 차트가 표시됩니다.',
+                              });
+                              // 수집 후 데이터 다시 로드
+                              setTimeout(() => {
+                                loadChartData();
+                              }, 1000);
+                            } else {
+                              toast({
+                                title: '데이터 수집 실패',
+                                description: result.error?.message || '데이터 수집에 실패했습니다.',
+                                variant: 'destructive',
+                              });
+                            }
+                          } catch (error) {
+                            toast({
+                              title: '데이터 수집 실패',
+                              description: '데이터 수집 중 오류가 발생했습니다.',
+                              variant: 'destructive',
+                            });
+                          }
+                        }}
+                        className="bg-gradient-to-r from-cyan-500 to-purple-600 hover:shadow-lg hover:shadow-cyan-500/50 transition-all duration-300 text-white font-bold"
+                      >
+                        데이터 수집하기
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
             </Card>
 
             {/* 하단: 랭킹 보드 */}
@@ -554,6 +718,72 @@ Exp: ${expMs}`;
 
             {/* 실시간 관전 차트 */}
             <LiveChartSection />
+                  <div className="flex items-center justify-between rounded-lg bg-emerald-500/5 border border-emerald-500/20 px-4 py-3">
+                    <span className="flex items-center gap-2 text-sm font-semibold text-emerald-400">
+                      <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+                      GOLD
+                    </span>
+                    <span
+                      className={`font-mono text-lg font-bold ${
+                        comparisonData.asset1.return >= 0 ? 'text-emerald-300' : 'text-red-300'
+                      }`}
+                    >
+                      {comparisonData.asset1.return >= 0 ? '+' : ''}
+                      {comparisonData.asset1.return.toFixed(2)}%
+                    </span>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-between rounded-lg bg-emerald-500/5 border border-emerald-500/20 px-4 py-3">
+                    <span className="flex items-center gap-2 text-sm font-semibold text-emerald-400">
+                      <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+                      GOLD
+                    </span>
+                    <span className="font-mono text-sm text-emerald-300/50">로딩 중...</span>
+                  </div>
+                )}
+
+                {/* BTC */}
+                {comparisonData?.asset2 ? (
+                  <div className="flex items-center justify-between rounded-lg bg-red-500/5 border border-red-500/20 px-4 py-3">
+                    <span className="flex items-center gap-2 text-sm font-semibold text-red-400">
+                      <span className="h-2 w-2 rounded-full bg-red-400 animate-pulse" />
+                      BTC
+                    </span>
+                    <span
+                      className={`font-mono text-lg font-bold ${
+                        comparisonData.asset2.return >= 0 ? 'text-emerald-300' : 'text-red-300'
+                      }`}
+                    >
+                      {comparisonData.asset2.return >= 0 ? '+' : ''}
+                      {comparisonData.asset2.return.toFixed(2)}%
+                    </span>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-between rounded-lg bg-red-500/5 border border-red-500/20 px-4 py-3">
+                    <span className="flex items-center gap-2 text-sm font-semibold text-red-400">
+                      <span className="h-2 w-2 rounded-full bg-red-400 animate-pulse" />
+                      BTC
+                    </span>
+                    <span className="font-mono text-sm text-red-300/50">로딩 중...</span>
+                  </div>
+                )}
+
+                {/* POOL SIZE */}
+                <div className="flex items-center justify-between rounded-lg bg-cyan-500/5 border border-cyan-500/20 px-4 py-3">
+                  <span className="text-sm font-semibold text-cyan-400">POOL SIZE</span>
+                  <span className="font-mono text-lg font-bold text-cyan-300">
+                    {currentRound
+                      ? currentRound.totalPool >= 1000000
+                        ? `${(currentRound.totalPool / 1000000).toFixed(1)}M`
+                        : currentRound.totalPool >= 1000
+                          ? `${(currentRound.totalPool / 1000).toFixed(1)}K`
+                          : currentRound.totalPool.toLocaleString()
+                      : '0'}
+                  </span>
+                </div>
+              </div>
+            </Card>
+>>>>>>> c5d3bbd (feat: Market 강도 연결)
           </section>
         </div>
       </div>
