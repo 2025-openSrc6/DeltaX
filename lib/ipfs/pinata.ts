@@ -1,4 +1,5 @@
 import axios from 'axios';
+import FormData from 'form-data';
 
 const PINATA_API_KEY = process.env.PINATA_API_KEY!;
 const PINATA_SECRET_KEY = process.env.PINATA_SECRET_KEY!;
@@ -40,7 +41,6 @@ export async function uploadMetadataToPinata(metadata: {
  * Pinata에 이미지 파일 업로드
  */
 export async function uploadImageToPinata(imageBuffer: Buffer, filename: string) {
-    const FormData = require('form-data');
     const formData = new FormData();
 
     formData.append('file', imageBuffer, filename);

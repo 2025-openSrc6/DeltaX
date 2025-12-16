@@ -1,0 +1,98 @@
+[
+  {
+    "results": [
+      {
+        "id": "nft_obsidian",
+        "name": "호랑이",
+        "image_url": "ipfs://bafybeihhwd3ivt5k6s6qnj3yscm3wtretf2bzdmostflwicfar4t6vmcjy"
+      },
+      {
+        "id": "nft_aurum",
+        "name": "청룡",
+        "image_url": "ipfs://bafybeihfdmhzmkqzomzq3s2jvy2o7pjtshnhx63wwd5y66j7hrh2ftsysi"
+      },
+      {
+        "id": "nft_nova",
+        "name": "천",
+        "image_url": "ipfs://bafybeibsxr6ztbo6fushzmmqpwptddxtam5oimvnamuntqfhzoajsqi3aa"
+      },
+      {
+        "id": "nft_aetherion",
+        "name": "태극",
+        "image_url": "ipfs://bafybeidkisur3ziwdnicakyhcuaxejlbnyonb4t4xnhmobjl7inkny24ea"
+      },
+      {
+        "id": "nft_singularity",
+        "name": "Singularity",
+        "image_url": "ipfs://bafybeih6qzbs2dfazjxvh35ndc6aoatbpb2ilxryhpm2gl27lslx6uypry"
+      },
+      {
+        "id": "nft_obsidian_crane",
+        "name": "두루미",
+        "image_url": "ipfs://bafybeihowygs5i6n7tdazn2wrhhwz2nrwobgtjsn57y6gkj7ypezjguh7i"
+      },
+      {
+        "id": "nft_obsidian_otter",
+        "name": "수달",
+        "image_url": "ipfs://bafybeigijtniqm2azxpdhs2pywytnw6tlvjcqz6xyqtz74tputmxnz2qoa"
+      },
+      {
+        "id": "nft_obsidian_ssang",
+        "name": "삵",
+        "image_url": "ipfs://bafybeifxzkgrd2klnv5y65qza6gswcejzrg24kued3k6is2sgofbtligxy"
+      },
+      {
+        "id": "nft_obsidian_bear",
+        "name": "반달가슴곰",
+        "image_url": "ipfs://bafybeiglrknmrxo3jm4g3nveqvxv6n4sozp3y32ib7cxik3ammjsmpryf4"
+      },
+      {
+        "id": "nft_aurum_white_tiger",
+        "name": "백호",
+        "image_url": "ipfs://bafybeic7y5qkv34fclloygbntzf63tbdzvhlarrdnt7sn6opvucmlc3pze"
+      },
+      {
+        "id": "nft_aurum_black_turtle",
+        "name": "현무",
+        "image_url": "ipfs://bafybeicddiccbudqjtblgkfs4fgm7so3vciljx26rmaioc3nr5dlvwwkwu"
+      },
+      {
+        "id": "nft_aurum_fire_bird",
+        "name": "주작",
+        "image_url": "ipfs://bafybeieruflmccrv44haggwfjpryfytcupcspmxzogwc2vlod3daun6zou"
+      },
+      {
+        "id": "nft_nova_ground",
+        "name": "지",
+        "image_url": "ipfs://bafybeifo2iw4nyynamdohbl45vtb4pkc3puqyhwxdds63jt3s7hhbigpj4"
+      },
+      {
+        "id": "nft_nova_man",
+        "name": "인",
+        "image_url": "ipfs://bafybeidx2vv3fiepz4z5m7nwabpcucq5hvhotshwrmgvfssln7dfllolfi"
+      },
+      {
+        "id": "nft_aetherion_mugeuk",
+        "name": "무극",
+        "image_url": "ipfs://bafybeigyo56qmbtrzj4vprk4rh5x5ausiyemjgsxjvfvocbsfam6bwqv6u"
+      }
+    ],
+    "success": true,
+    "meta": {
+      "served_by": "v3-prod",
+      "served_by_region": "APAC",
+      "served_by_primary": true,
+      "timings": {
+        "sql_duration_ms": 0.4949
+      },
+      "duration": 0.4949,
+      "changes": 0,
+      "last_row_id": 0,
+      "changed_db": false,
+      "size_after": 274432,
+      "rows_read": 16,
+      "rows_written": 0,
+      "total_attempts": 1
+    }
+  }
+]

@@ -55,8 +55,8 @@ export async function mintNFT({
 
     // NFT Object ID 추출
     const nftObjectChange = result.objectChanges?.find(
-        (change: any) =>
-            change.type === 'created' && change.objectType.includes('DeltaxNFT')
+        (change: { type: string; objectType?: string; objectId?: string }) =>
+            change.type === 'created' && change.objectType?.includes('DeltaxNFT')
     );
 
     if (!nftObjectChange || nftObjectChange.type !== 'created') {

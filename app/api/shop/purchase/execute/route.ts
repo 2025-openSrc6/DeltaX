@@ -68,13 +68,13 @@ export async function POST(request: Request) {
         }
 
         // 유저 조회 (생성 or 조회)
-        let user = await db
+        const existingUser = await db
             .select()
             .from(users)
             .where(eq(users.suiAddress, userAddress))
             .limit(1);
 
-        if (!user[0]) {
+        const user = existinguser ?? (await (async () => {
             // 유저 자동 생성
             const newUser = await db.insert(users).values({
                 suiAddress: userAddress,
@@ -84,9 +84,9 @@ export async function POST(request: Request) {
                 createdAt: Date.now(),
                 updatedAt: Date.now(),
             }).returning();
-            user[0] = newUser[0];
             console.log('✅ New user created:', userAddress);
-        }
+            return newuser;
+        })());
 
         // 3. 아이템별 효과 적용
         let nftObjectId: string | undefined;
@@ -117,13 +117,13 @@ export async function POST(request: Request) {
                 metadata = item[0].metadata ? JSON.parse(item[0].metadata) : {};
             } catch { /* ignore */ }
             const duration = (metadata.durationMs as number) || 24 * 60 * 60 * 1000;
-            const currentBoost = user[0].boostUntil || Date.now();
+            const currentBoost = user.boostUntil || Date.now();
             updates.boostUntil = Math.max(currentBoost, Date.now()) + duration;
         }
 
         // 일반 아이템 (Green Mushroom)
         if (item[0].category === 'ITEM' && item[0].id.includes('mushroom')) {
-            updates.greenMushrooms = (user[0].greenMushrooms || 0) + 1;
+            updates.greenMushrooms = (user.greenMushrooms || 0) + 1;
         }
 
         // NFT 아이템
@@ -160,7 +160,7 @@ export async function POST(request: Request) {
 
                 console.log(`  - Final Image URL: ${imageUrl}`);
                 console.log(`  - Tier: ${item[0].tier}`);
-                console.log(`  - User: ${user[0].suiAddress}`);
+                console.log(`  - User: ${user.suiAddress}`);
 
                 ipfsMetadataUrl = imageUrl;
 
@@ -182,7 +182,7 @@ export async function POST(request: Request) {
                     console.log(`  - Admin address: ${adminKeypair.toSuiAddress()}`);
 
                     const { nftObjectId: mintedNftId, txHash } = await mintNFT({
-                        userAddress: user[0].suiAddress,
+                        userAddress: user.suiAddress,
                         metadataUrl: imageUrl,
                         tier: item[0].tier!,
                         name: item[0].name,
@@ -206,12 +206,12 @@ export async function POST(request: Request) {
             await db
                 .update(users)
                 .set(updates)
-                .where(eq(users.id, user[0].id));
+                .where(eq(users.id, user.id));
         }
 
         // 포인트 거래 기록 (참고용 - 실제 잔액은 온체인)
         await db.insert(pointTransactions).values({
-            userId: user[0].id,
+            userId: user.id,
             type: 'SHOP_PURCHASE',
             currency: item[0].currency,
             amount: -item[0].price,
@@ -224,7 +224,7 @@ export async function POST(request: Request) {
 
         // 아이템 지급 기록
         await db.insert(achievements).values({
-            userId: user[0].id,
+            userId: user.id,
             type: item[0].category,
             tier: item[0].tier,
             name: item[0].name,
