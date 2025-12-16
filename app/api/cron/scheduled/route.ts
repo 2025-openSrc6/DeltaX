@@ -59,6 +59,11 @@ export async function GET(request: NextRequest) {
   // Job 6: Recovery (매분)
   jobs.push('/api/cron/recovery');
 
+  // Job 7: DEL 잔액 동기화 (5분마다)
+  if (minute % 5 === 0) {
+    jobs.push('/api/cron/sync-del-balances');
+  }
+
   // 나머지 Job 실행 (병렬)
   const parallelResults = await Promise.allSettled(
     jobs.map(async (job) => {

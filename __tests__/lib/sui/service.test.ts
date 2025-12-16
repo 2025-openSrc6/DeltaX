@@ -10,6 +10,7 @@ const {
   mockGetGasPayment,
   mockBuildPlaceBetTx,
   mockSleep,
+  mockGetBalance,
 } = vi.hoisted(() => ({
   mockGetSponsorKeypair: vi.fn(),
   mockDryRunTransactionBlock: vi.fn(),
@@ -18,6 +19,7 @@ const {
   mockGetGasPayment: vi.fn(),
   mockBuildPlaceBetTx: vi.fn(),
   mockSleep: vi.fn(),
+  mockGetBalance: vi.fn(),
 }));
 
 vi.mock('@/lib/sui/client', () => ({
@@ -26,6 +28,7 @@ vi.mock('@/lib/sui/client', () => ({
     dryRunTransactionBlock: mockDryRunTransactionBlock,
     executeTransactionBlock: mockExecuteTransactionBlock,
     getTransactionBlock: mockGetTransactionBlock,
+    getBalance: mockGetBalance,
   },
 }));
 
@@ -305,5 +308,55 @@ describe('SuiService', () => {
     await expect(suiService.executeBetTransaction(baseExecuteParams)).rejects.toBeInstanceOf(
       BusinessRuleError,
     );
+  });
+
+  describe('getDelBalance', () => {
+    beforeEach(() => {
+      process.env.SUI_PACKAGE_ID = '0xtest';
+    });
+
+    afterEach(() => {
+      delete process.env.SUI_PACKAGE_ID;
+    });
+
+    it('returns DEL balance in DEL units (converted from MIST)', async () => {
+      const address = '0x123';
+      const mistBalance = '5000000000'; // 5 DEL in MIST (5 * 10^9)
+      mockGetBalance.mockResolvedValue({ totalBalance: mistBalance });
+
+      const balance = await suiService.getDelBalance(address);
+
+      expect(mockGetBalance).toHaveBeenCalledWith({
+        owner: address,
+        coinType: '0xtest::del::DEL',
+      });
+      expect(balance).toBe(5);
+    });
+
+    it('throws ENV_MISSING when SUI_PACKAGE_ID is not set', async () => {
+      delete process.env.SUI_PACKAGE_ID;
+
+      await expect(suiService.getDelBalance('0x123')).rejects.toMatchObject({
+        code: 'ENV_MISSING',
+      });
+    });
+
+    it('throws SUI_GET_BALANCE_FAILED when getBalance fails', async () => {
+      process.env.SUI_PACKAGE_ID = '0xtest';
+      mockGetBalance.mockRejectedValue(new Error('RPC error'));
+
+      await expect(suiService.getDelBalance('0x123')).rejects.toMatchObject({
+        code: 'SUI_GET_BALANCE_FAILED',
+      });
+    });
+
+    it('handles zero balance correctly', async () => {
+      const address = '0x123';
+      mockGetBalance.mockResolvedValue({ totalBalance: '0' });
+
+      const balance = await suiService.getDelBalance(address);
+
+      expect(balance).toBe(0);
+    });
   });
 });

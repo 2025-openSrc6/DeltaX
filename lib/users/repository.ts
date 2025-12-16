@@ -52,8 +52,14 @@ export class UserRepository {
    * 라운드 첫 로그인 보상 지급
    * Cloudflare D1에서는 db.transaction()을 지원하지 않으므로 db.batch()로 처리
    * 중복 지급 방지를 위해 사전 체크
+   * @param suiTxHash Sui 온체인 트랜잭션 해시 (선택적, 있으면 기록)
    */
-  async grantRoundLoginBonus(userId: string, roundId: string, amount: number): Promise<void> {
+  async grantRoundLoginBonus(
+    userId: string,
+    roundId: string,
+    amount: number,
+    suiTxHash?: string,
+  ): Promise<void> {
     const db = getDb();
 
     // 0. 중복 지급 방지: 먼저 체크
@@ -96,7 +102,8 @@ export class UserRepository {
         balanceAfter,
         referenceId: roundId,
         referenceType: 'ROUND',
-        description: `라운드 첫 로그인 보상: ${amount} DEL`,
+        description: `라운드 첫 로그인 보상: ${amount} DEL${suiTxHash ? ` (온체인: ${suiTxHash})` : ''}`,
+        suiTxHash: suiTxHash || null,
         createdAt: now,
       }),
       db
