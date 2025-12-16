@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * D1 데이터베이스에 샘플 데이터를 추가하는 스크립트
  *
