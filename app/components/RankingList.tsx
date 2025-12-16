@@ -70,20 +70,21 @@ export function RankingList() {
   const getNicknameStyle = (nicknameColor: string | null, profileColor: string | null) => {
     const color = nicknameColor || profileColor || null;
     if (!color) return {};
-    
+
     // RAINBOW인 경우 그라디언트 적용
     if (color === 'RAINBOW') {
       return {
-        background: 'linear-gradient(to right, #ff0000, #ff7f00, #ffff00, #00ff00, #0000ff, #4b0082, #9400d3)',
+        background:
+          'linear-gradient(to right, #ff0000, #ff7f00, #ffff00, #00ff00, #0000ff, #4b0082, #9400d3)',
         WebkitBackgroundClip: 'text',
         WebkitTextFillColor: 'transparent',
         backgroundClip: 'text',
         textShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
       };
     }
-    
+
     // 일반 색상인 경우
-    return { 
+    return {
       color: color,
       textShadow: '0 2px 4px rgba(0, 0, 0, 0.2)',
     };
@@ -111,11 +112,12 @@ export function RankingList() {
               {getMedalEmoji(index) || index + 1}
             </span>
 
-            <span 
+            <span
               className="font-semibold text-sm"
               style={getNicknameStyle(user.nicknameColor, user.profileColor)}
             >
-              {user.nickname || `${user.walletAddress.slice(0, 6)}...${user.walletAddress.slice(-4)}`}
+              {user.nickname ||
+                `${user.walletAddress.slice(0, 6)}...${user.walletAddress.slice(-4)}`}
             </span>
           </div>
 

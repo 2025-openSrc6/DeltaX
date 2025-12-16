@@ -10,6 +10,7 @@ import { NFTCard } from '@/components/nft-card';
 import {
   useCurrentWallet,
   useConnectWallet,
+  useWallets,
   useDisconnectWallet,
   useSignPersonalMessage,
 } from '@mysten/dapp-kit';
@@ -92,8 +93,9 @@ export function NFTShop() {
 
   const { currentWallet } = useCurrentWallet();
   const { mutateAsync: connectWallet } = useConnectWallet();
+  const wallets = useWallets();
   const { mutate: disconnectWallet } = useDisconnectWallet();
-  const { mutateAsync: signPersonalMessage } = useSignPersonalMessage;
+  const { mutateAsync: signPersonalMessage } = useSignPersonalMessage();
   const { toast } = useToast();
 
   // 페이지 로드 시 쿠키에서 주소 읽어서 상태 복원
@@ -130,20 +132,21 @@ export function NFTShop() {
   const getNicknameStyle = () => {
     const color = nicknameColor || null;
     if (!color) return {};
-    
+
     // RAINBOW인 경우 그라디언트 적용
     if (color === 'RAINBOW') {
       return {
-        background: 'linear-gradient(to right, #ff0000, #ff7f00, #ffff00, #00ff00, #0000ff, #4b0082, #9400d3)',
+        background:
+          'linear-gradient(to right, #ff0000, #ff7f00, #ffff00, #00ff00, #0000ff, #4b0082, #9400d3)',
         WebkitBackgroundClip: 'text',
         WebkitTextFillColor: 'transparent',
         backgroundClip: 'text',
         textShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
       };
     }
-    
+
     // 일반 색상인 경우
-    return { 
+    return {
       color: color,
       textShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
     };
@@ -154,42 +157,66 @@ export function NFTShop() {
     : '';
 
   const handleConnect = async () => {
+    // 사용 가능한 지갑이 없으면 에러 처리
+    if (wallets.length === 0) {
+      alert('사용 가능한 지갑이 없습니다. Sui 지갑 확장 프로그램을 설치해주세요.');
+      return;
+    }
+
     try {
-      const wallet = await connectWallet();
-      if (wallet) {
-        const address = wallet.accounts[0].address;
-        setIsConnected(true);
-        setWalletAddress(address);
+      // 첫 번째 사용 가능한 지갑 사용
+      const wallet = wallets[0];
+      const result = await connectWallet({ wallet });
 
-        // 서명 요청
-        const message = `Sign in to DeltaX\n\nAddress: ${address}\nTimestamp: ${Date.now()}`;
-        const result = await signPersonalMessage({
-          message: new TextEncoder().encode(message),
+      const account = result?.accounts?.[0] ?? currentWallet?.accounts?.[0] ?? wallet.accounts?.[0];
+
+      if (!account) {
+        throw new Error('지갑 연결 결과에 계정이 없습니다.');
+      }
+
+      const address = account.address;
+      setIsConnected(true);
+      setWalletAddress(address);
+
+      // 서명 요청
+      const nonce = crypto.randomUUID();
+      const expMs = Date.now() + 5 * 60_000; // 5분 유효
+      const domain = typeof window !== 'undefined' ? window.location.host : 'deltax.app';
+      const message = `DeltaX Login\nDomain: ${domain}\nNonce: ${nonce}\nExp: ${expMs}`;
+
+      const signed = await signPersonalMessage({
+        message: new TextEncoder().encode(message),
+      });
+
+      const signature = signed.signature;
+      const rawBytes = signed.bytes as string | Uint8Array;
+      const signedMessageBytes =
+        typeof rawBytes === 'string'
+          ? rawBytes
+          : btoa(String.fromCharCode.apply(null, Array.from(rawBytes)));
+
+      // 서버에 인증 요청
+      const response = await fetch('/api/auth/session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          suiAddress: address,
+          signature: signature,
+          message: message,
+          signedMessageBytes: signedMessageBytes,
+        }),
+      });
+
+      const data = await response.json();
+      if (data.success && data.data?.user) {
+        setUserPoints(data.data.user.delBalance || 0);
+        setUserNickname(data.data.user.nickname || null);
+        setNicknameColor(data.data.user.nicknameColor || data.data.user.profileColor || null);
+        toast({
+          title: '로그인 성공',
+          description: '지갑이 연결되었습니다.',
         });
-
-        // 서버에 인증 요청
-        const response = await fetch('/api/auth/session', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({
-            suiAddress: address,
-            signature: result.signature,
-            message: message,
-            signedMessageBytes: result.messageBytes,
-          }),
-        });
-
-        const data = await response.json();
-        if (data.success && data.data?.user) {
-          setUserPoints(data.data.user.delBalance || 0);
-          setUserNickname(data.data.user.nickname || null);
-          setNicknameColor(data.data.user.nicknameColor || data.data.user.profileColor || null);
-          toast({
-            title: '로그인 성공',
-            description: '지갑이 연결되었습니다.',
-          });
-        }
       }
     } catch (error) {
       console.error('지갑 연결 실패:', error);
@@ -235,7 +262,13 @@ export function NFTShop() {
             <div className="flex items-center gap-3">
               <Link href="/" className="flex items-center gap-3">
                 <div className="relative w-16 h-16 flex-shrink-0">
-                  <Image src="/logo.png" alt="DeltaX Logo" fill className="object-contain" priority />
+                  <Image
+                    src="/logo.png"
+                    alt="DeltaX Logo"
+                    fill
+                    className="object-contain"
+                    priority
+                  />
                 </div>
                 <h1 className="text-3xl font-black bg-gradient-to-r from-cyan-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
                   NFT SHOP
@@ -262,9 +295,7 @@ export function NFTShop() {
                   className="border border-cyan-400 hover:border-cyan-500 hover:bg-cyan-50 bg-white text-cyan-700 transition-all duration-300 shadow-sm"
                 >
                   <Wallet className="mr-2 h-4 w-4" />
-                  <span style={getNicknameStyle()}>
-                    {userNickname || displayAddress}
-                  </span>
+                  <span style={getNicknameStyle()}>{userNickname || displayAddress}</span>
                 </Button>
               ) : (
                 <Button

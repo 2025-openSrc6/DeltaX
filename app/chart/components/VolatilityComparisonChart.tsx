@@ -60,13 +60,8 @@ export function VolatilityComparisonChart({ data }: VolatilityComparisonChartPro
       <ResponsiveContainer width="100%" height={350}>
         <BarChart data={chartData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#cbd5e1" />
-          <XAxis 
-            dataKey="metric" 
-            tick={{ fontSize: 12, fill: '#64748b' }} 
-          />
-          <YAxis 
-            tick={{ fontSize: 12, fill: '#64748b' }} 
-          />
+          <XAxis dataKey="metric" tick={{ fontSize: 12, fill: '#64748b' }} />
+          <YAxis tick={{ fontSize: 12, fill: '#64748b' }} />
           <Tooltip
             contentStyle={{
               backgroundColor: '#fff',
@@ -79,9 +74,15 @@ export function VolatilityComparisonChart({ data }: VolatilityComparisonChartPro
               if (!active || !payload || payload.length === 0) return null;
               return (
                 <div className="p-3">
-                  <p className="text-sm font-medium mb-2 text-slate-700">{payload[0].payload.metric}</p>
+                  <p className="text-sm font-medium mb-2 text-slate-700">
+                    {payload[0].payload.metric}
+                  </p>
                   {payload.map((entry: { dataKey: string; value: number; color: string }) => (
-                    <p key={entry.dataKey} className="text-sm text-slate-700" style={{ color: entry.color }}>
+                    <p
+                      key={entry.dataKey}
+                      className="text-sm text-slate-700"
+                      style={{ color: entry.color }}
+                    >
                       {entry.dataKey}: {entry.value.toFixed(2)}
                     </p>
                   ))}
@@ -89,10 +90,7 @@ export function VolatilityComparisonChart({ data }: VolatilityComparisonChartPro
               );
             }}
           />
-          <Legend 
-            wrapperStyle={{ paddingTop: '20px' }}
-            iconType="square"
-          />
+          <Legend wrapperStyle={{ paddingTop: '20px' }} iconType="square" />
           <Bar dataKey={data.asset1.name} fill="#FFD700" />
           <Bar dataKey={data.asset2.name} fill="#F7931A" />
         </BarChart>

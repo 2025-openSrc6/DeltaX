@@ -104,7 +104,7 @@ export async function POST(request: NextRequest) {
       }
 
       // 동시 처리 제한을 위해 청크로 나누어 처리
-      const chunks: typeof userBatch[] = [];
+      const chunks: (typeof userBatch)[] = [];
       for (let i = 0; i < userBatch.length; i += MAX_CONCURRENT) {
         chunks.push(userBatch.slice(i, i + MAX_CONCURRENT));
       }

@@ -168,12 +168,7 @@ export class UserService {
 
           // 2-4. 온체인 mint 성공 시 DB 업데이트
           try {
-            await this.userRepository.grantRoundLoginBonus(
-              user.id,
-              roundId,
-              bonusAmount,
-              txDigest,
-            );
+            await this.userRepository.grantRoundLoginBonus(user.id, roundId, bonusAmount, txDigest);
             cronLogger.info('[RoundAttendanceReward] DB updated successfully', {
               userId: user.id,
               roundId,

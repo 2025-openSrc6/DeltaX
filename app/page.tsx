@@ -5,7 +5,18 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { LogOut, ArrowRight, Sparkles, BarChart3, Wallet, Zap, Activity, Heart, ShoppingBag, Calendar } from 'lucide-react';
+import {
+  LogOut,
+  ArrowRight,
+  Sparkles,
+  BarChart3,
+  Wallet,
+  Zap,
+  Activity,
+  Heart,
+  ShoppingBag,
+  Calendar,
+} from 'lucide-react';
 
 import { RankingList } from '@/components/RankingList';
 import { PointsPanel } from '@/components/PointsPanel';
@@ -540,7 +551,15 @@ Exp: ${expMs}`;
                 <div className="mb-6 rounded-xl bg-gradient-to-r from-cyan-500/10 to-purple-500/10 border border-cyan-500/40 p-4 shadow-md">
                   <div className="mb-4 flex items-center justify-between">
                     <span className="text-lg font-bold text-cyan-700 font-mono">
-                      ROUND #{currentRound.roundNumber} ({timeframe === '3M' ? 'DEMO_3MIN' : timeframe === '1M' ? '1MIN' : timeframe === '6H' ? '6HOUR' : '1DAY'})
+                      ROUND #{currentRound.roundNumber} (
+                      {timeframe === '3M'
+                        ? 'DEMO_3MIN'
+                        : timeframe === '1M'
+                          ? '1MIN'
+                          : timeframe === '6H'
+                            ? '6HOUR'
+                            : '1DAY'}
+                      )
                     </span>
                     <span
                       className={`rounded-full px-3 py-1 text-xs font-bold ${
@@ -582,7 +601,7 @@ Exp: ${expMs}`;
                       </div>
                       <span className="text-xs text-yellow-600/70">
                         {currentRound.totalPool > 0
-                          ? `${((currentRound.totalGoldBets || 0) / currentRound.totalPool * 100).toFixed(0)}%`
+                          ? `${(((currentRound.totalGoldBets || 0) / currentRound.totalPool) * 100).toFixed(0)}%`
                           : '0%'}
                       </span>
                     </div>
@@ -593,7 +612,7 @@ Exp: ${expMs}`;
                       </div>
                       <span className="text-xs text-orange-600/70">
                         {currentRound.totalPool > 0
-                          ? `${((currentRound.totalBtcBets || 0) / currentRound.totalPool * 100).toFixed(0)}%`
+                          ? `${(((currentRound.totalBtcBets || 0) / currentRound.totalPool) * 100).toFixed(0)}%`
                           : '0%'}
                       </span>
                     </div>
@@ -652,7 +671,9 @@ Exp: ${expMs}`;
                       <div className="mt-6 space-y-4">
                         <div className="rounded-xl bg-gradient-to-r from-purple-500/10 to-pink-500/10 border border-purple-500/40 p-4 shadow-md bg-white/80">
                           <div className="text-center">
-                            <p className="text-xs text-purple-600 font-semibold mb-2">현재 우세 (Current Dominance)</p>
+                            <p className="text-xs text-purple-600 font-semibold mb-2">
+                              현재 우세 (Current Dominance)
+                            </p>
                             <p className="text-2xl font-black text-purple-700 mb-1">
                               {comparisonData.comparison?.winner || 'PAXG'}
                             </p>
@@ -661,7 +682,9 @@ Exp: ${expMs}`;
                         </div>
                         <div className="rounded-xl bg-gradient-to-r from-cyan-500/10 to-purple-500/10 border border-cyan-500/40 p-4 shadow-md bg-white/80">
                           <div className="text-center">
-                            <p className="text-xs text-cyan-600 font-semibold mb-2">격차 (Spread)</p>
+                            <p className="text-xs text-cyan-600 font-semibold mb-2">
+                              격차 (Spread)
+                            </p>
                             <p className="text-2xl font-black text-cyan-700 mb-1">
                               {comparisonData.comparison?.spread?.toFixed(2) || '78.63'}
                             </p>
@@ -670,9 +693,13 @@ Exp: ${expMs}`;
                         </div>
                         <div className="rounded-xl bg-gradient-to-r from-yellow-500/10 to-orange-500/10 border border-yellow-500/40 p-4 shadow-md bg-white/80">
                           <div className="text-center">
-                            <p className="text-xs text-yellow-600 font-semibold mb-2">PAXG 승률 (PAXG Win Rate)</p>
+                            <p className="text-xs text-yellow-600 font-semibold mb-2">
+                              PAXG 승률 (PAXG Win Rate)
+                            </p>
                             <p className="text-2xl font-black text-yellow-700 mb-1">100%</p>
-                            <p className="text-sm text-yellow-600/70">최근 50개 데이터 (Recent 50 data)</p>
+                            <p className="text-sm text-yellow-600/70">
+                              최근 50개 데이터 (Recent 50 data)
+                            </p>
                           </div>
                         </div>
                       </div>
@@ -681,10 +708,14 @@ Exp: ${expMs}`;
                 ) : activeChart === 'volatility' ? (
                   comparisonData && comparisonData.asset1 && comparisonData.asset2 ? (
                     <div>
-                      <VolatilityComparisonChart data={volatilityChartData || {
-                        asset1: comparisonData.asset1,
-                        asset2: comparisonData.asset2,
-                      }} />
+                      <VolatilityComparisonChart
+                        data={
+                          volatilityChartData || {
+                            asset1: comparisonData.asset1,
+                            asset2: comparisonData.asset2,
+                          }
+                        }
+                      />
                       {comparisonData?.comparison && (
                         <div className="mt-6 rounded-xl bg-gradient-to-r from-cyan-500/10 to-purple-500/10 border border-cyan-500/40 p-4 shadow-md bg-white/80">
                           <div className="text-center">
@@ -701,10 +732,12 @@ Exp: ${expMs}`;
                     </div>
                   ) : (
                     <div>
-                      <VolatilityComparisonChart data={{
-                        asset1: { name: 'PAXG', volatility: 0, return: 0, adjustedReturn: 0 },
-                        asset2: { name: 'BTC', volatility: 0, return: 0, adjustedReturn: 0 },
-                      }} />
+                      <VolatilityComparisonChart
+                        data={{
+                          asset1: { name: 'PAXG', volatility: 0, return: 0, adjustedReturn: 0 },
+                          asset2: { name: 'BTC', volatility: 0, return: 0, adjustedReturn: 0 },
+                        }}
+                      />
                     </div>
                   )
                 ) : activeChart === 'price' ? (
@@ -743,7 +776,8 @@ Exp: ${expMs}`;
                             if (result.success) {
                               toast({
                                 title: '데이터 수집 성공',
-                                description: '차트 데이터를 수집했습니다. 잠시 후 차트가 표시됩니다.',
+                                description:
+                                  '차트 데이터를 수집했습니다. 잠시 후 차트가 표시됩니다.',
                               });
                               // 수집 후 데이터 다시 로드
                               setTimeout(() => {
@@ -793,7 +827,6 @@ Exp: ${expMs}`;
 
               <RankingList />
             </Card>
-
           </section>
 
           {/* 우측: QUICK ACTIONS + MARKET */}
