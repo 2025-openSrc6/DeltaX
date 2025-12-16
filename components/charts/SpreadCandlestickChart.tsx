@@ -18,6 +18,7 @@ interface SpreadCandlestickChartProps {
   period?: '1h' | '24h' | '7d';
   refreshInterval?: number;
   maxDataPoints?: number;
+  roundType?: string;
 }
 
 interface CandleData {
@@ -43,6 +44,7 @@ export default function SpreadCandlestickChart({
   period = '1h',
   refreshInterval = 10000,
   maxDataPoints = 50,
+  roundType = 'DEMO_3MIN',
 }: SpreadCandlestickChartProps) {
   const [data, setData] = useState<CandleData[]>([]);
   const [loading, setLoading] = useState(true);
@@ -57,7 +59,9 @@ export default function SpreadCandlestickChart({
     try {
       setError(null);
 
-      const response = await fetch(`/api/chart/normalized-strength?period=${period}`);
+      const response = await fetch(
+        `/api/chart/normalized-strength?period=${period}&roundType=${roundType}`,
+      );
       const result = await response.json();
 
       if (!result.success) {

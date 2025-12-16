@@ -99,9 +99,10 @@ function ClaimButton({ bet, onClaimed }: { bet: Bet; onClaimed?: () => void }) {
       disabled={loading}
       className={`
         px-3 py-1.5 text-xs font-semibold rounded-lg transition-all
-        ${loading
-          ? 'bg-stone-200 text-stone-400 cursor-not-allowed'
-          : 'bg-gradient-to-r from-green-500 to-emerald-500 text-white hover:from-green-600 hover:to-emerald-600 shadow-sm hover:shadow'
+        ${
+          loading
+            ? 'bg-stone-200 text-stone-400 cursor-not-allowed'
+            : 'bg-gradient-to-r from-green-500 to-emerald-500 text-white hover:from-green-600 hover:to-emerald-600 shadow-sm hover:shadow'
         }
       `}
     >
@@ -128,10 +129,11 @@ function BetCard({ bet, onClaimed }: { bet: Bet; onClaimed?: () => void }) {
       <div className="flex items-center gap-4">
         {/* 예측 아이콘 */}
         <div
-          className={`w-10 h-10 rounded-full flex items-center justify-center text-lg ${bet.prediction === 'GOLD'
+          className={`w-10 h-10 rounded-full flex items-center justify-center text-lg ${
+            bet.prediction === 'GOLD'
               ? 'bg-yellow-100 text-yellow-600'
               : 'bg-orange-100 text-orange-600'
-            }`}
+          }`}
         >
           {bet.prediction === 'GOLD' ? '🪙' : '₿'}
         </div>
@@ -216,4 +218,3 @@ export function MyBetsList({ roundId }: MyBetsListProps) {
     </div>
   );
 }
-

@@ -37,19 +37,21 @@ function LiveChartSection() {
         <div className="flex gap-1">
           <button
             onClick={() => setChartMode('price')}
-            className={`rounded-full px-2 py-0.5 text-[10px] transition-colors ${chartMode === 'price'
+            className={`rounded-full px-2 py-0.5 text-[10px] transition-colors ${
+              chartMode === 'price'
                 ? 'bg-cyan-500/20 text-cyan-300'
                 : 'bg-slate-900/70 text-slate-500 hover:text-slate-300'
-              }`}
+            }`}
           >
             가격
           </button>
           <button
             onClick={() => setChartMode('strength')}
-            className={`rounded-full px-2 py-0.5 text-[10px] transition-colors ${chartMode === 'strength'
+            className={`rounded-full px-2 py-0.5 text-[10px] transition-colors ${
+              chartMode === 'strength'
                 ? 'bg-purple-500/20 text-purple-300'
                 : 'bg-slate-900/70 text-slate-500 hover:text-slate-300'
-              }`}
+            }`}
           >
             강도
           </button>
@@ -80,7 +82,6 @@ function LiveChartSection() {
     </Card>
   );
 }
-
 
 // 메인 트레이드 대시보드 (Basevol 스타일 레이아웃 레퍼런스)
 export default function HomePage() {
@@ -130,7 +131,14 @@ export default function HomePage() {
   const loadCurrentRound = async () => {
     setLoadingRound(true);
     try {
-      const roundType = timeframe === '3M' ? 'DEMO_3MIN' : timeframe === '1M' ? '1MIN' : timeframe === '6H' ? '6HOUR' : '1DAY';
+      const roundType =
+        timeframe === '3M'
+          ? 'DEMO_3MIN'
+          : timeframe === '1M'
+            ? '1MIN'
+            : timeframe === '6H'
+              ? '6HOUR'
+              : '1DAY';
       const response = await fetch(`/api/rounds/current?type=${roundType}`, {
         credentials: 'include',
       });
@@ -452,12 +460,13 @@ Exp: ${expMs}`;
                       라운드 #{currentRound.roundNumber}
                     </span>
                     <span
-                      className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${currentRound.status === 'BETTING_OPEN'
-                        ? 'bg-emerald-500/20 text-emerald-300'
-                        : currentRound.status === 'BETTING_LOCKED'
-                          ? 'bg-yellow-500/20 text-yellow-300'
-                          : 'bg-slate-700/50 text-slate-400'
-                        }`}
+                      className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                        currentRound.status === 'BETTING_OPEN'
+                          ? 'bg-emerald-500/20 text-emerald-300'
+                          : currentRound.status === 'BETTING_LOCKED'
+                            ? 'bg-yellow-500/20 text-yellow-300'
+                            : 'bg-slate-700/50 text-slate-400'
+                      }`}
                     >
                       {currentRound.status === 'BETTING_OPEN'
                         ? '베팅 가능'
@@ -559,7 +568,15 @@ Exp: ${expMs}`;
       <BettingModal
         isOpen={isBettingModalOpen}
         onClose={() => setIsBettingModalOpen(false)}
-        roundType={timeframe === '3M' ? 'DEMO_3MIN' : timeframe === '1M' ? '1MIN' : timeframe === '6H' ? '6HOUR' : '1DAY'}
+        roundType={
+          timeframe === '3M'
+            ? 'DEMO_3MIN'
+            : timeframe === '1M'
+              ? '1MIN'
+              : timeframe === '6H'
+                ? '6HOUR'
+                : '1DAY'
+        }
       />
     </div>
   );

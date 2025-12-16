@@ -62,12 +62,12 @@ export class RoundRepository {
   /**
    * 현재 활성 라운드 조회
    *
-   * "활성"의 정의: 
+   * "활성"의 정의:
    * - BETTING_OPEN: 베팅 가능
    * - BETTING_LOCKED: 베팅 마감, 결과 대기
    * - SETTLING: 정산 중
    * - SETTLED / VOIDED: 정산 완료 (결과 표시용)
-   * 
+   *
    * 가장 최근에 시작한 라운드를 반환
    *
    * @param type - 라운드 타입
@@ -91,8 +91,8 @@ export class RoundRepository {
             'SETTLING',
             'SETTLED',
             'VOIDED',
-          ])
-        )
+          ]),
+        ),
       )
       .orderBy(desc(rounds.startTime))
       .limit(1);

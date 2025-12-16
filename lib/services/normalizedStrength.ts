@@ -29,6 +29,7 @@ export function calculateNormalizedStrength(
 
 /**
  * 두 자산의 정규화 강도를 비교
+ * 백엔드 승리 로직과 동일하게 절대값 사용
  *
  * @param paxgReturn PAXG 수익률
  * @param btcReturn BTC 수익률
@@ -42,8 +43,9 @@ export function compareNormalizedStrength(
   paxgAvgVol: number,
   btcAvgVol: number,
 ) {
-  const paxgStrength = calculateNormalizedStrength(paxgReturn, paxgAvgVol);
-  const btcStrength = calculateNormalizedStrength(btcReturn, btcAvgVol);
+  // 백엔드와 동일하게 절대값 사용 (방향 무시, 크기만 비교)
+  const paxgStrength = calculateNormalizedStrength(Math.abs(paxgReturn), paxgAvgVol);
+  const btcStrength = calculateNormalizedStrength(Math.abs(btcReturn), btcAvgVol);
 
   const spread = paxgStrength - btcStrength;
 
@@ -51,7 +53,8 @@ export function compareNormalizedStrength(
     paxgStrength,
     btcStrength,
     spread,
-    winner: spread > 0 ? 'PAXG' : spread < 0 ? 'BTC' : 'TIE',
+    // 백엔드와 동일: 동점 시 PAXG(GOLD) 승리
+    winner: spread >= 0 ? 'PAXG' : 'BTC',
     confidence: Math.abs(spread), // 격차가 클수록 확실
 
     // 해석

@@ -1,6 +1,6 @@
 import { getDb } from '@/lib/db';
-import { chartData } from '@/db/schema';
-import { eq, and, gte, desc } from 'drizzle-orm';
+import { chartData, rounds } from '@/db/schema';
+import { eq, and, gte, desc, inArray } from 'drizzle-orm';
 import { NextRequest, NextResponse } from 'next/server';
 import {
   calculateAverageVolatility,
@@ -12,23 +12,57 @@ export async function GET(request: NextRequest) {
     const db = getDb();
     const { searchParams } = new URL(request.url);
     const period = searchParams.get('period') || '1h';
+    const roundType = searchParams.get('roundType') || 'DEMO_3MIN';
 
-    // 기간 계산
-    const periodMs = getPeriodMs(period);
-    const startTime = new Date(Date.now() - periodMs);
+    // 현재 활성 라운드 조회 (시작가 가져오기 위해)
+    const activeRound = await db
+      .select()
+      .from(rounds)
+      .where(
+        and(
+          eq(rounds.type, roundType),
+          inArray(rounds.status, [
+            'BETTING_OPEN',
+            'BETTING_LOCKED',
+            'SETTLING',
+            'SETTLED',
+            'VOIDED',
+          ]),
+        ),
+      )
+      .orderBy(desc(rounds.startTime))
+      .limit(1);
 
-    // PAXG와 BTC 데이터 조회
+    // 라운드 시작가 또는 fallback
+    let paxgStartPrice: number;
+    let btcStartPrice: number;
+    let dataStartTime: Date;
+
+    if (activeRound.length > 0 && activeRound[0].goldStartPrice && activeRound[0].btcStartPrice) {
+      // 라운드 시작가 사용 (게임 로직과 동일)
+      paxgStartPrice = parseFloat(activeRound[0].goldStartPrice);
+      btcStartPrice = parseFloat(activeRound[0].btcStartPrice);
+      dataStartTime = new Date(activeRound[0].startTime);
+    } else {
+      // fallback: 슬라이딩 윈도우
+      const periodMs = getPeriodMs(period);
+      dataStartTime = new Date(Date.now() - periodMs);
+      paxgStartPrice = 0; // 아래에서 설정
+      btcStartPrice = 0;
+    }
+
+    // PAXG와 BTC 데이터 조회 (라운드 시작 시점부터)
     const [paxgData, btcData] = await Promise.all([
       db
         .select()
         .from(chartData)
-        .where(and(eq(chartData.asset, 'PAXG'), gte(chartData.timestamp, startTime)))
+        .where(and(eq(chartData.asset, 'PAXG'), gte(chartData.timestamp, dataStartTime)))
         .orderBy(chartData.timestamp),
 
       db
         .select()
         .from(chartData)
-        .where(and(eq(chartData.asset, 'BTC'), gte(chartData.timestamp, startTime)))
+        .where(and(eq(chartData.asset, 'BTC'), gte(chartData.timestamp, dataStartTime)))
         .orderBy(chartData.timestamp),
     ]);
 
@@ -45,9 +79,9 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // 시작가 (라운드 시작 시점)
-    const paxgStartPrice = paxgData[0].close;
-    const btcStartPrice = btcData[0].close;
+    // fallback인 경우 첫 데이터로 시작가 설정
+    if (paxgStartPrice === 0) paxgStartPrice = paxgData[0].close;
+    if (btcStartPrice === 0) btcStartPrice = btcData[0].close;
 
     // 평균 변동성 계산 (과거 30일 데이터)
     const past30Days = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
