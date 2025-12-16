@@ -56,7 +56,7 @@ async function main() {
   }
 }
 
-main().catch((error) => {
+main().catch((error: any) => {
   console.error('[sui-list-del-coins] Failed:', error);
   process.exit(1);
 });

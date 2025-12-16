@@ -6,7 +6,7 @@ import DatabaseConstructor from 'better-sqlite3';
 const sqlite = new DatabaseConstructor('delta.db');
 const db = drizzle(sqlite, { schema });
 
-const initialItems = [
+const initialItems: any[] = [
   // --- 닉네임 & 컬러 ---
   {
     id: 'item_nickname',
@@ -127,7 +127,7 @@ async function main() {
   console.log('✅ Shop items seeded successfully!');
 }
 
-main().catch((err) => {
+main().catch((err: any) => {
   console.error('❌ Seeding failed:', err);
   process.exit(1);
 });

@@ -82,7 +82,7 @@ async function verifyShopApi() {
   console.log('\n✅ API Logic Verification Complete!');
 }
 
-verifyShopApi().catch((err) => {
+verifyShopApi().catch((err: any) => {
   console.error('❌ Verification failed:', err);
   process.exit(1);
 });
