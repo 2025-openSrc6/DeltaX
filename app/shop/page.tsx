@@ -1,15 +1,25 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { Wallet, LogOut, ArrowLeft, ShoppingBag, Filter } from 'lucide-react';
+import { Wallet, LogOut, ArrowLeft, ShoppingBag, Filter, Loader2, Rocket } from 'lucide-react';
 import { ShopItem } from '@/db/schema/shopItems';
 import { ShopItemCard } from '@/components/shop-item-card';
+import { NicknameModal } from '@/components/NicknameModal';
 import { toast } from 'sonner';
+import {
+  useCurrentWallet,
+  useConnectWallet,
+  useWallets,
+  useDisconnectWallet,
+  useSignPersonalMessage,
+  useSignTransaction,
+} from '@mysten/dapp-kit';
+import { fromBase64 } from '@mysten/sui/utils';
 
 // Static Shop Items (DB 연결 문제 회피용)
 const SHOP_ITEMS: ShopItem[] = [
@@ -163,13 +173,33 @@ const SHOP_ITEMS: ShopItem[] = [
 export default function ShopPage() {
   const [isConnected, setIsConnected] = useState(false);
   const [walletAddress, setWalletAddress] = useState('');
-  const [points, setPoints] = useState(12000); // Mock points
+  const [delBalance, setDelBalance] = useState(0);
+  const [crystalBalance, setCrystalBalance] = useState(0);
+  const [boostCount, setBoostCount] = useState(0);
+  const [greenMushroomCount, setGreenMushroomCount] = useState(0);
   const [items, setItems] = useState<ShopItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeCategory, setActiveCategory] = useState('ALL');
+  const [sessionChecked, setSessionChecked] = useState(false); // 세션 확인 완료 여부
 
-  // Mock User ID for purchase
-  const userId = 'test-user-id';
+  // 닉네임 모달 상태
+  const [isNicknameModalOpen, setIsNicknameModalOpen] = useState(false);
+  const [pendingNicknameItem, setPendingNicknameItem] = useState<ShopItem | null>(null);
+  const [currentNickname, setCurrentNickname] = useState<string | undefined>(undefined);
+
+  // dapp-kit 훅
+  const { currentWallet } = useCurrentWallet();
+  const { mutateAsync: connectWallet } = useConnectWallet();
+  const { mutate: disconnectWallet } = useDisconnectWallet();
+  const wallets = useWallets();
+  const { mutateAsync: signPersonalMessage } = useSignPersonalMessage();
+  const { mutateAsync: signTransaction } = useSignTransaction();
+
+  // 구매 진행 중 상태
+  const [purchasingItemId, setPurchasingItemId] = useState<string | null>(null);
+
+  // Mock User ID for purchase (나중에 walletAddress로 대체)
+  const userId = walletAddress || 'test-user-id';
 
   // Tier 순서 정의
   const tierOrder: Record<string, number> = {
@@ -179,6 +209,69 @@ export default function ShopPage() {
     'Aetherion': 4,
     'Singularity': 5
   };
+
+  // 페이지 로드 시 세션에서 지갑 상태 및 잔액 복원
+  useEffect(() => {
+    fetch('/api/auth/session', { credentials: 'include' })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success && data.data?.user) {
+          const address = data.data.user.suiAddress;
+          setIsConnected(true);
+          setWalletAddress(address);
+          // DEL은 온체인에서 조회 (DB 값 사용 안함)
+          fetchOnChainBalance(address);
+          setCrystalBalance(data.data.user.crystalBalance || 0);
+          // 부스트 활성 여부 계산 (boostUntil이 현재 시간 이후면 활성)
+          const boostUntil = data.data.user.boostUntil || 0;
+          setBoostCount(boostUntil > Date.now() ? 1 : 0);
+          setGreenMushroomCount(data.data.user.greenMushrooms || 0);
+          // 닉네임 저장
+          if (data.data.user.nickname) {
+            setCurrentNickname(data.data.user.nickname);
+          }
+          setSessionChecked(true);
+        } else {
+          // 세션이 없거나 만료됨 - 지갑이 autoConnect 되어도 UI는 로그아웃 상태로 표시
+          setIsConnected(false);
+          setWalletAddress('');
+          setSessionChecked(true);
+          console.log('⚠️ No valid session, showing as logged out');
+        }
+      })
+      .catch(() => {
+        // 세션 확인 실패 시에도 로그아웃 상태로
+        setIsConnected(false);
+        setWalletAddress('');
+        setSessionChecked(true);
+      });
+  }, []);
+
+  // currentWallet 상태 동기화 및 온체인 잔액 조회
+  // 세션 확인이 완료된 후에만 autoConnect로 인한 연결 처리
+  useEffect(() => {
+    // 세션 확인이 안 끝났으면 무시 (세션 확인 결과가 우선)
+    if (!sessionChecked) return;
+
+    // 이미 로그인 상태면 무시 (세션에서 이미 처리됨)
+    if (isConnected) return;
+
+    // autoConnect로 지갑만 연결된 상태 - 세션이 없으면 연결 UI 안 보여줌
+    // (사용자가 "지갑 연결" 버튼을 눌러서 세션 생성해야 함)
+  }, [currentWallet, sessionChecked, isConnected]);
+
+  // 온체인 DEL 잔액 조회 함수
+  const fetchOnChainBalance = useCallback(async (address: string) => {
+    try {
+      const res = await fetch(`/api/shop/balance?address=${address}`);
+      const data = await res.json();
+      if (data.success && data.data) {
+        setDelBalance(data.data.balanceNumber || 0);
+      }
+    } catch (error) {
+      console.error('Failed to fetch on-chain DEL balance:', error);
+    }
+  }, []);
 
   // DB에서 아이템 불러오기
   useEffect(() => {
@@ -192,13 +285,11 @@ export default function ShopPage() {
           setItems(data.data.items);
           console.log('✅ Loaded items from DB:', data.data.items.length);
         } else {
-          // DB에 데이터가 없으면 폴백으로 하드코딩 데이터 사용
           setItems(SHOP_ITEMS);
           console.log('⚠️ Using fallback static data');
         }
       } catch (error) {
         console.error('Failed to fetch items:', error);
-        // 에러 시에도 폴백 데이터 사용
         setItems(SHOP_ITEMS);
         toast.error('상점 데이터를 불러오는데 실패했습니다.');
       } finally {
@@ -209,44 +300,321 @@ export default function ShopPage() {
     fetchItems();
   }, []);
 
-  const handleConnect = () => {
-    setIsConnected(true);
-    setWalletAddress('0x742d...9f3a');
+  const isUserRejectionError = (error: unknown) => {
+    if (!error) return false;
+    if (error instanceof Error && /user rejected/i.test(error.message)) return true;
+    const code = (error as { code?: string | number }).code;
+    return code === 4001 || code === 'USER_REJECTED' || code === 'USER_REJECTED_REQUEST';
   };
 
-  const handleDisconnect = () => {
-    setIsConnected(false);
-    setWalletAddress('');
+  const buildLoginMessage = (nonce: string, expMs: number) => {
+    const domain = typeof window !== 'undefined' ? window.location.host : 'deltax.app';
+    return `DeltaX Login
+Domain: ${domain}
+Nonce: ${nonce}
+Exp: ${expMs}`;
   };
 
-  const handlePurchase = async (item: ShopItem) => {
-    if (!isConnected) {
-      toast.error('지갑을 먼저 연결해주세요.');
-      return;
+  const requestSession = async (address: string) => {
+    const nonce = crypto.randomUUID();
+    const expMs = Date.now() + 5 * 60_000;
+    const message = buildLoginMessage(nonce, expMs);
+
+    const encoder = new TextEncoder();
+    let signature: string;
+    let signedMessageBytes: string;
+
+    try {
+      const signed = await signPersonalMessage({
+        message: encoder.encode(message),
+      });
+
+      signature = signed.signature;
+      const rawBytes = signed.bytes as string | Uint8Array;
+      if (typeof rawBytes === 'string') {
+        signedMessageBytes = rawBytes;
+      } else {
+        signedMessageBytes = btoa(String.fromCharCode.apply(null, Array.from(rawBytes)));
+      }
+    } catch (error) {
+      if (isUserRejectionError(error)) {
+        console.info('사용자가 메시지 서명을 취소했습니다.');
+        return;
+      }
+      throw error;
     }
 
-    if (points < item.price) {
-      toast.error('잔액이 부족합니다.');
+    const response = await fetch('/api/auth/session', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ suiAddress: address, signature, message, signedMessageBytes }),
+    });
+
+    const parsed = await response.json();
+
+    if (!response.ok || !parsed.success) {
+      throw new Error(parsed.error?.message || '로그인에 실패했습니다.');
+    }
+
+    setIsConnected(true);
+    setWalletAddress(address);
+  };
+
+  const handleConnect = async () => {
+    if (wallets.length === 0) {
+      toast.error('사용 가능한 지갑이 없습니다. Sui 지갑 확장 프로그램을 설치해주세요.');
       return;
     }
 
     try {
+      const wallet = wallets[0];
+      const result = await connectWallet({ wallet });
+
+      const account = result?.accounts?.[0] ?? currentWallet?.accounts?.[0] ?? wallet.accounts?.[0];
+
+      if (!account) {
+        throw new Error('지갑 연결 결과에 계정이 없습니다.');
+      }
+
+      await requestSession(account.address);
+      toast.success('지갑이 연결되었습니다.');
+    } catch (error) {
+      if (isUserRejectionError(error)) {
+        console.info('사용자가 지갑 요청을 취소했습니다.');
+        return;
+      }
+
+      console.error('지갑 연결 중 오류:', error);
+      const message = error instanceof Error ? error.message : '지갑 연결 중 오류가 발생했습니다.';
+      toast.error(message);
+    }
+  };
+
+  const handleDisconnect = async () => {
+    await fetch('/api/auth/logout', {
+      method: 'POST',
+      credentials: 'include',
+    }).catch(() => { });
+
+    if (currentWallet) {
+      if (currentWallet.features && currentWallet.features['standard:disconnect']) {
+        const disconnectFeature = currentWallet.features['standard:disconnect'];
+        await disconnectFeature.disconnect();
+      } else {
+        disconnectWallet();
+      }
+    } else {
+      disconnectWallet();
+    }
+
+    setIsConnected(false);
+    setWalletAddress('');
+    toast.success('지갑 연결이 해제되었습니다.');
+  };
+
+  // DEL 토큰 구매 (2단계 플로우: prepare → sign → execute)
+  const handleDelPurchase = async (item: ShopItem, nickname?: string) => {
+    if (!isConnected || !walletAddress) {
+      toast.error('지갑을 먼저 연결해주세요.');
+      return;
+    }
+
+    if (delBalance < item.price) {
+      toast.error('DEL 잔액이 부족합니다.');
+      return;
+    }
+
+    setPurchasingItemId(item.id);
+
+    try {
+      // Step 1: Prepare (서버에서 txBytes 생성)
+      const prepareRes = await fetch('/api/shop/purchase/prepare', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userAddress: walletAddress,
+          itemId: item.id,
+        }),
+      });
+      const prepareData = await prepareRes.json();
+
+      if (!prepareData.success) {
+        toast.error(prepareData.message || '구매 준비에 실패했습니다.');
+        return;
+      }
+
+      console.log('✅ Prepare success:', prepareData.data);
+
+      // Step 2: 지갑에서 서명
+      toast.info('지갑에서 트랜잭션에 서명해주세요.');
+
+      // txBytes를 Transaction 객체로 변환 후 서명
+      const { Transaction } = await import('@mysten/sui/transactions');
+      const txBytes = fromBase64(prepareData.data.txBytes);
+      const transaction = Transaction.from(txBytes);
+
+      const { signature } = await signTransaction({
+        transaction,
+      });
+
+      console.log('✅ User signed, signature:', signature.slice(0, 20) + '...');
+
+      // Step 3: Execute (서버에서 실행)
+      const executeRes = await fetch('/api/shop/purchase/execute', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          txBytes: prepareData.data.txBytes,
+          userSignature: signature,
+          nonce: prepareData.data.nonce,
+          itemId: item.id,
+          userAddress: walletAddress,
+          newNickname: nickname, // 닉네임 변경권인 경우
+        }),
+      });
+      const executeData = await executeRes.json();
+
+      if (executeData.success) {
+        toast.success(`${item.name} 구매 완료! TX: ${executeData.data.digest.slice(0, 10)}...`);
+
+        // 온체인 잔액 다시 조회
+        await fetchOnChainBalance(walletAddress);
+
+        // 닉네임 변경 시 현재 닉네임 업데이트
+        if (item.category === 'NICKNAME' && nickname) {
+          setCurrentNickname(nickname);
+        }
+
+        // 부스트 구매 시 ON으로 변경
+        if (item.category === 'BOOST') {
+          setBoostCount(1); // ON 상태
+        }
+
+        // 버섯 구매 시 개수 증가
+        if (item.category === 'ITEM' && item.id.includes('mushroom')) {
+          setGreenMushroomCount(prev => prev + 1);
+        }
+      } else {
+        toast.error(executeData.message || '구매에 실패했습니다.');
+      }
+    } catch (error) {
+      console.error('Purchase error:', error);
+
+      // 지갑 연결 안됨 에러 체크
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      const isWalletDisconnected =
+        errorMessage.includes('WalletNotConnected') ||
+        errorMessage.includes('No wallet is connected') ||
+        errorMessage.includes('not connected');
+
+      if (isWalletDisconnected) {
+        toast.error('로그인 세션 만료됨. 지갑을 다시 연결해주세요.', {
+          duration: 5000,
+          action: {
+            label: '연결하기',
+            onClick: handleConnect,
+          },
+        });
+        setIsConnected(false);
+        setWalletAddress('');
+      } else if (error instanceof Error && /user rejected/i.test(error.message)) {
+        toast.error('서명이 취소되었습니다.');
+      } else {
+        toast.error('구매 중 오류가 발생했습니다.');
+      }
+    } finally {
+      setPurchasingItemId(null);
+    }
+  };
+
+  const handlePurchase = async (item: ShopItem, nickname?: string) => {
+    console.log('🛒 handlePurchase called:', item.category, item.name, 'nickname:', nickname);
+
+    // 닉네임 변경권인 경우 모달을 먼저 열기 (지갑 연결 체크 전에)
+    if (item.category === 'NICKNAME' && !nickname) {
+      console.log('📝 Opening nickname modal');
+      setPendingNicknameItem(item);
+      setIsNicknameModalOpen(true);
+      console.log('✅ Modal state set to true');
+      return;
+    }
+
+    if (!isConnected) {
+      console.log('❌ Not connected');
+      toast.error('지갑을 먼저 연결해주세요.');
+      return;
+    }
+
+    // DEL 토큰 구매 → 온체인 2단계 플로우 사용
+    if (item.currency === 'DEL') {
+      await handleDelPurchase(item, nickname);
+      return;
+    }
+
+    // CRYSTAL 구매 → 기존 방식 유지
+    const currentBalance = crystalBalance;
+    if (currentBalance < item.price) {
+      console.log('❌ Insufficient balance:', currentBalance, '<', item.price);
+      toast.error('CRYSTAL 잔액이 부족합니다.');
+      return;
+    }
+
+    try {
+      const requestBody: { userId: string; itemId: string; newNickname?: string } = {
+        userId,
+        itemId: item.id
+      };
+
+      // 닉네임 변경권인 경우 newNickname 포함
+      if (item.category === 'NICKNAME' && nickname) {
+        requestBody.newNickname = nickname;
+      }
+
+      console.log('📤 Sending purchase request:', requestBody);
+
       const res = await fetch('/api/nfts/purchase', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, itemId: item.id }),
+        body: JSON.stringify(requestBody),
       });
       const data = await res.json();
 
+      console.log('📥 Purchase response:', data);
+
       if (data.success) {
         toast.success(`${item.name} 구매 완료!`);
-        setPoints(data.data.newBalance); // Update balance
+        setCrystalBalance(data.data.newBalance);
+
+        // 컬러 변경 시 알림
+        if (item.category === 'COLOR') {
+          toast.success('닉네임 컬러가 변경되었습니다!');
+        }
+
+        // 부스트 구매 시 ON으로 변경
+        if (item.category === 'BOOST') {
+          setBoostCount(1); // ON 상태
+        }
+
+        // 버섯 구매 시 개수 증가
+        if (item.category === 'ITEM' && item.id.includes('mushroom')) {
+          setGreenMushroomCount(prev => prev + 1);
+        }
       } else {
         toast.error(data.message || '구매 실패');
       }
     } catch (error) {
       console.error('Purchase error:', error);
       toast.error('구매 중 오류가 발생했습니다.');
+    }
+  };
+
+  // 닉네임 모달 확인 핸들러
+  const handleNicknameConfirm = (nickname: string) => {
+    setIsNicknameModalOpen(false);
+    if (pendingNicknameItem) {
+      handlePurchase(pendingNicknameItem, nickname);
+      setPendingNicknameItem(null);
     }
   };
 
@@ -271,10 +639,12 @@ export default function ShopPage() {
     { id: 'BOOST', label: '부스트' },
   ];
 
-  const displayAddress =
+  // 닉네임이 있으면 닉네임, 없으면 지갑 주소 축약형 표시
+  const displayName = currentNickname || (
     walletAddress.length > 10
       ? `${walletAddress.substring(0, 6)}...${walletAddress.substring(walletAddress.length - 4)}`
-      : walletAddress;
+      : walletAddress
+  );
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-[#02040a] text-slate-50 px-2 py-3 sm:px-4 sm:py-6">
@@ -312,9 +682,30 @@ export default function ShopPage() {
           <div className="flex items-center gap-3">
             {isConnected ? (
               <>
-                <div className="hidden sm:flex items-center gap-1.5 rounded-full bg-slate-900/80 border border-slate-800 px-3 py-1.5">
-                  <span className="text-xs text-slate-400">Balance:</span>
-                  <span className="text-sm font-bold text-cyan-400">{points.toLocaleString()} DEL</span>
+                <div className="hidden sm:flex items-center gap-3 rounded-full bg-slate-900/80 border border-slate-800 px-3 py-1.5">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs text-slate-400">DEL:</span>
+                    <span className="text-sm font-bold text-cyan-400">{delBalance.toLocaleString()}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs text-slate-400">💎:</span>
+                    <span className="text-sm font-bold text-pink-400">{crystalBalance.toLocaleString()}</span>
+                  </div>
+                  <div className="flex items-center gap-1.5" title="부스트 상태">
+                    <Rocket className="h-3.5 w-3.5 text-orange-400" />
+                    <span className={`text-xs font-bold ${boostCount > 0 ? 'text-orange-400' : 'text-slate-500'}`}>
+                      {boostCount > 0 ? 'ON' : 'OFF'}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5" title="Green Mushroom">
+                    <svg className="h-3.5 w-3.5 text-green-400" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M12 2C8 2 4 5 4 9c0 3 2 5 4 6v5c0 1.1.9 2 2 2h4c1.1 0 2-.9 2-2v-5c2-1 4-3 4-6 0-4-4-7-8-7zm0 2c3 0 6 2 6 5 0 2-1.5 3.5-3 4.3V19h-6v-5.7C7.5 12.5 6 11 6 9c0-3 3-5 6-5z" />
+                      <circle cx="9" cy="8" r="1.5" />
+                      <circle cx="15" cy="8" r="1.5" />
+                      <circle cx="12" cy="11" r="1" />
+                    </svg>
+                    <span className="text-sm font-bold text-green-400">{greenMushroomCount}</span>
+                  </div>
                 </div>
                 <Card className="flex items-center gap-2 rounded-full border border-emerald-500/40 bg-emerald-950/60 px-3 py-1.5 text-xs shadow-md shadow-emerald-500/25">
                   <div className="flex items-center gap-1.5">
@@ -322,7 +713,7 @@ export default function ShopPage() {
                     <span className="font-semibold text-emerald-100">Connected</span>
                   </div>
                   <span className="max-w-[100px] truncate font-mono text-[11px] text-emerald-200/80 hidden sm:block">
-                    {displayAddress}
+                    {displayName}
                   </span>
                   <Button
                     onClick={handleDisconnect}
@@ -419,6 +810,17 @@ export default function ShopPage() {
           </div>
         </div>
       </div>
+
+      {/* 닉네임 입력 모달 */}
+      <NicknameModal
+        isOpen={isNicknameModalOpen}
+        onClose={() => {
+          setIsNicknameModalOpen(false);
+          setPendingNicknameItem(null);
+        }}
+        onConfirm={handleNicknameConfirm}
+        currentNickname={currentNickname}
+      />
     </div>
   );
 }

@@ -23,7 +23,9 @@ export default async function setupConfig() {
   // Initialize Cloudflare bindings for local development
   // This enables D1, KV, R2, etc. via getPlatformProxy in npm run dev
   if (process.env.NODE_ENV === 'development') {
-    await initOpenNextCloudflareForDev();
+    const useRemote = process.env.USE_REMOTE_D1 === 'true';
+    console.log(`[Config] Initializing D1 bindings (remote: ${useRemote})`);
+    await initOpenNextCloudflareForDev({ remoteBindings: useRemote });
   }
 
   return withBundleAnalyzer(nextConfig);
