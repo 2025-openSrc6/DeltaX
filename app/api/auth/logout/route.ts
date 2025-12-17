@@ -1,4 +1,3 @@
-import { NextRequest } from 'next/server';
 import { createSuccessResponse, handleApiError } from '@/lib/shared/response';
 
 /**

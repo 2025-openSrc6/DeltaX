@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { Wallet, LogOut, ArrowLeft, ShoppingBag, Filter, Loader2, Rocket } from 'lucide-react';
+import { Wallet, LogOut, ArrowLeft, ShoppingBag, Filter, Rocket } from 'lucide-react';
 import { ShopItem } from '@/db/schema/shopItems';
 import { ShopItemCard } from '@/components/shop-item-card';
 import { NicknameModal } from '@/components/NicknameModal';
@@ -234,7 +234,7 @@ export default function ShopPage() {
   const { mutateAsync: signTransaction } = useSignTransaction();
 
   // 구매 진행 중 상태
-  const [purchasingItemId, setPurchasingItemId] = useState<string | null>(null);
+  const [, setPurchasingItemId] = useState<string | null>(null);
 
   // Mock User ID for purchase (나중에 walletAddress로 대체)
   const userId = walletAddress || 'test-user-id';
@@ -247,6 +247,19 @@ export default function ShopPage() {
     Aetherion: 4,
     Singularity: 5,
   };
+
+  // 온체인 DEL 잔액 조회 함수
+  const fetchOnChainBalance = useCallback(async (address: string) => {
+    try {
+      const res = await fetch(`/api/shop/balance?address=${address}`);
+      const data = await res.json();
+      if (data.success && data.data) {
+        setDelBalance(data.data.balanceNumber || 0);
+      }
+    } catch (error) {
+      console.error('Failed to fetch on-chain DEL balance:', error);
+    }
+  }, []);
 
   // 페이지 로드 시 세션에서 지갑 상태 및 잔액 복원
   useEffect(() => {
@@ -283,7 +296,7 @@ export default function ShopPage() {
         setWalletAddress('');
         setSessionChecked(true);
       });
-  }, []);
+  }, [fetchOnChainBalance]);
 
   // currentWallet 상태 동기화 및 온체인 잔액 조회
   // 세션 확인이 완료된 후에만 autoConnect로 인한 연결 처리
@@ -297,19 +310,6 @@ export default function ShopPage() {
     // autoConnect로 지갑만 연결된 상태 - 세션이 없으면 연결 UI 안 보여줌
     // (사용자가 "지갑 연결" 버튼을 눌러서 세션 생성해야 함)
   }, [currentWallet, sessionChecked, isConnected]);
-
-  // 온체인 DEL 잔액 조회 함수
-  const fetchOnChainBalance = useCallback(async (address: string) => {
-    try {
-      const res = await fetch(`/api/shop/balance?address=${address}`);
-      const data = await res.json();
-      if (data.success && data.data) {
-        setDelBalance(data.data.balanceNumber || 0);
-      }
-    } catch (error) {
-      console.error('Failed to fetch on-chain DEL balance:', error);
-    }
-  }, []);
 
   // DB에서 아이템 불러오기 + Crystal 아이템 병합
   useEffect(() => {

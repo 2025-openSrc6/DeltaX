@@ -16,9 +16,6 @@ export const runtime = 'nodejs';
 
 const suiService = new SuiService();
 
-// DEL decimals: 1 DEL = 10^9 units
-const DEL_DECIMALS = 9;
-
 export async function POST(request: Request) {
   console.log('🛒 POST /api/shop/purchase/execute called');
 

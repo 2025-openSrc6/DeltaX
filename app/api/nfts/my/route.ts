@@ -1,7 +1,6 @@
 import { getDb } from '@/lib/db';
 import { achievements } from '@/db/schema';
 import { eq, desc } from 'drizzle-orm';
-import { NextContext } from '@/lib/types';
 
 export const runtime = 'nodejs';
 
