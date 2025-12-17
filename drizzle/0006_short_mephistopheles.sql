@@ -14,4 +14,7 @@ CREATE TABLE `shop_items` (
 );
 --> statement-breakpoint
 CREATE INDEX `idx_shop_items_category` ON `shop_items` (`category`);--> statement-breakpoint
-CREATE INDEX `idx_shop_items_available` ON `shop_items` (`available`);
+CREATE INDEX `idx_shop_items_available` ON `shop_items` (`available`);--> statement-breakpoint
+ALTER TABLE `users` ADD `nickname_color` text;--> statement-breakpoint
+ALTER TABLE `users` ADD `boost_until` integer;--> statement-breakpoint
+ALTER TABLE `users` ADD `green_mushrooms` integer DEFAULT 0;
