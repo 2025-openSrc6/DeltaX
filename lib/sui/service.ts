@@ -2,6 +2,7 @@ import { createHash, randomUUID } from 'crypto';
 import { BusinessRuleError } from '@/lib/shared/errors';
 import { buildClaimPayoutTx, buildPlaceBetTx, buildShopPurchaseTx } from './builder';
 import { getSponsorKeypair, suiClient } from './client';
+import { getDelBalance as getDelBalanceRaw } from './balance';
 import { getGasPayment } from './gas';
 import type {
   BetPrediction,
@@ -48,6 +49,19 @@ export interface ExecuteShopPurchaseResult {
 
 export class SuiService {
   constructor(private readonly nonceStore: NonceStore = createNonceStore()) {}
+
+  async getDelBalance(ownerAddress: string): Promise<number> {
+    try {
+      const raw = await getDelBalanceRaw(ownerAddress);
+      const DEL_DECIMALS = 9n;
+      const divisor = 10n ** DEL_DECIMALS;
+      return Number(raw / divisor);
+    } catch (error) {
+      throw new BusinessRuleError('SUI_GET_BALANCE_FAILED', 'Failed to fetch DEL balance', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
 
   // ============ Shop Purchase Methods ============
 
@@ -270,8 +284,10 @@ export class SuiService {
     // 스폰서 로드
     const sponsor = getSponsorKeypair();
 
-    // txBytes 버퍼화 및 해시 계산
-    const txBytes = Buffer.from(txBytesBase64, 'base64');
+    // txBytes 복원 및 해시 계산
+    // NOTE: Sui SDK expects transactionBlock as Uint8Array (not a Node Buffer JSON-ish shape).
+    const txBytesBuffer = Buffer.from(txBytesBase64, 'base64');
+    const txBytes = new Uint8Array(txBytesBuffer);
     const txBytesHash = createHash('sha256').update(txBytes).digest('hex');
 
     // txBytes 검증
