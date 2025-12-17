@@ -35,6 +35,22 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
+# local debug/dump artifacts (do not track)
+/build_check.txt
+/create_db.txt
+/delete_db.txt
+/drop_result.txt
+/d1_list.json
+/data.json
+/data_nft.json
+/db_*.json
+/db_*.txt
+/local_*.json
+/*_log.txt
+/*_result*.txt
+/server.log
+/error.log
+
 # env files (can opt-in for committing if needed)
 .env*
 .dev.vars
@@ -54,7 +70,11 @@ next-env.d.ts
 
 # local sqlite db files (fallback)
 delta.db
+delta.db-shm
+delta.db-wal
 *.db
+*.db-shm
+*.db-wal
 *.sqlite
 *.sqlite3
 *.db-journal
