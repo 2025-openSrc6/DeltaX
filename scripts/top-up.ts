@@ -1,19 +1,12 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import Database from 'better-sqlite3';
 
 const db = new Database('delta.db');
 
 try {
-<<<<<<< HEAD
   const stmt = db.prepare("UPDATE users SET del_balance = 10000000 WHERE id = 'test-user-id'");
   const info = stmt.run();
   console.log('💰 Top up successful:', info.changes);
-} catch (err) {
+} catch (err: any) {
   console.error('Failed:', err);
-=======
-    const stmt = db.prepare("UPDATE users SET del_balance = 10000000 WHERE id = 'test-user-id'");
-    const info = stmt.run();
-    console.log('💰 Top up successful:', info.changes);
-} catch (err) {
-    console.error('Failed:', err);
->>>>>>> 7e955ef (feat: Implement NFT Shop with UI, API, and Sui integration)
 }

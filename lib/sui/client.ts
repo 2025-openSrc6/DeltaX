@@ -6,15 +6,11 @@ import { decodeSuiPrivateKey } from '@mysten/sui/cryptography';
 const RPC_URL = process.env.SUI_RPC_URL;
 const SPONSOR_KEY = process.env.SUI_SPONSOR_PRIVATE_KEY;
 export const PACKAGE_ID = process.env.NEXT_PUBLIC_SUI_PACKAGE_ID || '0x0';
-<<<<<<< HEAD
 export const SUI_NETWORK = (process.env.NEXT_PUBLIC_SUI_NETWORK || 'testnet') as
   | 'testnet'
   | 'mainnet'
   | 'devnet'
   | 'localnet';
-=======
-export const SUI_NETWORK = (process.env.NEXT_PUBLIC_SUI_NETWORK || 'testnet') as 'testnet' | 'mainnet' | 'devnet' | 'localnet';
->>>>>>> 7e955ef (feat: Implement NFT Shop with UI, API, and Sui integration)
 
 // RPC 클라이언트 (커스텀 URL 또는 기본 URL 사용)
 export const suiClient = new SuiClient({
