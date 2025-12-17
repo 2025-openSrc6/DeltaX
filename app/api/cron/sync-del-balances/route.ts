@@ -118,7 +118,10 @@ export async function POST(request: NextRequest) {
 
             try {
               const onChainBalanceBigInt = await getDelBalance(user.suiAddress);
-              const onChainBalance = Number(onChainBalanceBigInt);
+              // DEL은 decimals 9이므로 1e9로 나눠서 실제 개수로 변환
+              const DEL_DECIMALS = BigInt(9);
+              const divisor = BigInt(10) ** DEL_DECIMALS;
+              const onChainBalance = Number(onChainBalanceBigInt / divisor);
               const dbBalance = user.delBalance;
 
               // 잔액이 다를 때만 업데이트
