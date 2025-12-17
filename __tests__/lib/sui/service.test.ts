@@ -209,7 +209,7 @@ describe('SuiService', () => {
       expect.objectContaining({
         transactionBlock: expect.any(Uint8Array),
         signature: [baseExecuteParams.userSignature, 'sponsor-signature'],
-        requestType: 'WaitForLocalExecution',
+        requestType: 'WaitForEffectsCert',
       }),
     );
     expect(mockGetTransactionBlock).toHaveBeenCalledWith({
@@ -338,7 +338,7 @@ describe('SuiService', () => {
 
       expect(mockGetCoins).toHaveBeenCalledWith({
         owner: address,
-        coinType: '0x0::del::DEL',
+        coinType: '0xtest::del::DEL',
         cursor: undefined,
         limit: 50,
       });

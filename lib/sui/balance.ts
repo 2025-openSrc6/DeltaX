@@ -6,8 +6,9 @@
 
 import { suiClient, PACKAGE_ID } from './client';
 
-// DEL 토큰 coinType (Package ID에서 0x 제거 후 짧은 형태 사용)
-const DEL_COIN_TYPE = `${PACKAGE_ID}::del::DEL`;
+function getDelCoinType(): string {
+  return `${PACKAGE_ID}::del::DEL`;
+}
 
 export interface DelCoinInfo {
   objectId: string;
@@ -29,7 +30,7 @@ export async function getDelBalance(ownerAddress: string): Promise<bigint> {
   do {
     const response = await suiClient.getCoins({
       owner: ownerAddress,
-      coinType: DEL_COIN_TYPE,
+      coinType: getDelCoinType(),
       cursor,
       limit: 50,
     });
@@ -57,7 +58,7 @@ export async function getDelCoins(ownerAddress: string): Promise<DelCoinInfo[]> 
   do {
     const response = await suiClient.getCoins({
       owner: ownerAddress,
-      coinType: DEL_COIN_TYPE,
+      coinType: getDelCoinType(),
       cursor,
       limit: 50,
     });
