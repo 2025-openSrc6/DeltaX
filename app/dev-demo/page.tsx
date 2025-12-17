@@ -119,7 +119,7 @@ export default function DevDemoPage() {
 
   // Round Control
   const [roundId, setRoundId] = useState(''); // Target Round ID
-  const [roundType, setRoundType] = useState<'DEMO_3MIN' | '1MIN' | '6HOUR' | '1DAY'>('DEMO_3MIN');
+  const [roundType] = useState<'DEMO_3MIN' | '1MIN' | '6HOUR' | '1DAY'>('DEMO_3MIN');
   const [roundStatusLog, setRoundStatusLog] = useState<string[]>([]);
   const [roundOptions, setRoundOptions] = useState<
     Array<{
@@ -138,7 +138,7 @@ export default function DevDemoPage() {
   const [betAmount, setBetAmount] = useState(100);
   const [prediction, setPrediction] = useState<'GOLD' | 'BTC'>('GOLD');
   const [userDelCoinId, setUserDelCoinId] = useState('');
-  const [lastBetId, setLastBetId] = useState('');
+  const [, setLastBetId] = useState('');
   const [lastBetTxDigest, setLastBetTxDigest] = useState('');
   const [lastClaimTxDigest, setLastClaimTxDigest] = useState('');
   const [betLog, setBetLog] = useState<string[]>([]);

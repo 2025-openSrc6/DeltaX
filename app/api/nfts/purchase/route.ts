@@ -1,14 +1,13 @@
 import { getDb } from '@/lib/db';
 import { shopItems, users, achievements, pointTransactions } from '@/db/schema';
 import { eq } from 'drizzle-orm';
-import { NextContext } from '@/lib/types';
 import { mintNFT } from '@/lib/sui/nft';
 import { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519';
 import { decodeSuiPrivateKey } from '@mysten/sui/cryptography';
 
 export const runtime = 'nodejs'; // Pinata 업로드 등 Node.js API 사용 필요
 
-export async function POST(request: Request, context: NextContext) {
+export async function POST(request: Request) {
   console.log('🛒 POST /api/nfts/purchase called');
   try {
     const body = await request.json();

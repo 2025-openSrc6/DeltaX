@@ -1,7 +1,6 @@
 import { NextRequest } from 'next/server';
 import { verifyCronAuth } from '@/lib/cron/auth';
 import { cronLogger } from '@/lib/cron/logger';
-import { registry } from '@/lib/registry';
 import { createSuccessResponse, handleApiError } from '@/lib/shared/response';
 import { getDb } from '@/lib/db';
 import { users, pointTransactions } from '@/db/schema';
@@ -40,7 +39,6 @@ export async function POST(request: NextRequest) {
     cronLogger.info('[Job: Sync DEL Balances] Auth success');
 
     const db = getDb();
-    const suiService = registry.suiService;
 
     // 동기화 대상 유저 조회
     const SYNC_WINDOW_MS = 5 * 60 * 1000; // 5분 이내 활동한 유저

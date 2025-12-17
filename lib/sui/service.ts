@@ -53,8 +53,8 @@ export class SuiService {
   async getDelBalance(ownerAddress: string): Promise<number> {
     try {
       const raw = await getDelBalanceRaw(ownerAddress);
-      const DEL_DECIMALS = 9n;
-      const divisor = 10n ** DEL_DECIMALS;
+      const DEL_DECIMALS = BigInt(9);
+      const divisor = BigInt(10) ** DEL_DECIMALS;
       return Number(raw / divisor);
     } catch (error) {
       throw new BusinessRuleError('SUI_GET_BALANCE_FAILED', 'Failed to fetch DEL balance', {

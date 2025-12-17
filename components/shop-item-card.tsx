@@ -63,6 +63,7 @@ export function ShopItemCard({ item, onPurchase, disabled }: ShopItemCardProps) 
           <div className="relative h-20 w-20 overflow-hidden rounded-xl border border-cyan-500/30">
             {item.imageUrl.startsWith('ipfs://') ? (
               // IPFS URL은 일반 img 태그 사용
+              /* eslint-disable-next-line @next/next/no-img-element */
               <img
                 src={item.imageUrl.replace('ipfs://', 'https://ipfs.io/ipfs/')}
                 alt={item.name}

@@ -5,7 +5,7 @@
  */
 
 import { getDb } from '@/lib/db';
-import { shopItems, users } from '@/db/schema';
+import { shopItems } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { SuiService } from '@/lib/sui/service';
 import { getDelBalance, selectDelCoin } from '@/lib/sui/balance';

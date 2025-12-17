@@ -13,10 +13,10 @@ import { getDb } from '@/lib/db';
 import { users, pointTransactions } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { Transaction } from '@mysten/sui/transactions';
-import { suiClient, getSponsorKeypair } from '@/lib/sui/client';
+import { suiClient } from '@/lib/sui/client';
 import { decodeSuiPrivateKey } from '@mysten/sui/cryptography';
 import { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519';
-import { toBase64, fromBase64 } from '@mysten/sui/utils';
+import { toBase64 } from '@mysten/sui/utils';
 
 export const runtime = 'nodejs';
 
