@@ -168,6 +168,36 @@ const SHOP_ITEMS: ShopItem[] = [
     metadata: null,
     createdAt: Date.now(),
   },
+
+  // --- Crystal 구매 (SUI 결제) ---
+  {
+    id: 'crystal_pack_10',
+    category: 'CRYSTAL_SHOP',
+    name: '💎 Crystal 10개',
+    description: '0.1 SUI로 Crystal 10개를 구매합니다.',
+    price: 0.1,
+    currency: 'SUI',
+    imageUrl: 'https://images.unsplash.com/photo-1518640467707-6811f4a6ab73?w=500&auto=format&fit=crop&q=60',
+    available: true,
+    tier: null,
+    requiresNickname: false,
+    metadata: JSON.stringify({ crystalAmount: 10 }),
+    createdAt: Date.now(),
+  },
+  {
+    id: 'crystal_pack_50',
+    category: 'CRYSTAL_SHOP',
+    name: '💎 Crystal 50개',
+    description: '0.5 SUI로 Crystal 50개를 구매합니다. (20% 보너스!)',
+    price: 0.5,
+    currency: 'SUI',
+    imageUrl: 'https://images.unsplash.com/photo-1551817958-d9d86fb29431?w=500&auto=format&fit=crop&q=60',
+    available: true,
+    tier: null,
+    requiresNickname: false,
+    metadata: JSON.stringify({ crystalAmount: 50 }),
+    createdAt: Date.now(),
+  },
 ];
 
 export default function ShopPage() {
@@ -528,6 +558,81 @@ Exp: ${expMs}`;
     }
   };
 
+  // SUI로 Crystal 구매 (2단계 플로우)
+  const handleSuiPurchase = async (item: ShopItem) => {
+    if (!isConnected || !walletAddress) {
+      toast.error('지갑을 먼저 연결해주세요.');
+      return;
+    }
+
+    setPurchasingItemId(item.id);
+
+    try {
+      // Step 1: Prepare (서버에서 SUI 전송 txBytes 생성)
+      const prepareRes = await fetch('/api/shop/crystal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'prepare',
+          userAddress: walletAddress,
+          packageId: item.id,
+        }),
+      });
+      const prepareData = await prepareRes.json();
+
+      if (!prepareData.success) {
+        toast.error(prepareData.message || 'Crystal 구매 준비에 실패했습니다.');
+        return;
+      }
+
+      console.log('✅ Crystal Prepare success:', prepareData.data);
+      toast.info(`${prepareData.data.suiAmount} SUI 전송에 서명해주세요.`);
+
+      // Step 2: 지갑에서 서명
+      const { Transaction } = await import('@mysten/sui/transactions');
+      const txBytes = fromBase64(prepareData.data.txBytes);
+      const transaction = Transaction.from(txBytes);
+
+      const { signature } = await signTransaction({
+        transaction,
+      });
+
+      console.log('✅ User signed for Crystal purchase');
+
+      // Step 3: Execute (서버에서 실행 + DB 업데이트)
+      const executeRes = await fetch('/api/shop/crystal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'execute',
+          userAddress: walletAddress,
+          packageId: item.id,
+          txBytes: prepareData.data.txBytes,
+          userSignature: signature,
+          nonce: prepareData.data.nonce,
+        }),
+      });
+      const executeData = await executeRes.json();
+
+      if (executeData.success) {
+        toast.success(`💎 ${executeData.data.crystalAmount} Crystal 구매 완료!`);
+        setCrystalBalance(executeData.data.newBalance);
+      } else {
+        toast.error(executeData.message || 'Crystal 구매에 실패했습니다.');
+      }
+    } catch (error) {
+      console.error('Crystal purchase error:', error);
+
+      if (error instanceof Error && /user rejected/i.test(error.message)) {
+        toast.error('서명이 취소되었습니다.');
+      } else {
+        toast.error('Crystal 구매 중 오류가 발생했습니다.');
+      }
+    } finally {
+      setPurchasingItemId(null);
+    }
+  };
+
   const handlePurchase = async (item: ShopItem, nickname?: string) => {
     console.log('🛒 handlePurchase called:', item.category, item.name, 'nickname:', nickname);
 
@@ -549,6 +654,12 @@ Exp: ${expMs}`;
     // DEL 토큰 구매 → 온체인 2단계 플로우 사용
     if (item.currency === 'DEL') {
       await handleDelPurchase(item, nickname);
+      return;
+    }
+
+    // SUI 결제 (Crystal 구매) → 별도 API 사용
+    if (item.currency === 'SUI') {
+      await handleSuiPurchase(item);
       return;
     }
 
@@ -633,6 +744,7 @@ Exp: ${expMs}`;
 
   const categories = [
     { id: 'ALL', label: '전체' },
+    { id: 'CRYSTAL_SHOP', label: '💎 Crystal 구매' },
     { id: 'NFT', label: 'NFT' },
     { id: 'NICKNAME', label: '닉네임' },
     { id: 'COLOR', label: '컬러' },
@@ -647,23 +759,31 @@ Exp: ${expMs}`;
   );
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-[#02040a] text-slate-50 px-2 py-3 sm:px-4 sm:py-6">
+    <div className="relative min-h-screen overflow-hidden bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 text-slate-900 px-2 py-3 sm:px-4 sm:py-6">
       {/* Background Gradients */}
       <div className="pointer-events-none absolute inset-0">
-        <div className="absolute -left-40 top-[-10rem] h-72 w-72 rounded-full bg-cyan-500/15 blur-3xl" />
-        <div className="absolute right-0 top-40 h-80 w-80 rounded-full bg-purple-500/15 blur-3xl" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_#020617,_#000)] opacity-70" />
+        <div className="absolute -left-40 top-[-10rem] h-72 w-72 rounded-full bg-cyan-300/30 blur-3xl" />
+        <div className="absolute right-0 top-40 h-80 w-80 rounded-full bg-purple-300/30 blur-3xl" />
+        <div className="absolute bottom-0 left-1/2 -translate-x-1/2 h-96 w-96 rounded-full bg-blue-200/40 blur-3xl" />
       </div>
 
-      <div className="relative mx-auto flex min-h-[calc(100vh-2rem)] max-w-6xl flex-col rounded-[32px] px-3 pb-6 pt-3 shadow-[0_0_80px_rgba(0,0,0,0.85)] lg:px-6">
+      <div className="relative mx-auto flex min-h-[calc(100vh-2rem)] max-w-6xl flex-col rounded-[32px] px-3 pb-6 pt-3 lg:px-6">
         {/* Header */}
-        <header className="mb-6 flex items-center justify-between rounded-[24px] border border-slate-800/80 bg-slate-950/80 px-4 py-3 shadow-lg shadow-black/40 backdrop-blur-md lg:px-5">
+        <header className="mb-6 flex items-center justify-between rounded-[24px] border border-slate-200 bg-white/80 px-4 py-3 shadow-lg shadow-slate-200/50 backdrop-blur-md lg:px-5">
           <div className="flex items-center gap-4">
+<<<<<<< HEAD
             <Link href="/" className="flex items-center justify-center w-10 h-10 rounded-full bg-slate-900/50 hover:bg-slate-800 transition-colors border border-slate-800">
               <ArrowLeft className="h-5 w-5 text-slate-400" />
+=======
+            <Link
+              href="/"
+              className="flex items-center justify-center w-10 h-10 rounded-full bg-slate-100 hover:bg-slate-200 transition-colors border border-slate-200"
+            >
+              <ArrowLeft className="h-5 w-5 text-slate-600" />
+>>>>>>> 66c3a69 (feat: add Crystal purchase with SUI payment)
             </Link>
             <div className="flex items-center gap-3">
-              <div className="relative h-10 w-10 overflow-hidden rounded-xl bg-slate-900 border border-slate-800">
+              <div className="relative h-10 w-10 overflow-hidden rounded-xl bg-white border border-slate-200 shadow">
                 <Image
                   src="/logo.png"
                   alt="DeltaX Logo"
@@ -673,8 +793,15 @@ Exp: ${expMs}`;
                 />
               </div>
               <div>
+<<<<<<< HEAD
                 <h1 className="text-lg font-bold text-slate-100 leading-none">NFT SHOP</h1>
                 <p className="text-[11px] text-slate-500 font-medium mt-1">Digital Assets & Upgrades</p>
+=======
+                <h1 className="text-lg font-bold text-slate-800 leading-none">NFT SHOP</h1>
+                <p className="text-[11px] text-slate-500 font-medium mt-1">
+                  Digital Assets & Upgrades
+                </p>
+>>>>>>> 66c3a69 (feat: add Crystal purchase with SUI payment)
               </div>
             </div>
           </div>
@@ -682,14 +809,27 @@ Exp: ${expMs}`;
           <div className="flex items-center gap-3">
             {isConnected ? (
               <>
-                <div className="hidden sm:flex items-center gap-3 rounded-full bg-slate-900/80 border border-slate-800 px-3 py-1.5">
+                <div className="hidden sm:flex items-center gap-3 rounded-full bg-white/90 border border-slate-200 px-3 py-1.5 shadow-sm">
                   <div className="flex items-center gap-1.5">
+<<<<<<< HEAD
                     <span className="text-xs text-slate-400">DEL:</span>
                     <span className="text-sm font-bold text-cyan-400">{delBalance.toLocaleString()}</span>
                   </div>
                   <div className="flex items-center gap-1.5">
                     <span className="text-xs text-slate-400">💎:</span>
                     <span className="text-sm font-bold text-pink-400">{crystalBalance.toLocaleString()}</span>
+=======
+                    <span className="text-xs text-slate-500">DEL:</span>
+                    <span className="text-sm font-bold text-cyan-600">
+                      {delBalance.toLocaleString()}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs text-slate-500">💎:</span>
+                    <span className="text-sm font-bold text-pink-600">
+                      {crystalBalance.toLocaleString()}
+                    </span>
+>>>>>>> 66c3a69 (feat: add Crystal purchase with SUI payment)
                   </div>
                   <div className="flex items-center gap-1.5" title="부스트 상태">
                     <Rocket className="h-3.5 w-3.5 text-orange-400" />
@@ -707,19 +847,19 @@ Exp: ${expMs}`;
                     <span className="text-sm font-bold text-green-400">{greenMushroomCount}</span>
                   </div>
                 </div>
-                <Card className="flex items-center gap-2 rounded-full border border-emerald-500/40 bg-emerald-950/60 px-3 py-1.5 text-xs shadow-md shadow-emerald-500/25">
+                <Card className="flex items-center gap-2 rounded-full border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs shadow-md shadow-emerald-200/50">
                   <div className="flex items-center gap-1.5">
                     <span className="h-2 w-2 rounded-full bg-emerald-400" />
-                    <span className="font-semibold text-emerald-100">Connected</span>
+                    <span className="font-semibold text-emerald-700">Connected</span>
                   </div>
-                  <span className="max-w-[100px] truncate font-mono text-[11px] text-emerald-200/80 hidden sm:block">
+                  <span className="max-w-[100px] truncate font-mono text-[11px] text-emerald-600 hidden sm:block">
                     {displayName}
                   </span>
                   <Button
                     onClick={handleDisconnect}
                     variant="ghost"
                     size="icon"
-                    className="ml-1 h-6 w-6 rounded-full text-emerald-300 hover:bg-emerald-500/10 hover:text-red-300"
+                    className="ml-1 h-6 w-6 rounded-full text-emerald-600 hover:bg-emerald-100 hover:text-red-500"
                   >
                     <LogOut className="h-3 w-3" />
                   </Button>
@@ -740,21 +880,27 @@ Exp: ${expMs}`;
         {/* Main Content */}
         <div className="flex flex-col gap-6">
           {/* Banner */}
-          <div className="relative overflow-hidden rounded-3xl border border-slate-800/60 bg-slate-950/60 p-6 sm:p-10">
-            <div className="absolute inset-0 bg-gradient-to-r from-cyan-500/10 via-purple-500/10 to-transparent" />
+          <div className="relative overflow-hidden rounded-3xl border border-slate-200 bg-white/70 p-6 sm:p-10 shadow-xl">
+            <div className="absolute inset-0 bg-gradient-to-r from-cyan-100/50 via-purple-100/50 to-transparent" />
             <div className="relative z-10 max-w-2xl">
-              <div className="inline-flex items-center gap-2 rounded-full border border-cyan-500/30 bg-cyan-500/10 px-3 py-1 text-xs font-medium text-cyan-300 mb-4">
+              <div className="inline-flex items-center gap-2 rounded-full border border-cyan-400 bg-cyan-50 px-3 py-1 text-xs font-medium text-cyan-700 mb-4">
                 <ShoppingBag className="h-3 w-3" />
                 New Arrivals
               </div>
-              <h2 className="text-3xl sm:text-4xl font-black text-white mb-4 leading-tight">
+              <h2 className="text-3xl sm:text-4xl font-black text-slate-800 mb-4 leading-tight">
                 Upgrade Your <br />
-                <span className="bg-gradient-to-r from-cyan-400 to-purple-400 bg-clip-text text-transparent">
+                <span className="bg-gradient-to-r from-cyan-600 to-purple-600 bg-clip-text text-transparent">
                   Digital Experience
                 </span>
               </h2>
+<<<<<<< HEAD
               <p className="text-slate-400 max-w-md text-sm sm:text-base leading-relaxed">
                 닉네임 변경권부터 한정판 NFT까지. DEL 토큰으로 다양한 아이템을 구매하고 혜택을 누리세요.
+=======
+              <p className="text-slate-600 max-w-md text-sm sm:text-base leading-relaxed">
+                닉네임 변경권부터 한정판 NFT까지. DEL 토큰으로 다양한 아이템을 구매하고 혜택을
+                누리세요.
+>>>>>>> 66c3a69 (feat: add Crystal purchase with SUI payment)
               </p>
             </div>
           </div>
@@ -763,12 +909,12 @@ Exp: ${expMs}`;
           <div className="flex flex-col gap-6">
             <Tabs value={activeCategory} onValueChange={setActiveCategory} className="w-full">
               <div className="flex items-center justify-between mb-6">
-                <TabsList className="h-10 bg-slate-950/80 border border-slate-800/80 p-1 rounded-xl">
+                <TabsList className="h-10 bg-white/90 border border-slate-200 p-1 rounded-xl shadow-sm">
                   {categories.map((cat) => (
                     <TabsTrigger
                       key={cat.id}
                       value={cat.id}
-                      className="rounded-lg px-4 text-xs font-medium data-[state=active]:bg-slate-800 data-[state=active]:text-slate-100 text-slate-500"
+                      className="rounded-lg px-4 text-xs font-medium data-[state=active]:bg-slate-800 data-[state=active]:text-white text-slate-600"
                     >
                       {cat.label}
                     </TabsTrigger>
