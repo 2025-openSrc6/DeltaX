@@ -118,7 +118,12 @@ export function BetCard({ roundType = 'DEMO_3MIN' }: BetCardProps) {
   const account = useCurrentAccount();
   const { placeBet, loading: betLoading } = usePlaceBet();
   const { claim, loading: claimLoading } = useClaim();
-  const { primaryCoin, totalBalanceFormatted, isLoading: delLoading } = useDelCoins();
+  const {
+    primaryCoin,
+    totalBalanceFormatted,
+    isLoading: delLoading,
+    selectCoinsForBet,
+  } = useDelCoins();
   const { round, canBet, isLoading: roundLoading } = useCurrentRound(roundType);
   const [selectedAsset, setSelectedAsset] = useState<'GOLD' | 'BTC' | null>(null);
   const [amount, setAmount] = useState('');
@@ -319,11 +324,23 @@ export function BetCard({ roundType = 'DEMO_3MIN' }: BetCardProps) {
     setBetResult(null);
     setLastBetTxDigest('');
 
+    // 베팅 금액에 필요한 코인들 자동 선택
+    let selectedCoinIds: string[];
+    try {
+      selectedCoinIds = selectCoinsForBet(parseInt(amount));
+    } catch (err) {
+      setBetResult({
+        success: false,
+        message: err instanceof Error ? err.message : '코인 선택 실패',
+      });
+      return;
+    }
+
     const result = await placeBet({
       roundId: round.id,
       prediction: selectedAsset,
       amount: parseInt(amount),
-      userDelCoinId: primaryCoin.coinObjectId,
+      userDelCoinIds: selectedCoinIds,
     });
 
     if (result.success) {

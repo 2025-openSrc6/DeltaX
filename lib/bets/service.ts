@@ -136,7 +136,7 @@ export class BetService {
     rawInput: unknown,
     userId: string,
   ): Promise<PrepareSuiBetTxResult & { betId: string }> {
-    const { roundId, prediction, amount, userAddress, userDelCoinId } =
+    const { roundId, prediction, amount, userAddress, userDelCoinIds } =
       createBetWithSuiPrepareSchema.parse(rawInput);
 
     // 라운드 단일 조회 (poolId 확보 + 상태/시간 검증은 createBet에서 재사용)
@@ -159,9 +159,13 @@ export class BetService {
       round,
     );
 
+    // DEL → MIST 변환 (1 DEL = 10^9 MIST)
+    const amountMist = BigInt(amount) * BigInt(10 ** 9);
+
     const prepareSuiBetTxResult = await this.suiService.prepareBetTransaction({
       userAddress,
-      userDelCoinId,
+      userDelCoinIds,
+      amount: amountMist,
       poolId,
       prediction: prediction === 'GOLD' ? 1 : 2,
       betId: bet.id,

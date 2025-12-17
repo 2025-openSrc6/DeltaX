@@ -207,7 +207,7 @@ export class SuiService {
   async prepareBetTransaction(
     input: ValidatedPrepareSuiBetTxInput,
   ): Promise<PrepareSuiBetTxResult> {
-    const { userAddress, poolId, prediction, userDelCoinId, betId, userId } = input;
+    const { userAddress, poolId, prediction, userDelCoinIds, amount, betId, userId } = input;
 
     // 스폰서 로드
     let sponsor;
@@ -221,12 +221,13 @@ export class SuiService {
     // 스폰서 주소
     const sponsorAddress = sponsor.toSuiAddress();
 
-    // 트랜잭션 구성
+    // 트랜잭션 구성 (merge + split + place_bet)
     const tx = buildPlaceBetTx({
       userAddress,
       poolId,
       prediction: prediction as BetPrediction,
-      userDelCoinId,
+      userDelCoinIds,
+      amount,
     });
 
     // 가스비 설정

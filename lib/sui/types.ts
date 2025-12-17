@@ -24,7 +24,8 @@ export interface ExecuteSuiClaimTxResult {
 
 export interface ValidatedPrepareSuiBetTxInput {
   userAddress: string;
-  userDelCoinId: string;
+  userDelCoinIds: string[]; // 베팅에 사용할 DEL 코인 ID 배열 (필요시 merge)
+  amount: bigint; // 베팅 금액 (MIST 단위, 1 DEL = 10^9 MIST)
   poolId: string;
   prediction: BetPrediction;
   betId: string;
