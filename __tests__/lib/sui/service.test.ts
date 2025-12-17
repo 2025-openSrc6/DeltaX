@@ -65,7 +65,8 @@ const basePrepareParams = {
   userAddress: '0x1a2b3c4d',
   poolId: '0x5e6f7a8b',
   prediction: 1 as const,
-  userDelCoinId: '0x9c0d1e2f',
+  userDelCoinIds: ['0x9c0d1e2f'],
+  amount: BigInt(100_000_000_000), // 100 DEL in MIST
   betId: '11111111-1111-4111-8111-111111111111',
   userId: '22222222-2222-4222-8222-222222222222',
 };
@@ -144,7 +145,8 @@ describe('SuiService', () => {
       userAddress: basePrepareParams.userAddress,
       poolId: basePrepareParams.poolId,
       prediction: basePrepareParams.prediction,
-      userDelCoinId: basePrepareParams.userDelCoinId,
+      userDelCoinIds: basePrepareParams.userDelCoinIds,
+      amount: basePrepareParams.amount,
     });
     expect(mockDryRunTransactionBlock).toHaveBeenCalledWith({ transactionBlock: TX_BYTES });
     expect(nonceStore.save).toHaveBeenCalledWith(

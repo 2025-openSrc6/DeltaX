@@ -57,7 +57,11 @@ export const createBetWithSuiPrepareSchema = z.object({
     .min(100, 'Minimum bet amount is 100')
     .max(1000000, 'Maximum bet amount is 1,000,000'),
   userAddress: suiIdSchema.describe('User Sui address'),
-  userDelCoinId: suiIdSchema.describe('User-owned DEL Coin object id'),
+  userDelCoinIds: z
+    .array(suiIdSchema)
+    .min(1, 'At least one DEL coin is required')
+    .max(256, 'Maximum 256 coins can be merged')
+    .describe('User-owned DEL Coin object ids for merge+split'),
 });
 
 export const prepareClaimSchema = z.object({

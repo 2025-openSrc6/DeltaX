@@ -8,7 +8,7 @@ interface PlaceBetParams {
   roundId: string;
   prediction: 'GOLD' | 'BTC';
   amount: number;
-  userDelCoinId: string;
+  userDelCoinIds: string[]; // 베팅에 사용할 DEL 코인 ID 배열
 }
 
 interface PlaceBetResult {
@@ -29,17 +29,25 @@ export function usePlaceBet() {
       return { success: false, error: '지갑을 먼저 연결해주세요' };
     }
 
+    if (params.userDelCoinIds.length === 0) {
+      return { success: false, error: 'DEL 토큰이 없습니다' };
+    }
+
     setLoading(true);
     setError(null);
 
     try {
-      // 1. Prepare: 서버에서 txBytes 받기
+      // 1. Prepare: 서버에서 txBytes 받기 (merge + split + place_bet PTB)
       const prepareRes = await fetch('/api/bets', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
-          ...params,
+          roundId: params.roundId,
+          prediction: params.prediction,
+          amount: params.amount,
           userAddress: account.address,
+          userDelCoinIds: params.userDelCoinIds,
         }),
       });
 
