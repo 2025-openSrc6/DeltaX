@@ -25,6 +25,19 @@ import { useToast } from '@/hooks/use-toast';
 import { useAutoCollect } from '@/hooks/useAutoCollect';
 import type { Round } from '@/db/schema/rounds';
 
+const SUISCAN_NETWORK = (process.env.NEXT_PUBLIC_SUI_NETWORK || 'testnet') as
+  | 'testnet'
+  | 'mainnet'
+  | 'devnet';
+
+function getSuiscanObjectUrl(objectId: string) {
+  return `https://suiscan.xyz/${SUISCAN_NETWORK}/object/${objectId}`;
+}
+
+function getSuiscanTxUrl(digest: string) {
+  return `https://suiscan.xyz/${SUISCAN_NETWORK}/tx/${digest}`;
+}
+
 // 차트 데이터 타입 정의
 type HistoricalDataPoint = {
   timestamp: string;
@@ -66,6 +79,8 @@ type ComparisonData = {
   timestamp: string;
 };
 
+// NOTE: 현재 페이지에서 사용되지 않지만, 빠른 실험/복구를 위해 남겨둔다.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function LiveChartSection() {
   const [chartMode, setChartMode] = useState<'price' | 'strength'>('price');
 
@@ -128,7 +143,8 @@ function LiveChartSection() {
 // 메인 트레이드 대시보드 (Basevol 스타일 레이아웃 레퍼런스)
 export default function HomePage() {
   const [isConnected, setIsConnected] = useState(false);
-  const [walletAddress, setWalletAddress] = useState('');
+  // NOTE: 세션 복원/지갑 연결 시 주소를 저장하지만, 현재 UI에서는 표시하지 않는다.
+  const [, setWalletAddress] = useState('');
   const [points, setPoints] = useState(0);
   const [timeframe] = useState<'3M' | '1M' | '6H' | '1D'>('3M');
   const [currentRound, setCurrentRound] = useState<Round | null>(null);
@@ -292,6 +308,14 @@ export default function HomePage() {
       console.error('차트 데이터 로드 실패:', error);
     }
   }, []); // 의존성 배열을 비워서 함수가 재생성되지 않도록 함
+
+  // NOTE: MARKET(comparisonData)와 차트는 loadChartData()를 실제로 호출해야 채워진다.
+  // 기존에는 버튼 클릭 시에만 loadChartData()가 실행되어 "로딩 중..."이 계속 뜰 수 있었다.
+  useEffect(() => {
+    loadChartData();
+    const interval = setInterval(loadChartData, 10_000);
+    return () => clearInterval(interval);
+  }, [loadChartData]);
 
   // 타임프레임 변경 시 라운드 새로 로드
   useEffect(() => {
@@ -671,7 +695,7 @@ Exp: ${expMs}`;
                       refreshInterval={5000}
                       maxDataPoints={50}
                     />
-                    {comparisonData && (
+                    {comparisonData && false && (
                       <div className="mt-6 space-y-4">
                         <div className="rounded-xl bg-gradient-to-r from-purple-500/10 to-pink-500/10 border border-purple-500/40 p-4 shadow-md bg-white/80">
                           <div className="text-center">
@@ -679,7 +703,7 @@ Exp: ${expMs}`;
                               현재 우세 (Current Dominance)
                             </p>
                             <p className="text-2xl font-black text-purple-700 mb-1">
-                              {comparisonData.comparison?.winner || 'PAXG'}
+                              {comparisonData?.comparison?.winner || 'PAXG'}
                             </p>
                             <p className="text-sm text-purple-600/70">영봉 (Bearish candle)</p>
                           </div>
@@ -690,7 +714,7 @@ Exp: ${expMs}`;
                               격차 (Spread)
                             </p>
                             <p className="text-2xl font-black text-cyan-700 mb-1">
-                              {comparisonData.comparison?.spread?.toFixed(2) || '78.63'}
+                              {comparisonData?.comparison?.spread?.toFixed(2) || '78.63'}
                             </p>
                             <p className="text-sm text-cyan-600/70">큰 격차 (Large spread)</p>
                           </div>
@@ -844,7 +868,8 @@ Exp: ${expMs}`;
               <div className="flex flex-col gap-3">
                 <Button
                   onClick={handleOpenBettingModal}
-                  disabled={loadingRound || !currentRound || currentRound.status !== 'BETTING_OPEN'}
+                  // NOTE: 베팅이 마감/정산/종료 상태여도 모달은 열려야 클레임/상태 확인이 가능하다.
+                  disabled={loadingRound || !currentRound}
                   className="w-full justify-between rounded-lg bg-gradient-to-r from-cyan-500 to-purple-600 text-sm font-bold text-white shadow-lg shadow-cyan-500/30 hover:shadow-cyan-500/50 transition-all duration-300 py-6"
                 >
                   🎯 PLACE BET
@@ -926,6 +951,72 @@ Exp: ${expMs}`;
                       : '0'}
                   </span>
                 </div>
+
+                {/* SUISCAN LINKS (Round on-chain references) */}
+                {currentRound &&
+                  (currentRound.suiPoolAddress ||
+                    currentRound.suiSettlementObjectId ||
+                    currentRound.suiCreatePoolTxDigest ||
+                    currentRound.suiLockPoolTxDigest ||
+                    currentRound.suiFinalizeTxDigest) && (
+                    <div className="rounded-lg bg-white/80 border border-cyan-500/20 px-4 py-3 shadow-sm">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-semibold text-cyan-600">SUISCAN</span>
+                        <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs">
+                          {currentRound.suiPoolAddress && (
+                            <a
+                              href={getSuiscanObjectUrl(currentRound.suiPoolAddress)}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-cyan-700 underline hover:text-cyan-800"
+                            >
+                              Pool
+                            </a>
+                          )}
+                          {currentRound.suiSettlementObjectId && (
+                            <a
+                              href={getSuiscanObjectUrl(currentRound.suiSettlementObjectId)}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-cyan-700 underline hover:text-cyan-800"
+                            >
+                              Settlement
+                            </a>
+                          )}
+                          {currentRound.suiCreatePoolTxDigest && (
+                            <a
+                              href={getSuiscanTxUrl(currentRound.suiCreatePoolTxDigest)}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-cyan-700 underline hover:text-cyan-800"
+                            >
+                              CreateTx
+                            </a>
+                          )}
+                          {currentRound.suiLockPoolTxDigest && (
+                            <a
+                              href={getSuiscanTxUrl(currentRound.suiLockPoolTxDigest)}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-cyan-700 underline hover:text-cyan-800"
+                            >
+                              LockTx
+                            </a>
+                          )}
+                          {currentRound.suiFinalizeTxDigest && (
+                            <a
+                              href={getSuiscanTxUrl(currentRound.suiFinalizeTxDigest)}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-cyan-700 underline hover:text-cyan-800"
+                            >
+                              FinalizeTx
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
               </div>
             </Card>
           </section>

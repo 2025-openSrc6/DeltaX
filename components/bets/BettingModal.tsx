@@ -61,7 +61,10 @@ export function BettingButton({
 }: BettingButtonProps) {
   const { round, canBet, isLoading } = useCurrentRound(roundType);
 
-  const isDisabled = isLoading || !round || !canBet;
+  // NOTE:
+  // canBet=false(베팅 마감/정산/베팅 불가)이어도 모달은 열 수 있어야 한다.
+  // - 유저는 베팅 결과/클레임 확인을 위해 다시 들어와야 함.
+  const isDisabled = isLoading || !round;
 
   return (
     <button

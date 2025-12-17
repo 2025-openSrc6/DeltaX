@@ -2,6 +2,10 @@ import { drizzle } from 'drizzle-orm/d1';
 import type { CloudflareEnv } from '@/lib/types';
 import * as schema from '@/db/schema';
 
+type DrizzleLogger = {
+  logQuery: (query: string, params: unknown[]) => void;
+};
+
 /**
  * D1 데이터베이스에 대한 Drizzle ORM 클라이언트를 생성합니다.
  *
@@ -19,14 +23,25 @@ import * as schema from '@/db/schema';
  * }
  * ```
  */
-export function initializeDb(env: CloudflareEnv) {
+export function initializeDb(
+  env: CloudflareEnv,
+  opts?: {
+    /**
+     * - true: Drizzle 기본 쿼리 로깅 활성화
+     * - false: 로깅 비활성화 (고주기 요청용)
+     * - object: 커스텀 로거 (필터/샘플링 등)
+     */
+    logger?: boolean | DrizzleLogger;
+  },
+) {
   if (!env.DB) {
     throw new Error("D1 database binding 'DB' is not available");
   }
 
   return drizzle(env.DB, {
     schema,
-    logger: process.env.NODE_ENV === 'development',
+    // 기본값: 환경변수로 제어 (고주기 API에서만 별도로 false 주입)
+    logger: opts?.logger ?? process.env.DRIZZLE_LOG_QUERIES === 'true',
   });
 }
 
