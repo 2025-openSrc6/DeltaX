@@ -11,10 +11,9 @@ const databaseUrl =
   'file:./.wrangler/state/v3/d1/miniflare-D1DatabaseObject/local.sqlite';
 
 if (!process.env.DATABASE_URL) {
-  // eslint-disable-next-line no-console
   console.warn(
-    '[drizzle] DATABASE_URL is not set; using a default local file URL for drizzle-kit. '
-      + 'If you run commands that require DB access (e.g., studio), set DATABASE_URL to your local D1 sqlite file.',
+    '[drizzle] DATABASE_URL is not set; using a default local file URL for drizzle-kit. ' +
+      'If you run commands that require DB access (e.g., studio), set DATABASE_URL to your local D1 sqlite file.',
   );
 }
 
