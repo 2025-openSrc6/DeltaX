@@ -21,7 +21,39 @@ import {
 } from '@mysten/dapp-kit';
 import { fromBase64 } from '@mysten/sui/utils';
 
-// Static Shop Items (DB 연결 문제 회피용)
+// Crystal Items Definition
+const CRYSTAL_ITEMS: ShopItem[] = [
+  {
+    id: 'crystal_pack_10',
+    category: 'ITEM',
+    name: '💎 Crystal 10개 (SUI 결제)',
+    description: '0.1 SUI를 지불하고 Crystal 10개를 구매합니다.',
+    price: 0.1,
+    currency: 'SUI',
+    imageUrl: '/images/crystal_pack_10.png',
+    available: true,
+    tier: null,
+    requiresNickname: false,
+    metadata: JSON.stringify({ crystalAmount: 10 }),
+    createdAt: Date.now(),
+  },
+  {
+    id: 'crystal_pack_50',
+    category: 'ITEM',
+    name: '💎 Crystal 50개 (SUI 결제)',
+    description: '0.5 SUI를 지불하고 Crystal 50개를 구매합니다. (보너스 포함!)',
+    price: 0.5,
+    currency: 'SUI',
+    imageUrl: '/images/crystal_pack_50.png',
+    available: true,
+    tier: null,
+    requiresNickname: false,
+    metadata: JSON.stringify({ crystalAmount: 50 }),
+    createdAt: Date.now(),
+  },
+];
+
+// Static Shop Items (DB 연결 문제 회피용 Fallback)
 const SHOP_ITEMS: ShopItem[] = [
   // --- 닉네임 & 컬러 ---
   {
@@ -169,35 +201,7 @@ const SHOP_ITEMS: ShopItem[] = [
     createdAt: Date.now(),
   },
 
-  // --- Crystal 구매 (SUI 결제) ---
-  {
-    id: 'crystal_pack_10',
-    category: 'CRYSTAL_SHOP',
-    name: '💎 Crystal 10개',
-    description: '0.1 SUI로 Crystal 10개를 구매합니다.',
-    price: 0.1,
-    currency: 'SUI',
-    imageUrl: 'https://images.unsplash.com/photo-1518640467707-6811f4a6ab73?w=500&auto=format&fit=crop&q=60',
-    available: true,
-    tier: null,
-    requiresNickname: false,
-    metadata: JSON.stringify({ crystalAmount: 10 }),
-    createdAt: Date.now(),
-  },
-  {
-    id: 'crystal_pack_50',
-    category: 'CRYSTAL_SHOP',
-    name: '💎 Crystal 50개',
-    description: '0.5 SUI로 Crystal 50개를 구매합니다. (20% 보너스!)',
-    price: 0.5,
-    currency: 'SUI',
-    imageUrl: 'https://images.unsplash.com/photo-1551817958-d9d86fb29431?w=500&auto=format&fit=crop&q=60',
-    available: true,
-    tier: null,
-    requiresNickname: false,
-    metadata: JSON.stringify({ crystalAmount: 50 }),
-    createdAt: Date.now(),
-  },
+  // --- Crystal Items는 별도 상수(CRYSTAL_ITEMS)로 관리되어 API 결과와 병합됨 ---
 ];
 
 export default function ShopPage() {
@@ -303,7 +307,7 @@ export default function ShopPage() {
     }
   }, []);
 
-  // DB에서 아이템 불러오기
+  // DB에서 아이템 불러오기 + Crystal 아이템 병합
   useEffect(() => {
     const fetchItems = async () => {
       try {
@@ -311,17 +315,41 @@ export default function ShopPage() {
         const res = await fetch('/api/nfts/shop');
         const data = await res.json();
 
-        if (data.success && data.data?.items?.length > 0) {
-          setItems(data.data.items);
-          console.log('✅ Loaded items from DB:', data.data.items.length);
+        if (data.success && data.data?.items) {
+          // DB 아이템 + Crystal 아이템 병합
+          // 중복 방지: Crystal 아이템 ID가 이미 있는지 확인
+          const dbItems = data.data.items as ShopItem[];
+          const mergedItems = [...dbItems];
+
+          CRYSTAL_ITEMS.forEach(crystalItem => {
+            if (!mergedItems.some(i => i.id === crystalItem.id)) {
+              mergedItems.push(crystalItem);
+            }
+          });
+
+          setItems(mergedItems);
+          console.log(`✅ Loaded ${dbItems.length} items from DB + merged Crystal items`);
         } else {
-          setItems(SHOP_ITEMS);
+          // API 실패 시 Fallback + Crystal
+          const fallbackItems = [...SHOP_ITEMS];
+          CRYSTAL_ITEMS.forEach(crystalItem => {
+            if (!fallbackItems.some(i => i.id === crystalItem.id)) {
+              fallbackItems.push(crystalItem);
+            }
+          });
+          setItems(fallbackItems);
           console.log('⚠️ Using fallback static data');
         }
       } catch (error) {
-        console.error('Failed to fetch items:', error);
-        setItems(SHOP_ITEMS);
-        toast.error('상점 데이터를 불러오는데 실패했습니다.');
+        console.error('Failed to load items:', error);
+        // Error 시 Fallback + Crystal
+        const fallbackItems = [...SHOP_ITEMS];
+        CRYSTAL_ITEMS.forEach(crystalItem => {
+          if (!fallbackItems.some(i => i.id === crystalItem.id)) {
+            fallbackItems.push(crystalItem);
+          }
+        });
+        setItems(fallbackItems);
       } finally {
         setLoading(false);
       }
@@ -609,7 +637,6 @@ Exp: ${expMs}`;
           packageId: item.id,
           txBytes: prepareData.data.txBytes,
           userSignature: signature,
-          nonce: prepareData.data.nonce,
         }),
       });
       const executeData = await executeRes.json();
@@ -744,11 +771,11 @@ Exp: ${expMs}`;
 
   const categories = [
     { id: 'ALL', label: '전체' },
-    { id: 'CRYSTAL_SHOP', label: '💎 Crystal 구매' },
     { id: 'NFT', label: 'NFT' },
     { id: 'NICKNAME', label: '닉네임' },
     { id: 'COLOR', label: '컬러' },
     { id: 'BOOST', label: '부스트' },
+    { id: 'ITEM', label: '아이템' },
   ];
 
   // 닉네임이 있으면 닉네임, 없으면 지갑 주소 축약형 표시
@@ -771,16 +798,11 @@ Exp: ${expMs}`;
         {/* Header */}
         <header className="mb-6 flex items-center justify-between rounded-[24px] border border-slate-200 bg-white/80 px-4 py-3 shadow-lg shadow-slate-200/50 backdrop-blur-md lg:px-5">
           <div className="flex items-center gap-4">
-<<<<<<< HEAD
-            <Link href="/" className="flex items-center justify-center w-10 h-10 rounded-full bg-slate-900/50 hover:bg-slate-800 transition-colors border border-slate-800">
-              <ArrowLeft className="h-5 w-5 text-slate-400" />
-=======
             <Link
               href="/"
               className="flex items-center justify-center w-10 h-10 rounded-full bg-slate-100 hover:bg-slate-200 transition-colors border border-slate-200"
             >
               <ArrowLeft className="h-5 w-5 text-slate-600" />
->>>>>>> 66c3a69 (feat: add Crystal purchase with SUI payment)
             </Link>
             <div className="flex items-center gap-3">
               <div className="relative h-10 w-10 overflow-hidden rounded-xl bg-white border border-slate-200 shadow">
@@ -793,15 +815,10 @@ Exp: ${expMs}`;
                 />
               </div>
               <div>
-<<<<<<< HEAD
-                <h1 className="text-lg font-bold text-slate-100 leading-none">NFT SHOP</h1>
-                <p className="text-[11px] text-slate-500 font-medium mt-1">Digital Assets & Upgrades</p>
-=======
                 <h1 className="text-lg font-bold text-slate-800 leading-none">NFT SHOP</h1>
                 <p className="text-[11px] text-slate-500 font-medium mt-1">
                   Digital Assets & Upgrades
                 </p>
->>>>>>> 66c3a69 (feat: add Crystal purchase with SUI payment)
               </div>
             </div>
           </div>
@@ -811,14 +828,6 @@ Exp: ${expMs}`;
               <>
                 <div className="hidden sm:flex items-center gap-3 rounded-full bg-white/90 border border-slate-200 px-3 py-1.5 shadow-sm">
                   <div className="flex items-center gap-1.5">
-<<<<<<< HEAD
-                    <span className="text-xs text-slate-400">DEL:</span>
-                    <span className="text-sm font-bold text-cyan-400">{delBalance.toLocaleString()}</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-xs text-slate-400">💎:</span>
-                    <span className="text-sm font-bold text-pink-400">{crystalBalance.toLocaleString()}</span>
-=======
                     <span className="text-xs text-slate-500">DEL:</span>
                     <span className="text-sm font-bold text-cyan-600">
                       {delBalance.toLocaleString()}
@@ -829,7 +838,6 @@ Exp: ${expMs}`;
                     <span className="text-sm font-bold text-pink-600">
                       {crystalBalance.toLocaleString()}
                     </span>
->>>>>>> 66c3a69 (feat: add Crystal purchase with SUI payment)
                   </div>
                   <div className="flex items-center gap-1.5" title="부스트 상태">
                     <Rocket className="h-3.5 w-3.5 text-orange-400" />
@@ -893,14 +901,9 @@ Exp: ${expMs}`;
                   Digital Experience
                 </span>
               </h2>
-<<<<<<< HEAD
-              <p className="text-slate-400 max-w-md text-sm sm:text-base leading-relaxed">
-                닉네임 변경권부터 한정판 NFT까지. DEL 토큰으로 다양한 아이템을 구매하고 혜택을 누리세요.
-=======
               <p className="text-slate-600 max-w-md text-sm sm:text-base leading-relaxed">
                 닉네임 변경권부터 한정판 NFT까지. DEL 토큰으로 다양한 아이템을 구매하고 혜택을
                 누리세요.
->>>>>>> 66c3a69 (feat: add Crystal purchase with SUI payment)
               </p>
             </div>
           </div>
