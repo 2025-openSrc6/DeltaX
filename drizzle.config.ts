@@ -4,11 +4,17 @@ import type { Config } from 'drizzle-kit';
 loadEnv({ path: '.env' });
 loadEnv({ path: '.env.local' });
 
-const databaseUrl = process.env.DATABASE_URL;
+const databaseUrl =
+  process.env.DATABASE_URL ||
+  // Fallback for local workflows where D1 is managed by wrangler.
+  // drizzle-kit generate does not require a live DB connection, but the config schema expects a URL.
+  'file:./.wrangler/state/v3/d1/miniflare-D1DatabaseObject/local.sqlite';
 
-if (!databaseUrl) {
-  throw new Error(
-    'DATABASE_URL is required for Drizzle config (use wrangler D1 binding or set an explicit file URL).',
+if (!process.env.DATABASE_URL) {
+  // eslint-disable-next-line no-console
+  console.warn(
+    '[drizzle] DATABASE_URL is not set; using a default local file URL for drizzle-kit. '
+      + 'If you run commands that require DB access (e.g., studio), set DATABASE_URL to your local D1 sqlite file.',
   );
 }
 
