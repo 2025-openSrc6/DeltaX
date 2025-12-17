@@ -120,11 +120,12 @@ export function ShopItemCard({ item, onPurchase, disabled }: ShopItemCardProps) 
           size="sm"
           className={`
             h-9 px-4 font-semibold transition-all
-            ${item.currency === 'DEL'
-              ? 'bg-gradient-to-r from-cyan-600 to-purple-600 text-white hover:shadow-lg hover:shadow-cyan-500/50'
-              : item.currency === 'SUI'
-                ? 'bg-gradient-to-r from-blue-600 to-cyan-600 text-white hover:shadow-lg hover:shadow-blue-500/50'
-                : 'bg-gradient-to-r from-pink-600 to-purple-600 text-white hover:shadow-lg hover:shadow-pink-500/50'
+            ${
+              item.currency === 'DEL'
+                ? 'bg-gradient-to-r from-cyan-600 to-purple-600 text-white hover:shadow-lg hover:shadow-cyan-500/50'
+                : item.currency === 'SUI'
+                  ? 'bg-gradient-to-r from-blue-600 to-cyan-600 text-white hover:shadow-lg hover:shadow-blue-500/50'
+                  : 'bg-gradient-to-r from-pink-600 to-purple-600 text-white hover:shadow-lg hover:shadow-pink-500/50'
             }
           `}
         >

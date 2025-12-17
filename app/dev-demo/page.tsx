@@ -663,13 +663,11 @@ export default function DevDemoPage() {
                     className="flex-1 bg-zinc-950 border border-zinc-700 rounded px-3 py-2 text-xs font-mono text-yellow-500 focus:border-yellow-500 focus:outline-none"
                     disabled={isFetchingRounds}
                   >
-                    {roundOptions.length === 0 && (
-                      <option value="">(No rounds)</option>
-                    )}
+                    {roundOptions.length === 0 && <option value="">(No rounds)</option>}
                     {roundOptions.map((r) => (
                       <option key={r.id} value={r.id}>
-                        #{r.roundNumber} · {r.status} · {new Date(r.startTime).toLocaleTimeString()} ·{' '}
-                        {r.id.slice(0, 8)}...
+                        #{r.roundNumber} · {r.status} · {new Date(r.startTime).toLocaleTimeString()}{' '}
+                        · {r.id.slice(0, 8)}...
                       </option>
                     ))}
                   </select>
@@ -682,7 +680,9 @@ export default function DevDemoPage() {
                   </button>
                 </div>
                 {roundFetchError && (
-                  <div className="mt-2 text-xs text-red-400">Rounds fetch error: {roundFetchError}</div>
+                  <div className="mt-2 text-xs text-red-400">
+                    Rounds fetch error: {roundFetchError}
+                  </div>
                 )}
               </div>
               <div>

@@ -214,7 +214,8 @@ async function executeAsSponsor(tx: Transaction): Promise<{
       const message = error instanceof Error ? error.message : String(error);
       const isRateLimit = /429|rate limit/i.test(message);
       const isTimeout = /timeout|timed out|deadline/i.test(message);
-      const isRetryable = isRateLimit || isTimeout || /502|503|504|ECONNRESET|fetch failed/i.test(message);
+      const isRetryable =
+        isRateLimit || isTimeout || /502|503|504|ECONNRESET|fetch failed/i.test(message);
       if (attempt < maxAttempts && isRetryable) {
         await sleep(300 * attempt);
         continue;
