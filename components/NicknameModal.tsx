@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Check, X, Loader2, AlertCircle } from 'lucide-react';
@@ -17,7 +17,7 @@ export function NicknameModal({ isOpen, onClose, onConfirm, currentNickname }: N
   const [checking, setChecking] = useState(false);
   const [isAvailable, setIsAvailable] = useState<boolean | null>(null);
   const [errorMessage, setErrorMessage] = useState('');
-  const [debounceTimer, setDebounceTimer] = useState<NodeJS.Timeout | null>(null);
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // 모달이 열릴 때 초기화
   useEffect(() => {
@@ -30,9 +30,7 @@ export function NicknameModal({ isOpen, onClose, onConfirm, currentNickname }: N
 
   // 닉네임 변경 시 중복 검사 (디바운스)
   useEffect(() => {
-    if (debounceTimer) {
-      clearTimeout(debounceTimer);
-    }
+    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
 
     if (nickname.length < 2) {
       setIsAvailable(null);
@@ -78,7 +76,7 @@ export function NicknameModal({ isOpen, onClose, onConfirm, currentNickname }: N
       }
     }, 500);
 
-    setDebounceTimer(timer);
+    debounceTimerRef.current = timer;
 
     return () => {
       if (timer) clearTimeout(timer);
