@@ -198,22 +198,34 @@ async function executeAsSponsor(tx: Transaction): Promise<{
   }
 
   // execute
+  // NOTE: WaitForLocalExecution는 timeout이 잦아서 WaitForEffectsCert + 재시도로 안정성을 높인다.
   let executed;
-  try {
-    const sponsorSigned = await sponsor.signTransaction(txBytes);
-    executed = await suiClient.executeTransactionBlock({
-      transactionBlock: txBytes,
-      signature: [sponsorSigned.signature],
-      requestType: 'WaitForLocalExecution',
-    });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    const isRateLimit = /429|rate limit/i.test(message);
-    const isTimeout = /timeout|timed out|deadline/i.test(message);
-    throw new BusinessRuleError('SUI_EXECUTE_FAILED', 'Sui execute failed', {
-      error: message,
-      category: isRateLimit ? 'rate_limit' : isTimeout ? 'timeout' : 'rpc',
-    });
+  const sponsorSigned = await sponsor.signTransaction(txBytes);
+  const maxAttempts = 3;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      executed = await suiClient.executeTransactionBlock({
+        transactionBlock: txBytes,
+        signature: [sponsorSigned.signature],
+        requestType: 'WaitForEffectsCert',
+      });
+      break;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const isRateLimit = /429|rate limit/i.test(message);
+      const isTimeout = /timeout|timed out|deadline/i.test(message);
+      const isRetryable = isRateLimit || isTimeout || /502|503|504|ECONNRESET|fetch failed/i.test(message);
+      if (attempt < maxAttempts && isRetryable) {
+        await sleep(300 * attempt);
+        continue;
+      }
+      throw new BusinessRuleError('SUI_EXECUTE_FAILED', 'Sui execute failed', {
+        error: message,
+        category: isRateLimit ? 'rate_limit' : isTimeout ? 'timeout' : 'rpc',
+        attempt,
+        requestType: 'WaitForEffectsCert',
+      });
+    }
   }
 
   if (!executed?.digest) {

@@ -50,6 +50,12 @@ export class UserService {
       try {
         const mintResult = await mintDel(user.suiAddress, bonusAmount);
         txDigest = mintResult.txDigest;
+        console.log('[UserService] Minted DEL on-chain successfully', {
+          userId,
+          suiAddress: user.suiAddress,
+          amount: bonusAmount,
+          txDigest,
+        });
       } catch (error) {
         // 온체인 mint 실패 시 에러 로깅하고 DB 업데이트하지 않음
         console.error('[UserService] Failed to mint DEL on-chain:', error);
