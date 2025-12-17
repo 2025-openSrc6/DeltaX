@@ -194,7 +194,10 @@ export class UserService {
 
           // 2-5. 잔액 동기화 (온체인 잔액으로 DB 업데이트)
           try {
-            const onChainBalance = Number(await getDelBalance(user.suiAddress));
+            const rawBalance = await getDelBalance(user.suiAddress);
+            const DEL_DECIMALS = BigInt(9);
+            const divisor = BigInt(10) ** DEL_DECIMALS;
+            const onChainBalance = Number(rawBalance / divisor);
             await this.userRepository.updateBalance(user.id, onChainBalance);
             cronLogger.info('[RoundAttendanceReward] Balance synced', {
               userId: user.id,
