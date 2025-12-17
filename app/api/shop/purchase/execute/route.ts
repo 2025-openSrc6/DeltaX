@@ -64,7 +64,7 @@ export async function POST(request: Request) {
     }
 
     // 유저 조회 (생성 or 조회)
-    let user = await db.select().from(users).where(eq(users.suiAddress, userAddress)).limit(1);
+    const user = await db.select().from(users).where(eq(users.suiAddress, userAddress)).limit(1);
 
     if (!user[0]) {
       // 유저 자동 생성
