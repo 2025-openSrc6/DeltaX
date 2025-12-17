@@ -6,6 +6,7 @@ import { createSuccessResponse, handleApiError } from '@/lib/shared/response';
 import { getDb } from '@/lib/db';
 import { users, pointTransactions } from '@/db/schema';
 import { eq, gt, inArray } from 'drizzle-orm';
+import { getDelBalance } from '@/lib/sui/balance';
 
 /**
  * POST /api/cron/sync-del-balances
@@ -118,7 +119,8 @@ export async function POST(request: NextRequest) {
             }
 
             try {
-              const onChainBalance = await suiService.getDelBalance(user.suiAddress);
+              const onChainBalanceBigInt = await getDelBalance(user.suiAddress);
+              const onChainBalance = Number(onChainBalanceBigInt);
               const dbBalance = user.delBalance;
 
               // 잔액이 다를 때만 업데이트

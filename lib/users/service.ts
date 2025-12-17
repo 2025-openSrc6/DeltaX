@@ -2,6 +2,7 @@ import { UserRepository } from './repository';
 import type { User } from '@/db/schema/users';
 import { registry } from '@/lib/registry';
 import { mintDel } from '@/lib/sui/admin';
+import { getDelBalance } from '@/lib/sui/balance';
 
 export class UserService {
   constructor(private userRepository: UserRepository) {}
@@ -187,8 +188,7 @@ export class UserService {
 
           // 2-5. 잔액 동기화 (온체인 잔액으로 DB 업데이트)
           try {
-            const { registry } = await import('@/lib/registry');
-            const onChainBalance = await registry.suiService.getDelBalance(user.suiAddress);
+            const onChainBalance = Number(await getDelBalance(user.suiAddress));
             await this.userRepository.updateBalance(user.id, onChainBalance);
             cronLogger.info('[RoundAttendanceReward] Balance synced', {
               userId: user.id,
