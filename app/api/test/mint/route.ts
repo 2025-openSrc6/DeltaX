@@ -22,10 +22,10 @@ export async function POST(request: NextRequest) {
       return createErrorResponse(400, 'INVALID_INPUT', 'address is required');
     }
 
-    // 기본값 100, 최대 1000
+    // 기본값 100, 최대 1_000_000
     const mintAmount = typeof amount === 'number' ? amount : 100;
-    if (mintAmount > 10000) {
-      return createErrorResponse(400, 'INVALID_INPUT', 'Max mint amount is 10000');
+    if (mintAmount > 1_000_000) {
+      return createErrorResponse(400, 'INVALID_INPUT', 'Max mint amount is 1_000_000');
     }
 
     const result = await mintDel(address, mintAmount);
