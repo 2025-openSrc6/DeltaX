@@ -14,6 +14,11 @@ import type { CoinStruct } from '@mysten/sui/client';
 
 // 1 DEL = 10^9 MIST
 const MIST_PER_DEL = 1_000_000_000;
+const SUISCAN_NETWORK = 'testnet';
+
+function getSuiscanTxUrl(digest: string) {
+  return `https://suiscan.xyz/${SUISCAN_NETWORK}/tx/${digest}`;
+}
 
 export default function DevDemoPage() {
   const { currentWallet, isConnected } = useCurrentWallet();
@@ -116,12 +121,26 @@ export default function DevDemoPage() {
   const [roundId, setRoundId] = useState(''); // Target Round ID
   const [roundType, setRoundType] = useState<'DEMO_3MIN' | '1MIN' | '6HOUR' | '1DAY'>('DEMO_3MIN');
   const [roundStatusLog, setRoundStatusLog] = useState<string[]>([]);
+  const [roundOptions, setRoundOptions] = useState<
+    Array<{
+      id: string;
+      roundNumber: number;
+      status: string;
+      startTime: number;
+      lockTime: number;
+      endTime: number;
+    }>
+  >([]);
+  const [isFetchingRounds, setIsFetchingRounds] = useState(false);
+  const [roundFetchError, setRoundFetchError] = useState<string>('');
 
   // Bet Control
   const [betAmount, setBetAmount] = useState(100);
   const [prediction, setPrediction] = useState<'GOLD' | 'BTC'>('GOLD');
   const [userDelCoinId, setUserDelCoinId] = useState('');
   const [lastBetId, setLastBetId] = useState('');
+  const [lastBetTxDigest, setLastBetTxDigest] = useState('');
+  const [lastClaimTxDigest, setLastClaimTxDigest] = useState('');
   const [betLog, setBetLog] = useState<string[]>([]);
 
   // Claim Control
@@ -161,6 +180,54 @@ export default function DevDemoPage() {
   };
 
   // ----- Actions: Round Lifecycle -----
+  const fetchRounds = async () => {
+    setIsFetchingRounds(true);
+    setRoundFetchError('');
+    try {
+      const params = new URLSearchParams({
+        type: roundType,
+        page: '1',
+        pageSize: '20',
+        sort: 'start_time',
+        order: 'desc',
+      });
+      const res = await fetch(`/api/rounds?${params.toString()}`);
+      const json = await res.json();
+      if (!res.ok || !json?.success) {
+        throw new Error(json?.error?.message || 'Failed to fetch rounds');
+      }
+      const rounds = (json?.data?.rounds ?? []) as Array<{
+        id: string;
+        roundNumber: number;
+        status: string;
+        startTime: number;
+        lockTime: number;
+        endTime: number;
+      }>;
+      setRoundOptions(rounds);
+
+      // Auto-select latest round if empty or no longer in list
+      if (rounds.length > 0) {
+        const latestId = rounds[0].id;
+        const isCurrentValid = !!roundId && rounds.some((r) => r.id === roundId);
+        if (!isCurrentValid) {
+          setRoundId(latestId);
+          logRound(`Auto-selected latest roundId: ${latestId}`);
+        }
+      }
+    } catch (e) {
+      setRoundFetchError((e as Error).message);
+    } finally {
+      setIsFetchingRounds(false);
+    }
+  };
+
+  // Fetch rounds on mount + when type changes
+  useEffect(() => {
+    fetchRounds();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roundType]);
+
   const callCron = async (action: 'create' | 'open' | 'lock' | 'finalize') => {
     logRound(`Starting ${action}...`);
     try {
@@ -202,6 +269,9 @@ export default function DevDemoPage() {
         setRoundId(data.data.round.id);
         logRound(`Configured Round ID: ${data.data.round.id}`);
       }
+
+      // Refresh rounds dropdown after successful action
+      fetchRounds();
     } catch (e) {
       logRound(`Failed ${action}: ` + (e as Error).message);
     }
@@ -339,7 +409,9 @@ export default function DevDemoPage() {
       const execData = await execRes.json();
       if (!execRes.ok) throw new Error(execData.error?.message);
 
-      logBet(`Executed! Digest: ${execData.data.digest}`);
+      const digest = execData.data.digest as string;
+      setLastBetTxDigest(digest);
+      logBet(`Executed! Digest: ${digest}`);
     } catch (e) {
       logBet('Error: ' + (e as Error).message);
     }
@@ -403,8 +475,10 @@ export default function DevDemoPage() {
       const execData = await execRes.json();
       if (!execRes.ok) throw new Error(execData.error?.message);
 
+      const digest = execData.data.digest as string;
+      setLastClaimTxDigest(digest);
       logClaim(
-        `Claimed! Payout: ${execData.data.payoutAmount / MIST_PER_DEL} DEL, Digest: ${execData.data.digest}`,
+        `Claimed! Payout: ${execData.data.payoutAmount / MIST_PER_DEL} DEL, Digest: ${digest}`,
       );
       fetchMyBets(); // Refresh list
     } catch (e) {
@@ -580,15 +654,36 @@ export default function DevDemoPage() {
             <div className="space-y-4">
               <div>
                 <label className="text-xs text-zinc-500 uppercase block mb-1">
-                  Target Round ID
+                  Target Round ID (Latest auto-selected)
                 </label>
-                <input
-                  type="text"
-                  value={roundId}
-                  onChange={(e) => setRoundId(e.target.value)}
-                  className="w-full bg-zinc-950 border border-zinc-700 rounded px-3 py-2 text-xs font-mono text-yellow-500 focus:border-yellow-500 focus:outline-none"
-                  placeholder="UUID..."
-                />
+                <div className="flex gap-2">
+                  <select
+                    value={roundId}
+                    onChange={(e) => setRoundId(e.target.value)}
+                    className="flex-1 bg-zinc-950 border border-zinc-700 rounded px-3 py-2 text-xs font-mono text-yellow-500 focus:border-yellow-500 focus:outline-none"
+                    disabled={isFetchingRounds}
+                  >
+                    {roundOptions.length === 0 && (
+                      <option value="">(No rounds)</option>
+                    )}
+                    {roundOptions.map((r) => (
+                      <option key={r.id} value={r.id}>
+                        #{r.roundNumber} · {r.status} · {new Date(r.startTime).toLocaleTimeString()} ·{' '}
+                        {r.id.slice(0, 8)}...
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    onClick={fetchRounds}
+                    disabled={isFetchingRounds}
+                    className="px-3 py-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded text-xs border border-zinc-700 disabled:opacity-50"
+                  >
+                    {isFetchingRounds ? '⏳' : '🔄'}
+                  </button>
+                </div>
+                {roundFetchError && (
+                  <div className="mt-2 text-xs text-red-400">Rounds fetch error: {roundFetchError}</div>
+                )}
               </div>
               <div>
                 <label className="text-xs text-zinc-500 uppercase flex justify-between mb-1">
@@ -657,6 +752,18 @@ export default function DevDemoPage() {
               >
                 Execute Bet Transaction
               </button>
+
+              {/* Latest Bet Tx -> SuiScan */}
+              {lastBetTxDigest && (
+                <a
+                  href={getSuiscanTxUrl(lastBetTxDigest)}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="block text-xs text-cyan-300 hover:text-cyan-200 underline break-all"
+                >
+                  🔎 Open Bet Tx in SuiScan: {lastBetTxDigest}
+                </a>
+              )}
             </div>
           </div>
 
@@ -695,13 +802,14 @@ export default function DevDemoPage() {
                     <th className="p-2">Amount</th>
                     <th className="p-2">Status</th>
                     <th className="p-2">Result</th>
+                    <th className="p-2">Tx</th>
                     <th className="p-2">Action</th>
                   </tr>
                 </thead>
                 <tbody>
                   {myBets.length === 0 && (
                     <tr>
-                      <td colSpan={5} className="p-4 text-center text-zinc-600">
+                      <td colSpan={6} className="p-4 text-center text-zinc-600">
                         No bets found
                       </td>
                     </tr>
@@ -714,6 +822,21 @@ export default function DevDemoPage() {
                       <td className="p-2">{bet.amount / MIST_PER_DEL} DEL</td>
                       <td className="p-2">{bet.chainStatus}</td>
                       <td className="p-2">{bet.resultStatus}</td>
+                      <td className="p-2">
+                        {bet.suiTxHash ? (
+                          <a
+                            href={getSuiscanTxUrl(bet.suiTxHash)}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-cyan-300 hover:text-cyan-200 underline"
+                            title={bet.suiTxHash}
+                          >
+                            View
+                          </a>
+                        ) : (
+                          <span className="text-zinc-600">-</span>
+                        )}
+                      </td>
                       <td className="p-2">
                         <button
                           onClick={() => setClaimBetId(bet.id)}
@@ -748,6 +871,18 @@ export default function DevDemoPage() {
               Claim Payout
             </button>
           </div>
+
+          {/* Latest Claim Tx -> SuiScan */}
+          {lastClaimTxDigest && (
+            <a
+              href={getSuiscanTxUrl(lastClaimTxDigest)}
+              target="_blank"
+              rel="noreferrer"
+              className="block mb-3 text-xs text-green-300 hover:text-green-200 underline break-all"
+            >
+              🔎 Open Claim Tx in SuiScan: {lastClaimTxDigest}
+            </a>
+          )}
           <div className="bg-black border border-zinc-800 rounded p-3 h-32 overflow-y-auto font-mono text-xs text-zinc-300 shadow-inner">
             {claimLog.length === 0 && (
               <span className="text-zinc-700 select-none">Waiting for claims...</span>

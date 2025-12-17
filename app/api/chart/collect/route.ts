@@ -1,4 +1,4 @@
-import { getDb } from '@/lib/db';
+import { getDbQuiet } from '@/lib/db';
 import { chartData } from '@/db/schema';
 import { fetchTickPrice, type SupportedAsset } from '@/lib/services/binance';
 import { NextRequest, NextResponse } from 'next/server';
@@ -9,7 +9,8 @@ const TARGET_ASSETS: SupportedAsset[] = ['PAXG', 'BTC'];
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 export async function POST(request: NextRequest) {
   try {
-    const db = getDb();
+    // 5초 폴링처럼 고주기 호출이므로 DB 쿼리 로깅을 끈 클라이언트를 사용합니다.
+    const db = getDbQuiet();
     const results: Record<string, { chartData: string }> = {};
 
     for (const asset of TARGET_ASSETS) {
@@ -82,7 +83,7 @@ export async function POST(request: NextRequest) {
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 export async function GET(request: NextRequest) {
   try {
-    const db = getDb();
+    const db = getDbQuiet();
 
     const latestData = await Promise.all(
       TARGET_ASSETS.map(async (asset) => {

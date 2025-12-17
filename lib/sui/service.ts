@@ -46,11 +46,6 @@ export interface ExecuteShopPurchaseResult {
   digest: string;
 }
 
-// Platform wallet address (receives DEL from shop purchases)
-const PLATFORM_ADDRESS =
-  process.env.SUI_ADMIN_ADDRESS ||
-  '0xb092f93ec3605a42c99d421ccbec14a33db7eaf0ba7296c570934122f22dfd8b';
-
 export class SuiService {
   constructor(private readonly nonceStore: NonceStore = createNonceStore()) {}
 
@@ -151,19 +146,36 @@ export class SuiService {
     }
 
     // 스폰서 서명 및 실행
+    // NOTE: WaitForLocalExecution는 RPC/노드 상태에 따라 timeout이 잦아서,
+    // WaitForEffectsCert + 재시도로 안정성을 높인다.
     let executed;
-    try {
-      const sponsorSigned = await sponsor.signTransaction(txBytes);
-      executed = await suiClient.executeTransactionBlock({
-        transactionBlock: txBytes,
-        signature: [userSignature, sponsorSigned.signature],
-        requestType: 'WaitForLocalExecution',
-      });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      throw new BusinessRuleError('SUI_EXECUTE_FAILED', 'Sui execute failed', {
-        error: message,
-      });
+    const sponsorSigned = await sponsor.signTransaction(txBytes);
+    const maxAttempts = 3;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        executed = await suiClient.executeTransactionBlock({
+          transactionBlock: txBytes,
+          signature: [userSignature, sponsorSigned.signature],
+          requestType: 'WaitForEffectsCert',
+        });
+        break;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        const isRateLimit = /429|rate limit/i.test(message);
+        const isTimeout = /timeout|timed out|deadline/i.test(message);
+        const isRetryable =
+          isRateLimit || isTimeout || /502|503|504|ECONNRESET|fetch failed/i.test(message);
+        if (attempt < maxAttempts && isRetryable) {
+          await sleep(300 * attempt);
+          continue;
+        }
+        throw new BusinessRuleError('SUI_EXECUTE_FAILED', 'Sui execute failed', {
+          error: message,
+          category: isRateLimit ? 'rate_limit' : isTimeout ? 'timeout' : 'rpc',
+          attempt,
+          requestType: 'WaitForEffectsCert',
+        });
+      }
     }
 
     if (!executed?.digest) {
@@ -285,27 +297,36 @@ export class SuiService {
     }
 
     // 스폰서 서명 및 실행
+    // NOTE: WaitForLocalExecution는 RPC/노드 상태에 따라 timeout이 잦아서,
+    // WaitForEffectsCert + 재시도로 안정성을 높인다.
     let executed;
-    try {
-      // 스폰서 서명
-      const sponsorSigned = await sponsor.signTransaction(txBytes);
-      // 체인 실행
-      executed = await suiClient.executeTransactionBlock({
-        transactionBlock: txBytes,
-        signature: [userSignature, sponsorSigned.signature],
-        requestType: 'WaitForLocalExecution',
-      });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      // 비율 제한 검증
-      const isRateLimit = /429|rate limit/i.test(message);
-      // 타임아웃 검증
-      const isTimeout = /timeout|timed out|deadline/i.test(message);
-      // 에러 반환
-      throw new BusinessRuleError('SUI_EXECUTE_FAILED', 'Sui execute failed', {
-        error: message,
-        category: isRateLimit ? 'rate_limit' : isTimeout ? 'timeout' : 'rpc',
-      });
+    const sponsorSigned = await sponsor.signTransaction(txBytes);
+    const maxAttempts = 3;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        executed = await suiClient.executeTransactionBlock({
+          transactionBlock: txBytes,
+          signature: [userSignature, sponsorSigned.signature],
+          requestType: 'WaitForEffectsCert',
+        });
+        break;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        const isRateLimit = /429|rate limit/i.test(message);
+        const isTimeout = /timeout|timed out|deadline/i.test(message);
+        const isRetryable =
+          isRateLimit || isTimeout || /502|503|504|ECONNRESET|fetch failed/i.test(message);
+        if (attempt < maxAttempts && isRetryable) {
+          await sleep(300 * attempt);
+          continue;
+        }
+        throw new BusinessRuleError('SUI_EXECUTE_FAILED', 'Sui execute failed', {
+          error: message,
+          category: isRateLimit ? 'rate_limit' : isTimeout ? 'timeout' : 'rpc',
+          attempt,
+          requestType: 'WaitForEffectsCert',
+        });
+      }
     }
 
     // digest 검증
@@ -421,22 +442,36 @@ export class SuiService {
       throw new BusinessRuleError('USER_MISMATCH', 'Prepared user does not match execution userId');
     }
 
+    // NOTE: WaitForLocalExecution는 RPC/노드 상태에 따라 timeout이 잦아서,
+    // WaitForEffectsCert + 재시도로 안정성을 높인다.
     let executed;
-    try {
-      const sponsorSigned = await sponsor.signTransaction(txBytes);
-      executed = await suiClient.executeTransactionBlock({
-        transactionBlock: txBytes,
-        signature: [userSignature, sponsorSigned.signature],
-        requestType: 'WaitForLocalExecution',
-      });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      const isRateLimit = /429|rate limit/i.test(message);
-      const isTimeout = /timeout|timed out|deadline/i.test(message);
-      throw new BusinessRuleError('SUI_EXECUTE_FAILED', 'Sui execute failed', {
-        error: message,
-        category: isRateLimit ? 'rate_limit' : isTimeout ? 'timeout' : 'rpc',
-      });
+    const sponsorSigned = await sponsor.signTransaction(txBytes);
+    const maxAttempts = 3;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        executed = await suiClient.executeTransactionBlock({
+          transactionBlock: txBytes,
+          signature: [userSignature, sponsorSigned.signature],
+          requestType: 'WaitForEffectsCert',
+        });
+        break;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        const isRateLimit = /429|rate limit/i.test(message);
+        const isTimeout = /timeout|timed out|deadline/i.test(message);
+        const isRetryable =
+          isRateLimit || isTimeout || /502|503|504|ECONNRESET|fetch failed/i.test(message);
+        if (attempt < maxAttempts && isRetryable) {
+          await sleep(300 * attempt);
+          continue;
+        }
+        throw new BusinessRuleError('SUI_EXECUTE_FAILED', 'Sui execute failed', {
+          error: message,
+          category: isRateLimit ? 'rate_limit' : isTimeout ? 'timeout' : 'rpc',
+          attempt,
+          requestType: 'WaitForEffectsCert',
+        });
+      }
     }
 
     if (!executed?.digest) {

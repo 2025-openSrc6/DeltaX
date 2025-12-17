@@ -15,6 +15,15 @@ interface BetCardProps {
   roundType?: RoundType;
 }
 
+const SUISCAN_NETWORK = (process.env.NEXT_PUBLIC_SUI_NETWORK || 'testnet') as
+  | 'testnet'
+  | 'mainnet'
+  | 'devnet';
+
+function getSuiscanTxUrl(digest: string) {
+  return `https://suiscan.xyz/${SUISCAN_NETWORK}/tx/${digest}`;
+}
+
 // 차트 데이터 타입
 interface ChartDataPoint {
   timestamp: Date;
@@ -114,18 +123,25 @@ export function BetCard({ roundType = 'DEMO_3MIN' }: BetCardProps) {
   const [selectedAsset, setSelectedAsset] = useState<'GOLD' | 'BTC' | null>(null);
   const [amount, setAmount] = useState('');
   const [betResult, setBetResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [lastBetTxDigest, setLastBetTxDigest] = useState<string>('');
   const [myBets, setMyBets] = useState<
     Array<{
       id: string;
       prediction: string;
       amount: number;
       resultStatus: string | null;
+      chainStatus?: string | null;
+      payoutAmount?: number | null;
+      suiTxHash?: string | null;
+      suiPayoutTxHash?: string | null;
+      // UI derived: DB에는 claimed 컬럼이 없고, payout tx가 있으면 "클레임 완료"로 간주
       claimed: boolean;
     }>
   >([]);
   const [claimResult, setClaimResult] = useState<{ success: boolean; message: string } | null>(
     null,
   );
+  const [lastClaimTxDigest, setLastClaimTxDigest] = useState<string>('');
 
   const isMounted = useHasMounted();
 
@@ -140,8 +156,21 @@ export function BetCard({ roundType = 'DEMO_3MIN' }: BetCardProps) {
         });
         const data = await res.json();
         if (data.success && data.data) {
-          setMyBets(data.data);
-          console.log('My bets for round', round.id, ':', data.data);
+          const rows = Array.isArray(data.data) ? data.data : [];
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const mapped = rows.map((b: any) => ({
+            id: String(b.id),
+            prediction: String(b.prediction),
+            amount: Number(b.amount),
+            resultStatus: (b.resultStatus ?? null) as string | null,
+            chainStatus: (b.chainStatus ?? null) as string | null,
+            payoutAmount: typeof b.payoutAmount === 'number' ? b.payoutAmount : null,
+            suiTxHash: (b.suiTxHash ?? null) as string | null,
+            suiPayoutTxHash: (b.suiPayoutTxHash ?? null) as string | null,
+            claimed: !!b.suiPayoutTxHash,
+          }));
+          setMyBets(mapped);
+          console.log('My bets for round', round.id, ':', mapped);
         }
       } catch (err) {
         console.error('Failed to fetch my bets:', err);
@@ -172,15 +201,35 @@ export function BetCard({ roundType = 'DEMO_3MIN' }: BetCardProps) {
     return false;
   });
 
+  // 이미 클레임된 승리/환불 베팅(=DB에 suiPayoutTxHash 존재)
+  const claimedWinningBets = myBets.filter((bet) => {
+    if (!bet.claimed) return false;
+    const status = round?.status as string;
+    if (status === 'VOIDED') return true;
+    if (status === 'SETTLED' && round?.winner) {
+      return bet.prediction === round.winner;
+    }
+    return false;
+  });
+
   const handleClaim = async (betId: string) => {
     setClaimResult(null);
+    setLastClaimTxDigest('');
     const result = await claim({ betId });
     if (result.success) {
       setClaimResult({ success: true, message: '클레임 성공!' });
+      if (result.digest) setLastClaimTxDigest(result.digest);
       // 베팅 목록 새로고침
       setMyBets((prev) => prev.map((b) => (b.id === betId ? { ...b, claimed: true } : b)));
     } else {
-      setClaimResult({ success: false, message: result.error || '클레임 실패' });
+      // 이미 클레임된 경우: DB에 있는 payout tx hash로 SuiScan 링크를 보여주기 위해 state를 활용
+      const alreadyClaimedBet = myBets.find((b) => b.id === betId && b.suiPayoutTxHash);
+      if (alreadyClaimedBet?.suiPayoutTxHash) {
+        setLastClaimTxDigest(alreadyClaimedBet.suiPayoutTxHash);
+        setClaimResult({ success: true, message: '이미 클레임 완료된 베팅입니다.' });
+      } else {
+        setClaimResult({ success: false, message: result.error || '클레임 실패' });
+      }
     }
   };
 
@@ -268,6 +317,7 @@ export function BetCard({ roundType = 'DEMO_3MIN' }: BetCardProps) {
     }
 
     setBetResult(null);
+    setLastBetTxDigest('');
 
     const result = await placeBet({
       roundId: round.id,
@@ -278,6 +328,7 @@ export function BetCard({ roundType = 'DEMO_3MIN' }: BetCardProps) {
 
     if (result.success) {
       setBetResult({ success: true, message: '베팅 성공!' });
+      if (result.digest) setLastBetTxDigest(result.digest);
       setAmount('');
       setSelectedAsset(null);
     } else {
@@ -371,8 +422,51 @@ export function BetCard({ roundType = 'DEMO_3MIN' }: BetCardProps) {
                       className={`mt-3 p-2 rounded text-center text-sm ${claimResult.success ? 'bg-green-800/50 text-green-300' : 'bg-red-800/50 text-red-300'}`}
                     >
                       {claimResult.message}
+                      {claimResult.success && lastClaimTxDigest && (
+                        <div className="mt-2">
+                          <a
+                            href={getSuiscanTxUrl(lastClaimTxDigest)}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-green-200 underline hover:text-green-100 break-all"
+                          >
+                            SuiScan에서 클레임 TX 보기
+                          </a>
+                        </div>
+                      )}
                     </div>
                   )}
+                </div>
+              ) : claimedWinningBets.length > 0 ? (
+                <div className="bg-green-900/20 border border-green-500/30 rounded-lg p-4">
+                  <p className="text-green-200 font-semibold mb-3 text-center">
+                    ✅ 이미 클레임 완료: {claimedWinningBets.length}건
+                  </p>
+                  <div className="space-y-2">
+                    {claimedWinningBets.map((bet) => (
+                      <div
+                        key={bet.id}
+                        className="flex items-center justify-between bg-gray-800/50 rounded-lg p-3"
+                      >
+                        <div className="text-white">
+                          <span className="font-semibold">{bet.prediction}</span>
+                          <span className="text-gray-400 ml-2">{bet.amount} DEL</span>
+                        </div>
+                        {bet.suiPayoutTxHash ? (
+                          <a
+                            href={getSuiscanTxUrl(bet.suiPayoutTxHash)}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-green-200 underline hover:text-green-100"
+                          >
+                            SuiScan
+                          </a>
+                        ) : (
+                          <span className="text-gray-500 text-sm">TX 없음</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
                 </div>
               ) : myBets.length > 0 ? (
                 /* 베팅했지만 졌을 때 */
@@ -540,6 +634,18 @@ export function BetCard({ roundType = 'DEMO_3MIN' }: BetCardProps) {
                 }`}
               >
                 {betResult.message}
+                {betResult.success && lastBetTxDigest && (
+                  <div className="mt-2">
+                    <a
+                      href={getSuiscanTxUrl(lastBetTxDigest)}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-green-700 underline hover:text-green-800 break-all"
+                    >
+                      SuiScan에서 베팅 TX 보기
+                    </a>
+                  </div>
+                )}
               </div>
             )}
 

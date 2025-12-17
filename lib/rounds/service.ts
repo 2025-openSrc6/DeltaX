@@ -514,6 +514,7 @@ export class RoundService {
       status: openedRound.status,
     });
 
+    // fix needed
     // 라운드 오픈 시 활성 사용자들에게 출석보상 지급
     try {
       const { registry } = await import('@/lib/registry');
