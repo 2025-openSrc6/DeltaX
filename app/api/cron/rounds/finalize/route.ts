@@ -1,0 +1,105 @@
+import { verifyCronAuth } from '@/lib/cron/auth';
+import { cronLogger } from '@/lib/cron/logger';
+import { registry } from '@/lib/registry';
+import { PriceData } from '@/lib/rounds/types';
+import { createErrorResponse, createSuccessResponse, handleApiError } from '@/lib/shared/response';
+import { NextRequest } from 'next/server';
+import { fetchEndPriceSnapshot } from '@/lib/rounds/priceSnapshot.service';
+
+/**
+ * POST /api/cron/rounds/finalize
+ *
+ * Job 4: Round Finalizer
+ *
+ * 얇은 래퍼 - 실제 로직은 RoundService.finalizeRound()에서 처리
+ *
+ * 책임:
+ * 1. 가격 데이터 가져오기 (현준님 API 또는 Mock)
+ * 2. Service 호출 (on-chain finalize_round + 영수증 저장 + claim-ready 상태 전이)
+ * 3. 결과 반환
+ */
+export async function POST(request: NextRequest) {
+  const jobStartTime = Date.now();
+  cronLogger.info('[Job 4] Round Finalizer started');
+
+  try {
+    // 1. 인증 검증
+    const authResult = await verifyCronAuth(request);
+    if (!authResult.success) {
+      cronLogger.warn('[Job 4] Auth failed');
+      return authResult.response;
+    }
+
+    // 2. End Price 스냅샷 가져오기 (Binance 1m kline close)
+    const endPriceData: PriceData = await fetchEndPriceSnapshot();
+
+    cronLogger.info('[Job 4] End price data fetched', {
+      gold: endPriceData.gold,
+      btc: endPriceData.btc,
+      source: endPriceData.source,
+    });
+
+    // 3. Service 호출 (승자 판정 + 배당 계산 + 정산)
+    const result = await registry.roundService.finalizeRound(endPriceData);
+
+    const jobDuration = Date.now() - jobStartTime;
+    cronLogger.info('[Job 4] Completed', {
+      status: result.status,
+      roundId: result.round?.id,
+      roundNumber: result.round?.roundNumber,
+      durationMs: jobDuration,
+    });
+
+    switch (result.status) {
+      case 'finalized':
+        return createSuccessResponse({
+          status: result.status,
+          round: result.round
+            ? {
+                id: result.round.id,
+                roundNumber: result.round.roundNumber,
+                status: result.round.status,
+                winner: result.round.winner,
+              }
+            : undefined,
+          message: result.message,
+        });
+      case 'no_round':
+        return createErrorResponse(
+          404,
+          'NO_LOCKED_ROUND',
+          result.message ?? 'No locked round found',
+        );
+      case 'not_ready':
+        return createErrorResponse(
+          409,
+          'ROUND_NOT_READY_TO_FINALIZE',
+          result.message ?? 'Round not ready to finalize yet',
+          {
+            roundId: result.round?.id,
+            roundNumber: result.round?.roundNumber,
+            endTime: result.round ? new Date(result.round.endTime).toISOString() : undefined,
+            now: new Date().toISOString(),
+          },
+        );
+      case 'cancelled':
+        return createErrorResponse(409, 'ROUND_CANCELLED', result.message ?? 'Round cancelled', {
+          roundId: result.round?.id,
+          roundNumber: result.round?.roundNumber,
+          endTime: result.round ? new Date(result.round.endTime).toISOString() : undefined,
+          now: new Date().toISOString(),
+        });
+      default:
+        return createErrorResponse(500, 'UNKNOWN_STATUS', 'Unknown finalizeRound status');
+    }
+  } catch (error) {
+    const jobDuration = Date.now() - jobStartTime;
+    cronLogger.error('[Job 4] Failed', {
+      durationMs: jobDuration,
+      error: error instanceof Error ? error.message : String(error),
+    });
+
+    // TODO: Slack 알림 (CRITICAL - 돈이 걸린 Job)
+    return handleApiError(error);
+  }
+}

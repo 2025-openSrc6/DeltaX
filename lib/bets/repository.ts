@@ -1,0 +1,368 @@
+/**
+ * BetRepository - 베팅 데이터 접근 레이어
+ *
+ * 책임:
+ * - DB 쿼리 생성 (Drizzle ORM)
+ * - 트랜잭션 처리 (D1 Batch 사용)
+ * - Atomic 업데이트
+ * - 실패 시 보상 트랜잭션 (Compensation) 처리
+ *
+ * D1 Batch 전략:
+ * - Interactive Transaction 미지원으로 인해 batch API 사용
+ * - 조건 불만족 시 보상 트랜잭션으로 데이터 정합성 보장
+ */
+
+import { getDb } from '@/lib/db';
+import { bets, rounds, users } from '@/db/schema';
+import { and, asc, desc, eq, isNotNull, isNull, ne, sql } from 'drizzle-orm';
+import type { SQL } from 'drizzle-orm';
+import type { Bet } from '@/db/schema/bets';
+import type { Round } from '@/db/schema/rounds';
+import type { BetQueryParams, CreatePendingBetInput, FinalizeBetExecutionInput } from './types';
+import { NotFoundError } from '@/lib/shared/errors';
+
+export class BetRepository {
+  /**
+   * 베팅 목록 조회 (필터/정렬/페이지네이션)
+   */
+  async findMany(params: BetQueryParams): Promise<Bet[]> {
+    const db = getDb();
+    const { filters, sort, order, limit, offset } = params;
+
+    const whereConditions = this.buildFilters(filters);
+    const orderColumn = sort === 'amount' ? bets.amount : bets.createdAt;
+    const orderByExpression = order === 'asc' ? asc(orderColumn) : desc(orderColumn);
+
+    const baseQuery = db.select().from(bets);
+    const queryWithConditions = whereConditions ? baseQuery.where(whereConditions) : baseQuery;
+
+    return queryWithConditions.orderBy(orderByExpression).limit(limit).offset(offset);
+  }
+
+  /**
+   * 공개 피드/표시용: bets + users를 조인해 주소/닉네임을 함께 조회한다.
+   * - 권한 필터(userId)는 상위 레이어에서 결정한다.
+   */
+  async findManyWithUser(params: BetQueryParams): Promise<
+    Array<{
+      id: string;
+      roundId: string;
+      prediction: string;
+      amount: number;
+      createdAt: number;
+      chainStatus: string;
+      resultStatus: string;
+      settlementStatus: string;
+      payoutAmount: number;
+      suiTxHash: string | null;
+      suiBetObjectId: string | null;
+      suiPayoutTxHash: string | null;
+      bettorSuiAddress: string;
+      bettorNickname: string | null;
+    }>
+  > {
+    const db = getDb();
+    const { filters, sort, order, limit, offset } = params;
+
+    const whereConditions = this.buildFilters(filters);
+    const orderColumn = sort === 'amount' ? bets.amount : bets.createdAt;
+    const orderByExpression = order === 'asc' ? asc(orderColumn) : desc(orderColumn);
+
+    const baseQuery = db
+      .select({
+        id: bets.id,
+        roundId: bets.roundId,
+        prediction: bets.prediction,
+        amount: bets.amount,
+        createdAt: bets.createdAt,
+        chainStatus: bets.chainStatus,
+        resultStatus: bets.resultStatus,
+        settlementStatus: bets.settlementStatus,
+        payoutAmount: bets.payoutAmount,
+        suiTxHash: bets.suiTxHash,
+        suiBetObjectId: bets.suiBetObjectId,
+        suiPayoutTxHash: bets.suiPayoutTxHash,
+        bettorSuiAddress: users.suiAddress,
+        bettorNickname: users.nickname,
+      })
+      .from(bets)
+      .innerJoin(users, eq(bets.userId, users.id));
+
+    const queryWithConditions = whereConditions ? baseQuery.where(whereConditions) : baseQuery;
+    return queryWithConditions.orderBy(orderByExpression).limit(limit).offset(offset);
+  }
+
+  /**
+   * 베팅 개수 조회 (페이지네이션용)
+   */
+  async count(params: BetQueryParams): Promise<number> {
+    const db = getDb();
+    const whereConditions = this.buildFilters(params.filters);
+
+    const baseQuery = db.select({ count: sql<number>`count(*)` }).from(bets);
+    const queryWithConditions = whereConditions ? baseQuery.where(whereConditions) : baseQuery;
+
+    const result = await queryWithConditions;
+    return result[0]?.count ?? 0;
+  }
+
+  /**
+   * ID로 베팅 조회
+   */
+  async findById(id: string): Promise<Bet | undefined> {
+    const db = getDb();
+    const result = await db.select().from(bets).where(eq(bets.id, id)).limit(1);
+    return result[0];
+  }
+
+  /**
+   * 베팅 생성 (Pending) - 풀/잔액은 확정 차감하지 않음
+   */
+  async createPending(input: CreatePendingBetInput): Promise<Bet> {
+    const db = getDb();
+    const { id, roundId, userId, prediction, amount, createdAt } = input;
+    const now = Date.now();
+
+    try {
+      const result = await db
+        .insert(bets)
+        .values({
+          id,
+          roundId,
+          userId,
+          prediction,
+          amount,
+          currency: 'DEL',
+          resultStatus: 'PENDING',
+          settlementStatus: 'PENDING',
+          chainStatus: 'PENDING',
+          createdAt,
+          processedAt: now,
+        })
+        .returning();
+
+      return result[0];
+    } catch (error: unknown) {
+      this.handleError(error);
+      throw error; // Should be unreachable due to handleError throwing
+    }
+  }
+
+  /**
+   * 체인 실행 성공 후 확정 반영 (라운드 풀 + 유저 잔액 + Bet 상태)
+   */
+  async finalizeExecution(input: FinalizeBetExecutionInput): Promise<Bet> {
+    const db = getDb();
+    const { betId, roundId, userId, prediction, amount, suiTxHash, suiBetObjectId } = input;
+    const now = Date.now();
+
+    const batchResults = await db.batch([
+      // [0] Update Round Pool
+      db
+        .update(rounds)
+        .set({
+          totalPool: sql`${rounds.totalPool} + ${amount}`,
+          totalGoldBets:
+            prediction === 'GOLD' ? sql`${rounds.totalGoldBets} + ${amount}` : rounds.totalGoldBets,
+          totalBtcBets:
+            prediction === 'BTC' ? sql`${rounds.totalBtcBets} + ${amount}` : rounds.totalBtcBets,
+          totalBetsCount: sql`${rounds.totalBetsCount} + 1`,
+          updatedAt: now,
+        })
+        .where(eq(rounds.id, roundId))
+        .returning(),
+
+      // [1] Update User Balance (Only stats, no balance deduction)
+      db
+        .update(users)
+        .set({
+          totalBets: sql`${users.totalBets} + 1`,
+          totalVolume: sql`${users.totalVolume} + ${amount}`,
+          updatedAt: now,
+        })
+        .where(eq(users.id, userId)),
+
+      // [2] Update Bet
+      db
+        .update(bets)
+        .set({
+          chainStatus: 'EXECUTED',
+          suiTxHash,
+          suiBetObjectId,
+          processedAt: now,
+        })
+        .where(eq(bets.id, betId))
+        .returning(),
+    ]);
+
+    const roundResult = batchResults[0] as Round[];
+    // const userUpdateResult = batchResults[1];
+    const betResult = batchResults[2] as Bet[];
+
+    const errors: string[] = [];
+    if (!roundResult[0]) {
+      errors.push('Round update failed');
+    }
+    // Removed balance check
+    if (!betResult[0]) {
+      errors.push('Bet update failed');
+    }
+
+    if (errors.length > 0) {
+      throw new Error(errors.join(', '));
+    }
+
+    return betResult[0];
+  }
+
+  /**
+   * 라운드의 모든 베팅 조회 (정산용)
+   *
+   * @param roundId - 라운드 UUID
+   * @returns 베팅 배열 (생성일순 정렬)
+   */
+  async findByRoundId(roundId: string): Promise<Bet[]> {
+    const db = getDb();
+    const result = await db
+      .select()
+      .from(bets)
+      .where(eq(bets.roundId, roundId))
+      .orderBy(asc(bets.createdAt));
+
+    return result;
+  }
+
+  async findByUserAndRound(userId: string, roundId: string): Promise<Bet | undefined> {
+    const db = getDb();
+    const result = await db
+      .select()
+      .from(bets)
+      .where(and(eq(bets.userId, userId), eq(bets.roundId, roundId)))
+      .limit(1);
+    return result[0];
+  }
+
+  /**
+   * ID로 베팅 업데이트
+   *
+   * @param id - 베팅 UUID
+   * @param updateData - 업데이터 데이터 (Partial<Bet>)
+   * @returns 업데이트된 베팅
+   */
+  async updateById(id: string, updateData: Partial<Bet>): Promise<Bet> {
+    const db = getDb();
+    const result = await db.update(bets).set(updateData).where(eq(bets.id, id)).returning();
+    if (!result || result.length === 0) {
+      throw new NotFoundError('Bet', id);
+    }
+    return result[0];
+  }
+
+  // ============================================
+  // Recovery (Safe Backfill) Queries
+  // ============================================
+
+  /**
+   * 체인 execute는 성공했고(txDigest 존재), betObjectId만 누락된 베팅 목록
+   */
+  async findExecutedBetsMissingBetObjectId(limit = 50): Promise<Bet[]> {
+    const db = getDb();
+    return db
+      .select()
+      .from(bets)
+      .where(
+        and(
+          eq(bets.chainStatus, 'EXECUTED'),
+          isNotNull(bets.suiTxHash),
+          isNull(bets.suiBetObjectId),
+        ),
+      )
+      .orderBy(desc(bets.createdAt))
+      .limit(limit);
+  }
+
+  async backfillBetObjectIdIfMissing(betId: string, betObjectId: string): Promise<boolean> {
+    const db = getDb();
+    const res = await db
+      .update(bets)
+      .set({ suiBetObjectId: betObjectId, processedAt: Date.now() })
+      .where(and(eq(bets.id, betId), isNull(bets.suiBetObjectId)))
+      .returning();
+    return res.length > 0;
+  }
+
+  /**
+   * claim txDigest는 있는데 DB 반영이 덜 된(=COMPLETED가 아닌) 베팅 목록
+   */
+  async findClaimedBetsMissingDbFinalize(limit = 50): Promise<Bet[]> {
+    const db = getDb();
+    return db
+      .select()
+      .from(bets)
+      .where(and(isNotNull(bets.suiPayoutTxHash), ne(bets.settlementStatus, 'COMPLETED')))
+      .orderBy(desc(bets.createdAt))
+      .limit(limit);
+  }
+
+  /**
+   * Claim(배당 청구) 성공 후 DB 반영
+   *
+   * 주의: DB는 인덱스/UX용이며, 실제 DEL 이동은 체인에 있음.
+   */
+  async finalizeClaim(input: {
+    betId: string;
+    suiPayoutTxHash: string;
+    suiPayoutTimestamp?: number;
+    payoutAmount: number;
+    resultStatus: 'WON' | 'LOST' | 'REFUNDED';
+  }): Promise<Bet> {
+    const db = getDb();
+    const now = Date.now();
+    const result = await db
+      .update(bets)
+      .set({
+        suiPayoutTxHash: input.suiPayoutTxHash,
+        suiPayoutTimestamp: input.suiPayoutTimestamp,
+        payoutAmount: input.payoutAmount,
+        resultStatus: input.resultStatus,
+        settlementStatus: 'COMPLETED',
+        settledAt: now,
+        processedAt: now,
+      })
+      .where(eq(bets.id, input.betId))
+      .returning();
+
+    if (!result || result.length === 0) {
+      throw new NotFoundError('Bet', input.betId);
+    }
+    return result[0];
+  }
+
+  private handleError(error: unknown) {
+    const msg = error instanceof Error ? error.message : '';
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const causeMsg = (error instanceof Error && (error.cause as any)?.message) || '';
+
+    if (msg.includes('UNIQUE constraint failed') || causeMsg.includes('UNIQUE constraint failed')) {
+      const e = new Error('Duplicate bet');
+      Object.assign(e, { code: 'ALREADY_EXISTS' });
+      throw e;
+    }
+    throw error;
+  }
+
+  private buildFilters(filters?: BetQueryParams['filters']): SQL | undefined {
+    if (!filters) return undefined;
+
+    const conditions: SQL[] = [];
+
+    if (filters.roundId) conditions.push(eq(bets.roundId, filters.roundId));
+    if (filters.userId) conditions.push(eq(bets.userId, filters.userId));
+    if (filters.prediction) conditions.push(eq(bets.prediction, filters.prediction));
+    if (filters.resultStatus) conditions.push(eq(bets.resultStatus, filters.resultStatus));
+    if (filters.settlementStatus)
+      conditions.push(eq(bets.settlementStatus, filters.settlementStatus));
+
+    return conditions.length > 0 ? and(...conditions) : undefined;
+  }
+}

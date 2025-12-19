@@ -1,0 +1,55 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1763209580469,
+      "tag": "0000_tricky_giant_man",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1763300813996,
+      "tag": "0001_clammy_wolfpack",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1764323437166,
+      "tag": "0002_lumpy_sentry",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1764580157604,
+      "tag": "0003_remarkable_swarm",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1765264373444,
+      "tag": "0004_funny_loa",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1765777101412,
+      "tag": "0005_bent_sprite",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1765987210820,
+      "tag": "0006_short_mephistopheles",
+      "breakpoints": true
+    }
+  ]
+}

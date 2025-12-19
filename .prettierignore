@@ -1,0 +1,17 @@
+# Build output
+.next
+out
+build
+.open-next
+next-env.d.ts
+.wrangler
+
+# Dependencies
+node_modules
+
+# Misc
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+.tmp
+coverage

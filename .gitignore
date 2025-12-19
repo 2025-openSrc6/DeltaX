@@ -1,0 +1,85 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+/node_modules
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# testing
+/coverage
+
+# next.js
+/.next/
+/out/
+
+# production
+/build
+
+
+# sui move build artifacts
+/contracts/build
+/contracts/.package-metadata
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# local debug/dump artifacts (do not track)
+/build_check.txt
+/create_db.txt
+/delete_db.txt
+/drop_result.txt
+/d1_list.json
+/data.json
+/data_nft.json
+/db_*.json
+/db_*.txt
+/local_*.json
+/*_log.txt
+/*_result*.txt
+/server.log
+/error.log
+
+# env files (can opt-in for committing if needed)
+.env*
+.dev.vars
+
+# vercel
+.vercel
+.open-next
+.wrangler
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+# 정리본 (personal notes - do not track)
+/정리본
+/개인작업본
+
+# local sqlite db files (fallback)
+delta.db
+delta.db-shm
+delta.db-wal
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+*.db-journal
+*.sqlite-journal
+
+# claude local settings
+.claude/settings.local.json
+

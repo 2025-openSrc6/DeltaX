@@ -1,0 +1,785 @@
+import { RoundService } from '@/lib/rounds/service';
+import { describe, it, expect, vi, beforeEach, afterEach, type Mock } from 'vitest';
+import type { RoundType, Round, RoundInsert, PriceData } from '@/lib/rounds/types';
+import type { RoundRepository } from '@/lib/rounds/repository';
+import type { BetService } from '@/lib/bets/service';
+import * as fsmModule from '@/lib/rounds/fsm';
+import { createPool } from '@/lib/sui/admin';
+import { lockPool } from '@/lib/sui/admin';
+import { finalizeRound } from '@/lib/sui/admin';
+import { calculateSettlementAvgVol } from '@/lib/rounds/avgVol.service';
+import {
+  fetchTransactionBlockForRecovery,
+  parseCreatedFeeCoinIdFromTx,
+  parseCreatedSettlementIdFromTx,
+} from '@/lib/sui/recovery';
+
+// fsm 모듈의 transitionRoundStatus를 spyOn으로 모킹
+vi.mock('@/lib/rounds/fsm', async (importOriginal) => {
+  const original = await importOriginal<typeof fsmModule>();
+  return {
+    ...original,
+    transitionRoundStatus: vi.fn(),
+  };
+});
+
+vi.mock('@/lib/sui/admin', () => ({
+  createPool: vi.fn(),
+  lockPool: vi.fn(),
+  finalizeRound: vi.fn(),
+}));
+
+vi.mock('@/lib/rounds/avgVol.service', () => ({
+  calculateSettlementAvgVol: vi.fn(),
+}));
+
+vi.mock('@/lib/sui/recovery', () => ({
+  fetchTransactionBlockForRecovery: vi.fn(),
+  parseCreatedFeeCoinIdFromTx: vi.fn(),
+  parseCreatedPoolIdFromTx: vi.fn(),
+  parseCreatedSettlementIdFromTx: vi.fn(),
+}));
+
+describe('RoundService', () => {
+  const createMockBetService = (): BetService =>
+    ({
+      findBetsByRoundId: vi.fn(),
+      updateBetSettlement: vi.fn(),
+    }) as unknown as BetService;
+
+  describe('createNextScheduledRound', () => {
+    const type: RoundType = '6HOUR';
+
+    const mockRepository = {
+      findLastRound: vi.fn(),
+      findByStartTime: vi.fn(),
+      insert: vi.fn(),
+    };
+    const roundService = new RoundService(
+      mockRepository as unknown as RoundRepository,
+      createMockBetService(),
+    );
+
+    beforeEach(() => {
+      vi.useFakeTimers();
+      // 이러면 다음 슬롯은 14:00KST
+      vi.setSystemTime(new Date('2025-11-24T00:00:00Z'));
+      mockRepository.findLastRound.mockReset();
+      mockRepository.findByStartTime.mockReset();
+      mockRepository.insert.mockReset();
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('마지막 라운드가 없으면 시간대에 맞춰 첫 라운드를 생성한다', async () => {
+      mockRepository.findLastRound.mockResolvedValue(undefined);
+      mockRepository.findByStartTime.mockResolvedValue(undefined);
+      mockRepository.insert.mockImplementation(
+        async (roundData: RoundInsert) => roundData as unknown as Round,
+      );
+
+      const round = await roundService.createNextScheduledRound();
+
+      expect(mockRepository.findLastRound).toHaveBeenCalledWith(type);
+      expect(round.startTime % (6 * 60 * 60 * 1000)).toBe(5 * 60 * 60 * 1000); // 05:00 UTC 그리드
+      expect(round.roundNumber).toBe(1);
+      expect(round.createdAt).toBeDefined();
+    });
+
+    it('마지막 라운드가 있으면 +6h, roundNumber +1 증가한 라운드를 생성한다', async () => {
+      const last = {
+        startTime: 1700000000,
+        roundNumber: 10,
+      };
+      mockRepository.findLastRound.mockResolvedValue(last);
+      mockRepository.findByStartTime.mockResolvedValue(undefined);
+      mockRepository.insert.mockImplementation(
+        async (roundData: RoundInsert) => roundData as unknown as Round,
+      );
+
+      const round = await roundService.createNextScheduledRound();
+
+      expect(round.roundNumber).toBe(11);
+      expect(round.startTime).toBe(last.startTime + 6 * 60 * 60 * 1000);
+    });
+
+    it('같은 startTime 라운드가 이미 있으면 기존 라운드를 반환한다', async () => {
+      const existing = { id: 'existing-id', startTime: 1, roundNumber: 7 } as Round;
+      mockRepository.findLastRound.mockResolvedValue(undefined);
+      mockRepository.findByStartTime.mockResolvedValue(existing);
+
+      const round = await roundService.createNextScheduledRound();
+
+      expect(round).toBe(existing);
+      expect(mockRepository.insert).not.toHaveBeenCalled();
+    });
+
+    it('insert 에러가 발생하면 에러를 전파한다', async () => {
+      mockRepository.findLastRound.mockResolvedValue(undefined);
+      mockRepository.findByStartTime.mockResolvedValue(undefined);
+      mockRepository.insert.mockRejectedValue(new Error('DB fail'));
+
+      await expect(roundService.createNextScheduledRound()).rejects.toThrow('DB fail');
+    });
+  });
+
+  describe('openRound', () => {
+    const mockTransition = fsmModule.transitionRoundStatus as Mock;
+    const mockCreatePool = createPool as Mock;
+
+    // 테스트용 기준 시각: 2025-01-15 09:00:00 UTC
+    const NOW = new Date('2025-01-15T09:00:00Z').getTime();
+
+    const createMockRound = (overrides: Partial<Round> = {}): Round =>
+      ({
+        id: '550e8400-e29b-41d4-a716-446655440000',
+        roundNumber: 1,
+        type: '6HOUR',
+        status: 'SCHEDULED',
+        startTime: NOW - 60_000, // 1분 전 시작
+        endTime: NOW + 6 * 60 * 60 * 1000, // 6시간 후 종료
+        lockTime: NOW + 60_000, // 1분 후 락
+        totalPool: 0,
+        totalGoldBets: 0,
+        totalBtcBets: 0,
+        totalBetsCount: 0,
+        payoutPool: 0,
+        goldStartPrice: null,
+        btcStartPrice: null,
+        goldEndPrice: null,
+        btcEndPrice: null,
+        goldChangePercent: null,
+        btcChangePercent: null,
+        winner: null,
+        priceSnapshotStartAt: null,
+        priceSnapshotEndAt: null,
+        startPriceSource: null,
+        endPriceSource: null,
+        startPriceIsFallback: false,
+        endPriceIsFallback: false,
+        startPriceFallbackReason: null,
+        endPriceFallbackReason: null,
+        suiPoolAddress: null,
+        suiSettlementObjectId: null,
+        suiCreatePoolTxDigest: null,
+        suiLockPoolTxDigest: null,
+        suiFinalizeTxDigest: null,
+        suiFeeCoinObjectId: null,
+        goldAvgVol: null,
+        btcAvgVol: null,
+        priceSnapshotMeta: null,
+        avgVolMeta: null,
+        platformFeeRate: '0.05',
+        platformFeeCollected: 0,
+        bettingOpenedAt: null,
+        bettingLockedAt: null,
+        roundEndedAt: null,
+        settlementCompletedAt: null,
+        createdAt: NOW - 3600_000,
+        updatedAt: NOW - 3600_000,
+        ...overrides,
+      }) as Round;
+
+    const mockPrices: PriceData = {
+      gold: 2650.5,
+      btc: 98234.0,
+      timestamp: NOW,
+      source: 'kitco',
+      meta: { exchange: 'mock', note: 'test' },
+    };
+
+    let mockRepository: {
+      findLatestByStatus: Mock;
+      updateById: Mock;
+    };
+    let mockBetService: BetService;
+    let roundService: RoundService;
+
+    beforeEach(() => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date(NOW));
+
+      mockRepository = {
+        findLatestByStatus: vi.fn(),
+        updateById: vi.fn(),
+      };
+      mockBetService = createMockBetService();
+      roundService = new RoundService(mockRepository as unknown as RoundRepository, mockBetService);
+
+      mockTransition.mockReset();
+
+      // Sui createPool mock (module mock)
+      mockCreatePool.mockReset();
+      mockCreatePool.mockResolvedValue({ poolId: '0xpool', txDigest: '0xdigest' });
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('SCHEDULED 라운드가 없으면 no_round를 반환한다', async () => {
+      mockRepository.findLatestByStatus.mockResolvedValue(null);
+
+      const result = await roundService.openRound(mockPrices);
+
+      expect(result.status).toBe('no_round');
+      expect(result.message).toBe('No scheduled round found');
+      expect(result.round).toBeUndefined();
+      expect(mockTransition).not.toHaveBeenCalled();
+    });
+
+    it('startTime이 아직 안 됐으면 not_ready를 반환한다', async () => {
+      const futureRound = createMockRound({
+        startTime: NOW + 60_000, // 1분 후 시작
+        lockTime: NOW + 120_000,
+      });
+      mockRepository.findLatestByStatus.mockResolvedValue(futureRound);
+
+      const result = await roundService.openRound(mockPrices);
+
+      expect(result.status).toBe('not_ready');
+      expect(result.round).toEqual(futureRound);
+      expect(result.message).toContain('not ready');
+      expect(mockTransition).not.toHaveBeenCalled();
+    });
+
+    it('시작가가 0/NaN이면 open을 건너뛰고 not_ready를 반환한다', async () => {
+      const round = createMockRound();
+      mockRepository.findLatestByStatus.mockResolvedValue(round);
+
+      const badPrices: PriceData = { ...mockPrices, gold: 0 };
+
+      const result = await roundService.openRound(badPrices);
+
+      expect(result.status).toBe('not_ready');
+      expect(mockCreatePool).not.toHaveBeenCalled();
+      expect(mockTransition).not.toHaveBeenCalled();
+    });
+
+    it('lockTime이 이미 지났으면 라운드를 취소하고 cancelled를 반환한다', async () => {
+      const expiredRound = createMockRound({
+        startTime: NOW - 120_000, // 2분 전 시작
+        lockTime: NOW - 60_000, // 1분 전 락 (이미 지남)
+      });
+      mockRepository.findLatestByStatus.mockResolvedValue(expiredRound);
+
+      const cancelledRound = { ...expiredRound, status: 'CANCELLED' as const };
+      mockTransition.mockResolvedValue(cancelledRound);
+
+      const result = await roundService.openRound(mockPrices);
+
+      expect(result.status).toBe('cancelled');
+      expect(result.round?.status).toBe('CANCELLED');
+      expect(result.message).toContain('missed open window');
+      expect(mockTransition).toHaveBeenCalledWith(
+        expiredRound.id,
+        'CANCELLED',
+        expect.objectContaining({
+          cancellationReason: 'MISSED_OPEN_WINDOW',
+          cancelledBy: 'SYSTEM',
+        }),
+      );
+    });
+
+    it('정상 케이스: SCHEDULED → BETTING_OPEN 전이를 수행하고 opened를 반환한다', async () => {
+      const scheduledRound = createMockRound();
+      mockRepository.findLatestByStatus.mockResolvedValue(scheduledRound);
+
+      const openedRound = { ...scheduledRound, status: 'BETTING_OPEN' as const };
+      mockTransition.mockResolvedValue(openedRound);
+
+      const result = await roundService.openRound(mockPrices);
+
+      expect(result.status).toBe('opened');
+      expect(result.round?.status).toBe('BETTING_OPEN');
+      expect(mockTransition).toHaveBeenCalledWith(
+        scheduledRound.id,
+        'BETTING_OPEN',
+        expect.objectContaining({
+          goldStartPrice: '2650.5',
+          btcStartPrice: '98234',
+          priceSnapshotStartAt: mockPrices.timestamp,
+          startPriceSource: 'kitco',
+          suiPoolAddress: '0xpool',
+          suiCreatePoolTxDigest: '0xdigest',
+          priceSnapshotMeta: expect.any(String),
+        }),
+      );
+    });
+
+    it('transitionRoundStatus에 올바른 metadata를 전달한다', async () => {
+      const scheduledRound = createMockRound();
+      mockRepository.findLatestByStatus.mockResolvedValue(scheduledRound);
+      mockTransition.mockResolvedValue({ ...scheduledRound, status: 'BETTING_OPEN' });
+
+      await roundService.openRound(mockPrices);
+
+      const callArgs = mockTransition.mock.calls[0];
+      expect(callArgs[0]).toBe(scheduledRound.id);
+      expect(callArgs[1]).toBe('BETTING_OPEN');
+
+      const metadata = callArgs[2];
+      expect(metadata.goldStartPrice).toBe('2650.5');
+      expect(metadata.btcStartPrice).toBe('98234');
+      expect(metadata.priceSnapshotStartAt).toBe(mockPrices.timestamp);
+      expect(metadata.startPriceSource).toBe('kitco');
+      expect(metadata.bettingOpenedAt).toBeTypeOf('number');
+    });
+
+    it('시작 시각과 락 시각 경계에서 정확하게 동작한다 (startTime == now)', async () => {
+      // startTime이 정확히 now인 경우 → 오픈 가능
+      const edgeRound = createMockRound({
+        startTime: NOW,
+        lockTime: NOW + 60_000,
+      });
+      mockRepository.findLatestByStatus.mockResolvedValue(edgeRound);
+      mockTransition.mockResolvedValue({ ...edgeRound, status: 'BETTING_OPEN' });
+
+      const result = await roundService.openRound(mockPrices);
+
+      expect(result.status).toBe('opened');
+    });
+
+    it('락 시각 경계에서 정확하게 동작한다 (lockTime == now)', async () => {
+      // lockTime이 정확히 now인 경우 → 취소됨
+      const edgeRound = createMockRound({
+        startTime: NOW - 60_000,
+        lockTime: NOW, // 정확히 now
+      });
+      mockRepository.findLatestByStatus.mockResolvedValue(edgeRound);
+      mockTransition.mockResolvedValue({ ...edgeRound, status: 'CANCELLED' });
+
+      const result = await roundService.openRound(mockPrices);
+
+      expect(result.status).toBe('cancelled');
+    });
+  });
+
+  describe('lockRound', () => {
+    const mockTransition = fsmModule.transitionRoundStatus as Mock;
+    const mockLockPool = lockPool as Mock;
+
+    const NOW = new Date('2025-01-15T09:00:00Z').getTime();
+
+    const createMockRound = (overrides: Partial<Round> = {}): Round =>
+      ({
+        id: '550e8400-e29b-41d4-a716-446655440001',
+        roundNumber: 1,
+        type: '6HOUR',
+        status: 'BETTING_OPEN',
+        startTime: NOW - 60_000,
+        endTime: NOW + 6 * 60 * 60 * 1000,
+        lockTime: NOW - 1000, // 1초 전 락 (이미 지남)
+        totalPool: 1000,
+        totalGoldBets: 600,
+        totalBtcBets: 400,
+        totalBetsCount: 10,
+        payoutPool: 0,
+        goldStartPrice: '2650.50',
+        btcStartPrice: '98234.00',
+        goldEndPrice: null,
+        btcEndPrice: null,
+        goldChangePercent: null,
+        btcChangePercent: null,
+        winner: null,
+        priceSnapshotStartAt: NOW - 60_000,
+        priceSnapshotEndAt: null,
+        startPriceSource: 'kitco',
+        endPriceSource: null,
+        startPriceIsFallback: false,
+        endPriceIsFallback: false,
+        startPriceFallbackReason: null,
+        endPriceFallbackReason: null,
+        suiPoolAddress: '0xpool',
+        suiSettlementObjectId: null,
+        suiCreatePoolTxDigest: null,
+        suiLockPoolTxDigest: null,
+        suiFinalizeTxDigest: null,
+        suiFeeCoinObjectId: null,
+        goldAvgVol: null,
+        btcAvgVol: null,
+        priceSnapshotMeta: null,
+        avgVolMeta: null,
+        platformFeeRate: '0.05',
+        platformFeeCollected: 0,
+        bettingOpenedAt: NOW - 60_000,
+        bettingLockedAt: null,
+        roundEndedAt: null,
+        settlementCompletedAt: null,
+        createdAt: NOW - 3600_000,
+        updatedAt: NOW - 60_000,
+        ...overrides,
+      }) as Round;
+
+    let mockRepository: {
+      findLatestByStatus: Mock;
+      updateById: Mock;
+    };
+    let mockBetService: BetService;
+    let roundService: RoundService;
+
+    beforeEach(() => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date(NOW));
+
+      mockRepository = {
+        findLatestByStatus: vi.fn(),
+        updateById: vi.fn(),
+      };
+      mockBetService = createMockBetService();
+      roundService = new RoundService(mockRepository as unknown as RoundRepository, mockBetService);
+
+      mockTransition.mockReset();
+      mockLockPool.mockReset();
+      mockLockPool.mockResolvedValue({ txDigest: '0xlockdigest' });
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('BETTING_OPEN 라운드가 없으면 no_round를 반환한다', async () => {
+      mockRepository.findLatestByStatus.mockResolvedValue(null);
+
+      const result = await roundService.lockRound();
+
+      expect(result.status).toBe('no_round');
+      expect(result.message).toBe('No open round found');
+      expect(result.round).toBeUndefined();
+      expect(mockTransition).not.toHaveBeenCalled();
+    });
+
+    it('lockTime이 아직 안 됐으면 not_ready를 반환한다', async () => {
+      const earlyRound = createMockRound({
+        lockTime: NOW + 60_000, // 1분 후 락
+      });
+      mockRepository.findLatestByStatus.mockResolvedValue(earlyRound);
+
+      const result = await roundService.lockRound();
+
+      expect(result.status).toBe('not_ready');
+      expect(result.round).toEqual(earlyRound);
+      expect(result.message).toContain('not ready');
+      expect(mockTransition).not.toHaveBeenCalled();
+    });
+
+    it('정상 케이스: BETTING_OPEN → BETTING_LOCKED 전이를 수행하고 locked를 반환한다', async () => {
+      const openRound = createMockRound();
+      mockRepository.findLatestByStatus.mockResolvedValue(openRound);
+
+      const lockedRound = { ...openRound, status: 'BETTING_LOCKED' as const };
+      mockTransition.mockResolvedValue(lockedRound);
+
+      const result = await roundService.lockRound();
+
+      expect(result.status).toBe('locked');
+      expect(result.round?.status).toBe('BETTING_LOCKED');
+      expect(mockLockPool).toHaveBeenCalledWith('0xpool');
+      expect(mockRepository.updateById).toHaveBeenCalledWith(openRound.id, {
+        suiLockPoolTxDigest: '0xlockdigest',
+      });
+      expect(mockTransition).toHaveBeenCalledWith(
+        openRound.id,
+        'BETTING_LOCKED',
+        expect.objectContaining({
+          bettingLockedAt: expect.any(Number),
+          suiLockPoolTxDigest: '0xlockdigest',
+        }),
+      );
+    });
+
+    it('transitionRoundStatus에 올바른 metadata를 전달한다', async () => {
+      const openRound = createMockRound();
+      mockRepository.findLatestByStatus.mockResolvedValue(openRound);
+      mockTransition.mockResolvedValue({ ...openRound, status: 'BETTING_LOCKED' });
+
+      await roundService.lockRound();
+
+      const callArgs = mockTransition.mock.calls[0];
+      expect(callArgs[0]).toBe(openRound.id);
+      expect(callArgs[1]).toBe('BETTING_LOCKED');
+
+      const metadata = callArgs[2];
+      expect(metadata.bettingLockedAt).toBeTypeOf('number');
+      expect(metadata.bettingLockedAt).toBe(NOW);
+      expect(metadata.suiLockPoolTxDigest).toBe('0xlockdigest');
+    });
+
+    it('멱등성: suiLockPoolTxDigest가 이미 있으면 on-chain lock을 다시 호출하지 않는다', async () => {
+      const openRound = createMockRound({
+        suiLockPoolTxDigest: '0xexisting',
+      });
+      mockRepository.findLatestByStatus.mockResolvedValue(openRound);
+      mockTransition.mockResolvedValue({ ...openRound, status: 'BETTING_LOCKED' });
+
+      await roundService.lockRound();
+
+      expect(mockLockPool).not.toHaveBeenCalled();
+      expect(mockRepository.updateById).not.toHaveBeenCalled();
+      const metadata = (mockTransition.mock.calls[0] as unknown[])[2] as Record<string, unknown>;
+      expect(metadata.suiLockPoolTxDigest).toBe('0xexisting');
+    });
+
+    it('락 시각 경계에서 정확하게 동작한다 (lockTime == now)', async () => {
+      // lockTime이 정확히 now인 경우 → 아직 락 안됨 (lockTime > now 조건)
+      const edgeRound = createMockRound({
+        lockTime: NOW,
+      });
+      mockRepository.findLatestByStatus.mockResolvedValue(edgeRound);
+      mockTransition.mockResolvedValue({ ...edgeRound, status: 'BETTING_LOCKED' });
+
+      const result = await roundService.lockRound();
+
+      // lockTime > now 조건이므로 lockTime == now면 락 가능
+      expect(result.status).toBe('locked');
+    });
+
+    it('락 시각 경계에서 정확하게 동작한다 (lockTime > now by 1ms)', async () => {
+      const edgeRound = createMockRound({
+        lockTime: NOW + 1, // 1ms 후
+      });
+      mockRepository.findLatestByStatus.mockResolvedValue(edgeRound);
+
+      const result = await roundService.lockRound();
+
+      expect(result.status).toBe('not_ready');
+    });
+  });
+
+  describe('finalizeRound', () => {
+    const mockTransition = fsmModule.transitionRoundStatus as Mock;
+    const mockFinalizeRoundOnChain = finalizeRound as Mock;
+    const mockCalculateAvgVol = calculateSettlementAvgVol as Mock;
+    const mockFetchTx = fetchTransactionBlockForRecovery as Mock;
+    const mockParseSettlementId = parseCreatedSettlementIdFromTx as Mock;
+    const mockParseFeeCoinId = parseCreatedFeeCoinIdFromTx as Mock;
+    const NOW = Date.now();
+
+    const createLockedRound = (overrides: Partial<Round> = {}): Round =>
+      ({
+        id: '550e8400-e29b-41d4-a716-446655440000',
+        roundNumber: 2,
+        type: '6HOUR',
+        status: 'BETTING_LOCKED',
+        startTime: NOW - 6 * 60 * 60 * 1000,
+        endTime: NOW - 1000,
+        lockTime: NOW - 6 * 60 * 60 * 1000 + 60 * 1000,
+        totalPool: 1000,
+        totalGoldBets: 600,
+        totalBtcBets: 400,
+        totalBetsCount: 10,
+        payoutPool: 0,
+        goldStartPrice: '10',
+        btcStartPrice: '1',
+        goldEndPrice: null,
+        btcEndPrice: null,
+        goldChangePercent: null,
+        btcChangePercent: null,
+        winner: null,
+        priceSnapshotStartAt: NOW - 6 * 60 * 60 * 1000,
+        priceSnapshotEndAt: null,
+        startPriceSource: 'mock',
+        endPriceSource: null,
+        startPriceIsFallback: false,
+        endPriceIsFallback: false,
+        startPriceFallbackReason: null,
+        endPriceFallbackReason: null,
+        suiPoolAddress: '0xpool',
+        suiSettlementObjectId: null,
+        suiCreatePoolTxDigest: null,
+        suiLockPoolTxDigest: null,
+        suiFinalizeTxDigest: null,
+        suiFeeCoinObjectId: null,
+        goldAvgVol: null,
+        btcAvgVol: null,
+        priceSnapshotMeta: null,
+        avgVolMeta: null,
+        platformFeeRate: '0.05',
+        platformFeeCollected: 0,
+        bettingOpenedAt: NOW - 6 * 60 * 60 * 1000,
+        bettingLockedAt: NOW - 6 * 60 * 60 * 1000 + 60 * 1000,
+        roundEndedAt: null,
+        settlementCompletedAt: null,
+        createdAt: NOW - 7 * 60 * 60 * 1000,
+        updatedAt: NOW - 60 * 1000,
+        ...overrides,
+      }) as Round;
+
+    const endPriceData: PriceData = {
+      gold: 12,
+      btc: 2,
+      timestamp: NOW,
+      source: 'mock',
+    };
+
+    let mockRepository: {
+      findLatestByStatus: Mock;
+      updateById: Mock;
+    };
+    let mockBetService: BetService;
+    let roundService: RoundService;
+
+    beforeEach(() => {
+      vi.useFakeTimers();
+      vi.setSystemTime(NOW);
+      mockRepository = {
+        findLatestByStatus: vi.fn(),
+        updateById: vi.fn(),
+      };
+      mockBetService = createMockBetService();
+      roundService = new RoundService(mockRepository as unknown as RoundRepository, mockBetService);
+      mockTransition.mockReset();
+
+      mockFinalizeRoundOnChain.mockReset();
+      mockFinalizeRoundOnChain.mockResolvedValue({
+        settlementId: '0xsettlement',
+        feeCoinId: '0xfeecoin',
+        txDigest: '0xfinalizedigest',
+      });
+
+      mockCalculateAvgVol.mockReset();
+      mockCalculateAvgVol.mockResolvedValue({
+        goldAvgVol: 0.3,
+        btcAvgVol: 3.5,
+        meta: {
+          source: 'mock',
+          interval: '1h',
+          lookback: 720,
+          method: 'returns_stddev',
+          minDataPoints: 360,
+        },
+      });
+
+      mockFetchTx.mockReset();
+      mockParseSettlementId.mockReset();
+      mockParseFeeCoinId.mockReset();
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('locked 라운드가 없으면 no_round를 반환한다', async () => {
+      mockRepository.findLatestByStatus.mockResolvedValue(null);
+
+      const result = await roundService.finalizeRound(endPriceData);
+
+      expect(result.status).toBe('no_round');
+      expect(mockTransition).not.toHaveBeenCalled();
+    });
+
+    it('endTime이 지나지 않았으면 not_ready를 반환한다', async () => {
+      const round = createLockedRound({ endTime: NOW + 60_000 });
+      mockRepository.findLatestByStatus.mockResolvedValue(round);
+
+      const result = await roundService.finalizeRound(endPriceData);
+
+      expect(result.status).toBe('not_ready');
+      expect(result.round).toEqual(round);
+      expect(mockTransition).not.toHaveBeenCalled();
+    });
+
+    it('필수 필드가 없으면 BusinessRuleError를 던진다', async () => {
+      const round = createLockedRound({ goldStartPrice: null });
+      mockRepository.findLatestByStatus.mockResolvedValue(round);
+
+      await expect(roundService.finalizeRound(endPriceData)).rejects.toMatchObject({
+        code: 'ROUND_DATA_MISSING',
+      });
+      expect(mockTransition).not.toHaveBeenCalled();
+    });
+
+    it('성공 시 on-chain finalize_round 실행 후 SETTLED/VOIDED로 전이한다 (Job5 미호출)', async () => {
+      const round = createLockedRound();
+      mockRepository.findLatestByStatus.mockResolvedValue(round);
+
+      const calculatingRound = { ...round, status: 'CALCULATING' as const };
+      const settledRound = {
+        ...round,
+        status: 'SETTLED' as const,
+        suiSettlementObjectId: '0xsettlement',
+      };
+      mockTransition.mockResolvedValueOnce(calculatingRound).mockResolvedValueOnce(settledRound);
+      const settleSpy = vi.spyOn(roundService, 'settleRound');
+
+      const result = await roundService.finalizeRound(endPriceData);
+
+      expect(result.status).toBe('finalized');
+      expect(mockFinalizeRoundOnChain).toHaveBeenCalledTimes(1);
+      expect(mockRepository.updateById).toHaveBeenCalledWith(
+        round.id,
+        expect.objectContaining({
+          suiFinalizeTxDigest: '0xfinalizedigest',
+          suiSettlementObjectId: '0xsettlement',
+          suiFeeCoinObjectId: '0xfeecoin',
+        }),
+      );
+      expect(mockTransition).toHaveBeenCalledTimes(2);
+      expect(mockTransition).toHaveBeenNthCalledWith(
+        1,
+        round.id,
+        'CALCULATING',
+        expect.any(Object),
+      );
+      expect(mockTransition).toHaveBeenNthCalledWith(
+        2,
+        round.id,
+        expect.any(String),
+        expect.any(Object),
+      );
+      expect(settleSpy).not.toHaveBeenCalled();
+    });
+
+    it('기존 finalize digest가 있으면 체인 조회로 settlement/fee ID를 보강한다', async () => {
+      const round = createLockedRound({
+        suiFinalizeTxDigest: '0xexisting',
+        suiSettlementObjectId: null,
+        suiFeeCoinObjectId: null,
+      });
+      mockRepository.findLatestByStatus.mockResolvedValue(round);
+
+      mockFetchTx.mockResolvedValue({} as never);
+      mockParseSettlementId.mockReturnValue('0xsettlement');
+      mockParseFeeCoinId.mockReturnValue('0xfeecoin');
+
+      const calculatingRound = { ...round, status: 'CALCULATING' as const };
+      const settledRound = { ...round, status: 'SETTLED' as const };
+      mockTransition.mockResolvedValueOnce(calculatingRound).mockResolvedValueOnce(settledRound);
+
+      const result = await roundService.finalizeRound(endPriceData);
+
+      expect(result.status).toBe('finalized');
+      expect(mockFinalizeRoundOnChain).not.toHaveBeenCalled();
+      expect(mockFetchTx).toHaveBeenCalledWith('0xexisting');
+      expect(mockRepository.updateById).toHaveBeenCalledWith(round.id, {
+        suiSettlementObjectId: '0xsettlement',
+        suiFeeCoinObjectId: '0xfeecoin',
+      });
+    });
+
+    it('VOID 처리 시 payoutPool/fee가 0으로 저장된다', async () => {
+      const round = createLockedRound();
+      mockRepository.findLatestByStatus.mockResolvedValue(round);
+
+      mockCalculateAvgVol.mockResolvedValue({
+        goldAvgVol: 0,
+        btcAvgVol: 0,
+        meta: { source: 'mock' },
+      });
+
+      const calculatingRound = { ...round, status: 'CALCULATING' as const };
+      const voidedRound = { ...round, status: 'VOIDED' as const };
+      mockTransition.mockResolvedValueOnce(calculatingRound).mockResolvedValueOnce(voidedRound);
+
+      const result = await roundService.finalizeRound(endPriceData);
+
+      expect(result.status).toBe('finalized');
+      const transitionPayload = mockTransition.mock.calls[0]?.[2];
+      expect(transitionPayload?.payoutPool).toBe(0);
+      const secondPayload = mockTransition.mock.calls[1]?.[2];
+      expect(secondPayload?.platformFeeCollected).toBe(0);
+    });
+  });
+});
